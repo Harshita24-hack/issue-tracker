@@ -20,6 +20,7 @@ import {
 import { LocalTime } from "@/components/local-time";
 import { bugPlatforms, severities, statuses } from "@/lib/validations/bug";
 import { UserNameWithBadges } from "@/components/user-name-with-badges";
+import { getCategoryColor, platformPillClass, severityDotClass } from "@/lib/issue-colors";
 import { getIssueTypeBadgeClass } from "@/lib/issue-types";
 import { escapeSearchQuery, toSingleQueryParam } from "@/lib/search";
 import { calculatePagination } from "@/lib/pagination";
@@ -243,7 +244,7 @@ export default async function BugsPage({
   const voterSummaries = await fetchVoterSummaries(bugIds);
 
   return (
-    <div className="flex min-w-0 flex-col gap-5 lg:flex-row lg:gap-7">
+    <div className="flex min-w-0 flex-col gap-5 xl:-mx-32 lg:flex-row lg:gap-6">
       <BugSidebar
         counts={{
           all: totalCount,
@@ -292,9 +293,10 @@ export default async function BugsPage({
           {!isDeletedView ? (
             <Link
               href="/bugs/new"
-              className="inline-flex items-center justify-center rounded-lg bg-teal-700 px-3.5 py-2 text-sm font-medium text-white hover:bg-teal-800"
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2"
             >
-              Report issue
+              <span aria-hidden="true" className="text-base leading-none">+</span>
+              New issue
             </Link>
           ) : null}
         </div>
@@ -302,30 +304,78 @@ export default async function BugsPage({
 
       <section
         aria-label="Issue status summary"
-        className="grid grid-cols-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm sm:grid-cols-4"
+        className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-slate-200 bg-slate-200 shadow-sm sm:grid-cols-4"
       >
         {[
-          { label: "Total issues", count: totalCount, marker: "bg-slate-400" },
-          { label: "Open", count: openCount, marker: "bg-sky-500" },
-          { label: "In progress", count: inProgressCount, marker: "bg-violet-500" },
-          { label: "Closed", count: closedCount, marker: "bg-emerald-500" },
+          {
+            label: "Total issues",
+            count: totalCount,
+            tile: "bg-sky-50 text-sky-700",
+            bar: "bg-sky-500",
+            icon: "M7 3h7l4 4v14H7zM14 3v5h5M10 13h5M10 17h5",
+          },
+          {
+            label: "Open",
+            count: openCount,
+            tile: "bg-emerald-50 text-emerald-700",
+            bar: "bg-emerald-500",
+            icon: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM8.5 12.5l2.5 2.5 4.5-5",
+          },
+          {
+            label: "In progress",
+            count: inProgressCount,
+            tile: "bg-violet-50 text-violet-700",
+            bar: "bg-violet-500",
+            icon: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM12 7v5l3 2",
+          },
+          {
+            label: "Closed",
+            count: closedCount,
+            tile: "bg-slate-100 text-slate-600",
+            bar: "bg-slate-400",
+            icon: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM9 12l2 2 4-4",
+          },
         ].map((stat, index) => (
-          <div
-            key={stat.label}
-            className={`px-4 py-3.5 sm:px-5 ${
-              index > 0 ? "border-l border-slate-100" : ""
-            } ${index > 1 ? "border-t border-slate-100 sm:border-t-0" : ""}`}
-          >
-            <div className="flex items-center gap-2">
-              <span
+          <div key={stat.label} className="flex items-center gap-3 bg-white px-4 py-4">
+            <span
+              aria-hidden="true"
+              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${stat.tile}`}
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-5 w-5"
+              >
+                <path d={stat.icon} />
+              </svg>
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-2xl font-semibold leading-none tabular-nums text-slate-950">
+                {stat.count}
+              </p>
+              <p className="mt-1 text-xs font-medium text-slate-600">{stat.label}</p>
+              <div
                 aria-hidden="true"
-                className={`h-2 w-2 rounded-full ${stat.marker}`}
-              />
-              <p className="text-xs font-medium text-slate-600">{stat.label}</p>
+                className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100"
+              >
+                <div
+                  className={`h-full rounded-full ${stat.bar}`}
+                  style={{
+                    width: `${
+                      index === 0 || totalCount === 0
+                        ? index === 0 && totalCount > 0
+                          ? 100
+                          : 0
+                        : Math.round((stat.count / totalCount) * 100)
+                    }%`,
+                  }}
+                />
+              </div>
             </div>
-            <p className="mt-1 text-xl font-semibold tabular-nums text-slate-950">
-              {stat.count}
-            </p>
           </div>
         ))}
       </section>
@@ -353,13 +403,13 @@ export default async function BugsPage({
               href="/bugs/new"
               className="inline-flex items-center justify-center rounded-lg bg-teal-700 px-3.5 py-2 text-sm font-medium text-white hover:bg-teal-800"
             >
-              Report issue
+              New issue
             </Link>
           </div>
         </div>
       ) : (
         <>
-          <ul className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white">
+          <ul className="space-y-2.5">
           {bugs.map((bug) => {
             const userVote =
               Array.isArray(bug.votes) && bug.votes.length > 0
@@ -370,7 +420,7 @@ export default async function BugsPage({
             return (
               <li
                 key={bug.id}
-                className="flex items-start gap-3 px-3 py-3.5 sm:px-4 sm:py-4 transition hover:bg-slate-50"
+                className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white px-3 py-3.5 shadow-sm transition hover:border-slate-300 hover:shadow-md sm:px-4 sm:py-4"
               >
                 <VoteButton
                   bugId={bug.id}
@@ -380,11 +430,20 @@ export default async function BugsPage({
                   dislikeCount={voterSummary.dislikes.count}
                   size="sm"
                 />
-                <Link href={`/bugs/${bug.id}`} className="min-w-0 flex-1">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="min-w-0 space-y-1">
-                      <p className="font-medium text-slate-900 break-words">{bug.title}</p>
+                <Link
+                  href={`/bugs/${bug.id}`}
+                  className="min-w-0 flex-1 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700"
+                >
+                  <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                    <div className="min-w-0 space-y-1.5">
+                      <p className="line-clamp-2 break-words text-[15px] font-semibold leading-snug text-slate-900">
+                        {bug.title}
+                      </p>
                       <p className="flex flex-wrap items-center gap-x-1 gap-y-1 text-xs text-slate-500">
+                        <span className="font-mono text-slate-400">
+                          #{bug.id.slice(-6)}
+                        </span>
+                        <span>·</span>
                         <span>Reported by</span>
                         <UserNameWithBadges
                           name={bug.reporter.name}
@@ -403,46 +462,9 @@ export default async function BugsPage({
                           <span>Unassigned</span>
                         )}
                         <span>· <LocalTime date={bug.updatedAt} /></span>
-                        <span>
-                          · {bug._count.comments} comment
-                          {bug._count.comments === 1 ? "" : "s"}
-                        </span>
-                        {bug.proofLinks.length > 0 ? (
-                          <span>
-                            · {bug.proofLinks.length} proof link
-                            {bug.proofLinks.length === 1 ? "" : "s"}
-                          </span>
-                        ) : null}
                       </p>
-
-                      {/* Compact voter avatars under bug details */}
-                      {(voterSummary.likes.count > 0 ||
-                        voterSummary.dislikes.count > 0) && (
-                        <div className="flex flex-wrap items-center gap-3 pt-1 text-xs text-slate-500">
-                          {voterSummary.likes.count > 0 && (
-                            <div className="flex items-center gap-1.5">
-                              <span>👍 {voterSummary.likes.count}</span>
-                              <VoterAvatars
-                                voters={voterSummary.likes.voters}
-                                totalCount={voterSummary.likes.count}
-                                size="sm"
-                              />
-                            </div>
-                          )}
-                          {voterSummary.dislikes.count > 0 && (
-                            <div className="flex items-center gap-1.5">
-                              <span>👎 {voterSummary.dislikes.count}</span>
-                              <VoterAvatars
-                                voters={voterSummary.dislikes.voters}
-                                totalCount={voterSummary.dislikes.count}
-                                size="sm"
-                              />
-                            </div>
-                          )}
-                        </div>
-                      )}
                     </div>
-                    <div className="flex shrink-0 flex-wrap gap-1.5 self-start">
+                    <div className="flex shrink-0 flex-wrap items-center gap-1.5 self-start xl:self-center">
                       {bug.isDeleted ? (
                         <span className="inline-flex items-center gap-1 rounded-full border border-red-300 bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-900">
                           🗑️ Deleted
@@ -463,21 +485,74 @@ export default async function BugsPage({
                         </span>
                       ) : null}
                       {bug.category ? (
-                        <Badge className="border border-teal-200 bg-teal-50 text-teal-800">
+                        <Badge
+                          className={getCategoryColor(bug.category.name).pill}
+                        >
                           {bug.category.name}
                         </Badge>
                       ) : null}
-                      <Badge className={statusClass[bug.status]}>
-                        {statusLabels[bug.status]}
-                      </Badge>
-                      <Badge className={severityClass[bug.severity]}>
-                        {severityLabels[bug.severity]}
-                      </Badge>
                       {bug.platform ? (
-                        <Badge className="bg-slate-100 text-slate-700">
+                        <Badge className={platformPillClass[bug.platform]}>
                           {bugPlatformLabels[bug.platform]}
                         </Badge>
                       ) : null}
+                      <Badge className={severityClass[bug.severity]}>
+                        <span
+                          aria-hidden="true"
+                          className={`mr-1.5 h-1.5 w-1.5 rounded-full ${severityDotClass[bug.severity]}`}
+                        />
+                        {severityLabels[bug.severity]}
+                      </Badge>
+                      <Badge className={statusClass[bug.status]}>
+                        {statusLabels[bug.status]}
+                      </Badge>
+                      {voterSummary.likes.count > 0 ? (
+                        <span className="ml-1 hidden items-center sm:inline-flex">
+                          <VoterAvatars
+                            voters={voterSummary.likes.voters}
+                            totalCount={voterSummary.likes.count}
+                            size="sm"
+                          />
+                        </span>
+                      ) : null}
+                      <span
+                        className="ml-1 inline-flex items-center gap-1 text-xs font-medium text-slate-500"
+                        title={`${bug._count.comments} comment${bug._count.comments === 1 ? "" : "s"}`}
+                      >
+                        <svg
+                          aria-hidden="true"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="h-4 w-4"
+                        >
+                          <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12Z" />
+                        </svg>
+                        {bug._count.comments}
+                        <span className="sr-only"> comments</span>
+                      </span>
+                      <span
+                        className="inline-flex items-center gap-1 text-xs font-medium text-slate-500"
+                        title={`${bug.proofLinks.length} proof link${bug.proofLinks.length === 1 ? "" : "s"}`}
+                      >
+                        <svg
+                          aria-hidden="true"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="h-4 w-4"
+                        >
+                          <path d="m21 12-8.5 8.5a5 5 0 0 1-7-7L14 5a3.5 3.5 0 0 1 5 5l-8.6 8.6a2 2 0 0 1-3-3L15 8" />
+                        </svg>
+                        {bug.proofLinks.length}
+                        <span className="sr-only"> proof links</span>
+                      </span>
                     </div>
                   </div>
                 </Link>

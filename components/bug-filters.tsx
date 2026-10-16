@@ -44,7 +44,7 @@ function FilterSelect({
   children: ReactNode;
 }) {
   return (
-    <div>
+    <div className="w-[calc(50%-0.375rem)] lg:w-32">
       <label htmlFor={id} className="mb-1.5 block text-xs font-semibold text-slate-600">
         {label}
       </label>
@@ -131,26 +131,40 @@ export function BugFilters({
       aria-label="Search, filter, and sort issues"
       className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
     >
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-        <div className="sm:col-span-2 xl:col-span-2">
-          <label htmlFor="q" className="mb-1.5 block text-xs font-semibold text-slate-600">
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="min-w-full lg:min-w-56 lg:flex-1">
+          <label htmlFor="q" className="sr-only">
             Search issues
           </label>
-          <input
-            key={params.get("q") ?? ""}
-            id="q"
-            name="q"
-            type="search"
-            defaultValue={params.get("q") ?? ""}
-            placeholder="Search title or description"
-            className={controlClass}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                update("q", event.currentTarget.value.trim());
-              }
-            }}
-            onBlur={(event) => update("q", event.currentTarget.value.trim())}
-          />
+          <div className="relative">
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+            >
+              <circle cx="11" cy="11" r="7" />
+              <path d="m20 20-3.5-3.5" />
+            </svg>
+            <input
+              key={params.get("q") ?? ""}
+              id="q"
+              name="q"
+              type="search"
+              defaultValue={params.get("q") ?? ""}
+              placeholder="Search title or description…"
+              className={`${controlClass} pl-9`}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  update("q", event.currentTarget.value.trim());
+                }
+              }}
+              onBlur={(event) => update("q", event.currentTarget.value.trim())}
+            />
+          </div>
         </div>
         <FilterSelect
           id="status"
@@ -204,42 +218,10 @@ export function BugFilters({
             </option>
           ))}
         </FilterSelect>
-      </div>
-      <div className="flex flex-col gap-3 border-t border-slate-100 pt-3 sm:flex-row sm:items-center sm:justify-between">
-        {activeFilters.length > 0 ? (
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <span className="text-xs font-medium text-slate-500">Active filters</span>
-            {activeFilters.map((filter) => (
-              <button
-                key={filter.key}
-                type="button"
-                onClick={() => update(filter.key, "")}
-                aria-label={`Remove ${filter.label} filter`}
-                className="inline-flex max-w-full items-center gap-1 rounded-full border border-teal-100 bg-teal-50 px-2.5 py-1 text-xs font-medium text-teal-900 transition hover:bg-teal-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700"
-              >
-                <span className="truncate">{filter.label}</span>
-                <span aria-hidden="true" className="text-teal-700">
-                  ×
-                </span>
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={clearFilters}
-              className="text-xs font-semibold text-teal-800 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700"
-            >
-              Clear all
-            </button>
-          </div>
-        ) : (
-          <span className="text-xs text-slate-500">
-            Refine the list by status, severity, category, or platform.
-          </span>
-        )}
-        <div className="flex shrink-0 items-center gap-2 sm:ml-auto">
+        <div className="w-[calc(50%-0.375rem)] lg:w-40">
           <label
             htmlFor="sort"
-            className="whitespace-nowrap text-xs font-semibold text-slate-600"
+            className="mb-1.5 block text-xs font-semibold text-slate-600"
           >
             Sort by
           </label>
@@ -247,7 +229,7 @@ export function BugFilters({
             id="sort"
             value={parseBugSort(params.get("sort"))}
             onChange={(event) => update("sort", event.target.value)}
-            className={`${controlClass} w-auto min-w-40`}
+            className={controlClass}
           >
             {BUG_SORT_OPTIONS.map((option) => (
               <option key={option} value={option}>
@@ -257,6 +239,31 @@ export function BugFilters({
           </select>
         </div>
       </div>
+      {activeFilters.length > 0 ? (
+        <div className="flex min-w-0 flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+          {activeFilters.map((filter) => (
+            <button
+              key={filter.key}
+              type="button"
+              onClick={() => update(filter.key, "")}
+              aria-label={`Remove ${filter.label} filter`}
+              className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700"
+            >
+              <span className="truncate">{filter.label}</span>
+              <span aria-hidden="true" className="text-slate-500">
+                ×
+              </span>
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="text-xs font-semibold text-teal-800 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700"
+          >
+            Clear all
+          </button>
+        </div>
+      ) : null}
     </section>
   );
 }

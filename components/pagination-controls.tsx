@@ -42,17 +42,13 @@ export function PaginationControls({
           {prevUrl ? (
             <Link
               href={prevUrl}
-              className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:outline-none"
-            >
-              Previous
-            </Link>
+              className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white h-8 w-8 text-xs font-medium text-slate-700 transition hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:outline-none"
+            ><svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5l-5 5 5 5" /></svg></Link>
           ) : (
             <span
               aria-disabled="true"
-              className="inline-flex cursor-not-allowed items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-400"
-            >
-              Previous
-            </span>
+              className="inline-flex cursor-not-allowed items-center justify-center rounded-lg border border-slate-200 bg-slate-50 h-8 w-8 text-xs font-medium text-slate-400"
+            ><svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5l-5 5 5 5" /></svg></span>
           )}
 
           <div className="flex items-center gap-1">
@@ -94,17 +90,13 @@ export function PaginationControls({
           {nextUrl ? (
             <Link
               href={nextUrl}
-              className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:outline-none"
-            >
-              Next
-            </Link>
+              className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white h-8 w-8 text-xs font-medium text-slate-700 transition hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:outline-none"
+            ><svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 5l5 5-5 5" /></svg></Link>
           ) : (
             <span
               aria-disabled="true"
-              className="inline-flex cursor-not-allowed items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-400"
-            >
-              Next
-            </span>
+              className="inline-flex cursor-not-allowed items-center justify-center rounded-lg border border-slate-200 bg-slate-50 h-8 w-8 text-xs font-medium text-slate-400"
+            ><svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 5l5 5-5 5" /></svg></span>
           )}
         </div>
       )}
