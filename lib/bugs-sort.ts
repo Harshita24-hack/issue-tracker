@@ -1,6 +1,13 @@
 import type { Prisma } from "@prisma/client";
 
-export const BUG_SORT_OPTIONS = ["newest", "top_votes", "lowest_votes"] as const;
+export const BUG_SORT_OPTIONS = [
+  "newest",
+  "top_votes",
+  "lowest_votes",
+  "oldest",
+  "most_comments",
+  "recently_updated",
+] as const;
 export type BugSortOption = (typeof BUG_SORT_OPTIONS)[number];
 
 export const DEFAULT_BUG_SORT: BugSortOption = "newest";
@@ -9,12 +16,18 @@ export const bugSortLabels: Record<BugSortOption, string> = {
   newest: "Newest",
   top_votes: "Top Votes",
   lowest_votes: "Lowest Votes",
+  oldest: "Oldest",
+  most_comments: "Most Comments",
+  recently_updated: "Recently Updated",
 };
 
 export const bugSortDescriptions: Record<BugSortOption, string> = {
   newest: "newest",
   top_votes: "top votes",
   lowest_votes: "lowest votes",
+  oldest: "oldest",
+  most_comments: "most comments",
+  recently_updated: "recently updated",
 };
 
 /** Sort key for bug lists: highest votes first, then most recently updated. */
@@ -55,6 +68,23 @@ export function parseBugSort(
   ) {
     return "lowest_votes";
   }
+  if (normalized === "oldest" || normalized === "old") {
+    return "oldest";
+  }
+  if (
+    normalized === "most_comments" ||
+    normalized === "comments" ||
+    normalized === "mostcomments"
+  ) {
+    return "most_comments";
+  }
+  if (
+    normalized === "recently_updated" ||
+    normalized === "updated" ||
+    normalized === "recentlyupdated"
+  ) {
+    return "recently_updated";
+  }
   return DEFAULT_BUG_SORT;
 }
 
@@ -77,6 +107,16 @@ export function getBugOrderBy(
           { updatedAt: "desc" },
           { createdAt: "desc" },
         ];
+      case "oldest":
+        return [{ createdAt: "asc" }, { id: "asc" }];
+      case "most_comments":
+        return [
+          { comments: { _count: "desc" } },
+          { updatedAt: "desc" },
+          { createdAt: "desc" },
+        ];
+      case "recently_updated":
+        return [{ updatedAt: "desc" }, { createdAt: "desc" }];
     }
   })();
 
@@ -134,6 +174,7 @@ export function compareBugsByNewest(
 export type BugSortableItem = {
   id?: string;
   voteCount: number;
+  commentCount?: number;
   isBoosted?: boolean;
   boostedAt?: Date | string | null;
   createdAt: Date | string;
@@ -165,6 +206,21 @@ export function sortBugs<T extends BugSortableItem>(
         return compareBugsByLowestVotes(
           { voteCount: a.voteCount, updatedAt: a.updatedAt ?? a.createdAt },
           { voteCount: b.voteCount, updatedAt: b.updatedAt ?? b.createdAt },
+        );
+      case "oldest":
+        return -compareBugsByNewest(a, b);
+      case "most_comments": {
+        const diff = (b.commentCount ?? 0) - (a.commentCount ?? 0);
+        if (diff !== 0) return diff;
+        return (
+          new Date(b.updatedAt ?? b.createdAt).getTime() -
+          new Date(a.updatedAt ?? a.createdAt).getTime()
+        );
+      }
+      case "recently_updated":
+        return (
+          new Date(b.updatedAt ?? b.createdAt).getTime() -
+          new Date(a.updatedAt ?? a.createdAt).getTime()
         );
     }
   });

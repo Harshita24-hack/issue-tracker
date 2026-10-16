@@ -42,6 +42,7 @@ import {
 import { canBoostTicket, TICKET_BOOST_ERRORS } from "@/lib/ticket-boosting";
 import { canAssignTicket, TICKET_ASSIGN_ERRORS } from "@/lib/ticket-assignment";
 import { Prisma, type ActivityType } from "@prisma/client";
+import { z } from "zod";
 
 export type ActionResult = { error?: string; ok?: boolean };
 
@@ -103,6 +104,7 @@ export async function createBugAction(
   const parsed = createBugSchema.safeParse({
     title: formData.get("title"),
     description: formData.get("description"),
+    platform: formData.get("platform") || undefined,
     severity: admin ? formData.get("severity") || "medium" : "medium",
     typeId: formData.get("typeId") || "",
     assigneeId: targetAssigneeId || "",
@@ -158,6 +160,7 @@ export async function createBugAction(
       data: {
         title: parsed.data.title,
         description,
+        platform: parsed.data.platform,
         severity: admin ? parsed.data.severity : "medium",
         status: "open",
         typeId,
@@ -824,6 +827,43 @@ export async function selfAssignBugAction(
 
   revalidatePath(`/bugs/${bugId}`);
   revalidatePath("/bugs");
+  return { ok: true };
+}
+
+/** Saves or removes an issue from the current user's saved list. */
+export async function setBugSavedAction(
+  bugId: string,
+  saved: unknown,
+): Promise<ActionResult> {
+  if (!z.string().cuid().safeParse(bugId).success) {
+    return { error: "Invalid issue" };
+  }
+  if (typeof saved !== "boolean") {
+    return { error: "Invalid saved state" };
+  }
+
+  const { id: userId } = await requireUser();
+
+  const bug = await prisma.bug.findUnique({
+    where: { id: bugId },
+    select: { id: true, isDeleted: true },
+  });
+  if (!bug || bug.isDeleted) {
+    return { error: "Issue not found" };
+  }
+
+  if (saved) {
+    await prisma.savedBug.upsert({
+      where: { userId_bugId: { userId, bugId } },
+      create: { userId, bugId },
+      update: {},
+    });
+  } else {
+    await prisma.savedBug.deleteMany({ where: { userId, bugId } });
+  }
+
+  revalidatePath("/bugs");
+  revalidatePath(`/bugs/${bugId}`);
   return { ok: true };
 }
 

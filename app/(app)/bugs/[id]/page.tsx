@@ -14,6 +14,7 @@ import {
 import { stripMarkdown } from "@/lib/rich-text";
 import { absoluteUrl } from "@/lib/site-url";
 import {
+  bugPlatformLabels,
   severityClass,
   severityLabels,
   statusClass,
@@ -272,6 +273,11 @@ export default async function BugDetailPage({ params }: BugPageProps) {
                 {bug.category ? (
                   <Badge className="border border-teal-200 bg-teal-50 text-teal-800">
                     {bug.category.name}
+                  </Badge>
+                ) : null}
+                {bug.platform ? (
+                  <Badge className="bg-slate-100 text-slate-700">
+                    {bugPlatformLabels[bug.platform]}
                   </Badge>
                 ) : null}
                 <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">

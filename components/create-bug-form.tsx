@@ -3,8 +3,8 @@
 import { useState, useTransition } from "react";
 import { unstable_rethrow } from "next/navigation";
 import { createBugAction, type ActionResult } from "@/app/actions/bugs";
-import { severities } from "@/lib/validations/bug";
-import { severityLabels } from "@/lib/labels";
+import { bugPlatforms, severities } from "@/lib/validations/bug";
+import { bugPlatformLabels, severityLabels } from "@/lib/labels";
 import { formatUserLabel, type AppRole } from "@/lib/roles";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +36,8 @@ export function CreateBugForm({
   const [description, setDescription] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [proofLinks, setProofLinks] = useState("");
+  const [platform, setPlatform] =
+    useState<(typeof bugPlatforms)[number]>("web");
   const [severity, setSeverity] = useState<(typeof severities)[number]>("medium");
   const [assigneeId, setAssigneeId] = useState("");
   const [assignToMe, setAssignToMe] = useState(false);
@@ -55,6 +57,7 @@ export function CreateBugForm({
         formData.set("description", description);
         formData.set("categoryId", categoryId);
         formData.set("proofLinks", proofLinks);
+        formData.set("platform", platform);
         if (isAdmin) {
           formData.set("severity", severity);
           formData.set("assigneeId", assigneeId);
@@ -124,6 +127,25 @@ export function CreateBugForm({
           {categories.map((cat) => (
             <option key={cat.id} value={cat.id}>
               {cat.name}
+            </option>
+          ))}
+        </Select>
+      </div>
+      <div className="space-y-1.5">
+        <label htmlFor="platform" className="text-sm font-medium text-slate-700">
+          Platform
+        </label>
+        <Select
+          id="platform"
+          name="platform"
+          value={platform}
+          onChange={(event) =>
+            setPlatform(event.target.value as (typeof bugPlatforms)[number])
+          }
+        >
+          {bugPlatforms.map((value) => (
+            <option key={value} value={value}>
+              {bugPlatformLabels[value]}
             </option>
           ))}
         </Select>

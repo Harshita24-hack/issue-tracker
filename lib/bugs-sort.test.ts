@@ -14,19 +14,65 @@ import {
 } from "./bugs-sort";
 
 describe("sort options constants and labels", () => {
-  it("includes newest, top_votes, and lowest_votes options", () => {
-    expect(BUG_SORT_OPTIONS).toEqual(["newest", "top_votes", "lowest_votes"]);
+  it("includes the sort options with labels and descriptions", () => {
+    expect(BUG_SORT_OPTIONS).toEqual([
+      "newest",
+      "top_votes",
+      "lowest_votes",
+      "oldest",
+      "most_comments",
+      "recently_updated",
+    ]);
     expect(DEFAULT_BUG_SORT).toBe("newest");
     expect(bugSortLabels).toEqual({
       newest: "Newest",
       top_votes: "Top Votes",
       lowest_votes: "Lowest Votes",
+      oldest: "Oldest",
+      most_comments: "Most Comments",
+      recently_updated: "Recently Updated",
     });
     expect(bugSortDescriptions).toEqual({
       newest: "newest",
       top_votes: "top votes",
       lowest_votes: "lowest votes",
+      oldest: "oldest",
+      most_comments: "most comments",
+      recently_updated: "recently updated",
     });
+  });
+});
+
+describe("parseBugSort new options", () => {
+  it("parses oldest, most_comments and recently_updated", () => {
+    expect(parseBugSort("oldest")).toBe("oldest");
+    expect(parseBugSort("most-comments")).toBe("most_comments");
+    expect(parseBugSort("updated")).toBe("recently_updated");
+  });
+});
+
+describe("sortBugs new options", () => {
+  const base = { voteCount: 0 };
+  const a = { ...base, id: "a", createdAt: "2026-01-01", commentCount: 5 };
+  const b = { ...base, id: "b", createdAt: "2026-01-02", commentCount: 1 };
+
+  it("sorts oldest first", () => {
+    expect(sortBugs([b, a], "oldest").map((bug) => bug.id)).toEqual(["a", "b"]);
+  });
+
+  it("sorts by most comments", () => {
+    expect(sortBugs([b, a], "most_comments").map((bug) => bug.id)).toEqual([
+      "a",
+      "b",
+    ]);
+  });
+
+  it("sorts by recently updated", () => {
+    const older = { ...a, updatedAt: "2026-02-01" };
+    const newer = { ...b, updatedAt: "2026-03-01" };
+    expect(
+      sortBugs([older, newer], "recently_updated").map((bug) => bug.id),
+    ).toEqual(["b", "a"]);
   });
 });
 

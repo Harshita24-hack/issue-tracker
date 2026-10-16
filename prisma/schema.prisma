@@ -31,6 +31,13 @@ enum Role {
   super_admin
 }
 
+enum BugPlatform {
+  web
+  mobile
+  desktop
+  api_backend
+}
+
 enum ActivityType {
   created
   status_changed
@@ -60,6 +67,7 @@ model User {
   votes               Vote[]
   activities          BugActivity[]
   passwordResetTokens PasswordResetToken[]
+  savedBugs           SavedBug[]
 }
 
 /// Single-use password reset tokens (~30 min TTL). Store only the SHA-256 hash.
@@ -93,6 +101,7 @@ model Bug {
   status      Status        @default(open)
   typeId      String?
   type        IssueType?    @relation(fields: [typeId], references: [id], onDelete: SetNull)
+  platform    BugPlatform?
   voteCount   Int           @default(0)
   isBoosted   Boolean       @default(false)
   boostedAt   DateTime?
@@ -110,11 +119,24 @@ model Bug {
   comments    Comment[]
   votes       Vote[]
   activities  BugActivity[]
+  savedBy     SavedBug[]
 
   @@index([categoryId])
   @@index([typeId])
+  @@index([platform])
   @@index([isBoosted])
   @@index([isDeleted])
+}
+
+model SavedBug {
+  userId    String
+  bugId     String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bug       Bug      @relation(fields: [bugId], references: [id], onDelete: Cascade)
+
+  @@id([userId, bugId])
+  @@index([bugId])
 }
 
 model Category {

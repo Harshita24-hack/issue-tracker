@@ -1,4 +1,11 @@
-import type { Severity, Status } from "@prisma/client";
+import type { BugPlatform, Severity, Status } from "@prisma/client";
+
+export const bugPlatformLabels: Record<BugPlatform, string> = {
+  web: "Web",
+  mobile: "Mobile",
+  desktop: "Desktop",
+  api_backend: "API / Backend",
+};
 
 export const severityLabel: Record<Severity, string> = {
   low: "Low",

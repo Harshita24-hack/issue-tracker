@@ -4,9 +4,11 @@ import { stripGitHubMarkup } from "@/lib/github-paste";
 
 export const severities = ["low", "medium", "high", "critical"] as const;
 export const statuses = ["open", "in_progress", "resolved", "closed"] as const;
+export const bugPlatforms = ["web", "mobile", "desktop", "api_backend"] as const;
 
 export const severitySchema = z.enum(severities);
 export const statusSchema = z.enum(statuses);
+export const bugPlatformSchema = z.enum(bugPlatforms);
 
 const MAX_PROOF_LINKS = 20;
 
@@ -54,6 +56,7 @@ export const createBugSchema = z
       .refine((val) => val.length <= 5000, {
         message: "Description cannot exceed 5000 characters",
       }),
+    platform: bugPlatformSchema.default("web"),
     severity: severitySchema.default("medium"),
     typeId: z.string().optional().nullable().or(z.literal("")),
     assigneeId: z.string().cuid().optional().or(z.literal("")),

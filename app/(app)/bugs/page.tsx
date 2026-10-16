@@ -1,21 +1,24 @@
 import Link from "next/link";
 import { Suspense } from "react";
-import type { Prisma, Severity, Status } from "@prisma/client";
+import type { BugPlatform, Prisma, Severity, Status } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { requireUser } from "@/lib/auth-helpers";
 import type { AppRole } from "@/lib/roles";
 import { BugFilters } from "@/components/bug-filters";
+import { BugSidebar } from "@/components/bug-sidebar";
+import { BugActionsMenu } from "@/components/bug-actions-menu";
 import { VoteButton } from "@/components/vote-button";
 import { Badge } from "@/components/ui/badge";
 import {
+  bugPlatformLabels,
   severityClass,
   severityLabels,
   statusClass,
   statusLabels,
 } from "@/lib/labels";
 import { LocalTime } from "@/components/local-time";
-import { severities, statuses } from "@/lib/validations/bug";
+import { bugPlatforms, severities, statuses } from "@/lib/validations/bug";
 import { UserNameWithBadges } from "@/components/user-name-with-badges";
 import { getIssueTypeBadgeClass } from "@/lib/issue-types";
 import { escapeSearchQuery, toSingleQueryParam } from "@/lib/search";
@@ -42,8 +45,13 @@ type SearchParams = Promise<{
   sort?: string | string[];
   page?: string | string[];
   deleted?: string | string[];
+  category?: string | string[];
+  platform?: string | string[];
+  view?: string | string[];
   [key: string]: string | string[] | undefined;
 }>;
+
+const views = ["all", "mine", "assigned", "created", "saved"] as const;
 
 function isStatus(value: string | undefined): value is Status {
   return !!value && (statuses as readonly string[]).includes(value);
@@ -51,6 +59,28 @@ function isStatus(value: string | undefined): value is Status {
 
 function isSeverity(value: string | undefined): value is Severity {
   return !!value && (severities as readonly string[]).includes(value);
+}
+
+function isPlatform(value: string | undefined): value is BugPlatform {
+  return !!value && (bugPlatforms as readonly string[]).includes(value);
+}
+
+function isView(value: string | undefined): value is (typeof views)[number] {
+  return !!value && (views as readonly string[]).includes(value);
+}
+
+function issueWhereForView(
+  view: (typeof views)[number],
+  userId: string | undefined,
+): Prisma.BugWhereInput | undefined {
+  if (!userId) return undefined;
+  if (view === "mine") {
+    return { OR: [{ reporterId: userId }, { assigneeId: userId }] };
+  }
+  if (view === "assigned") return { assigneeId: userId };
+  if (view === "created") return { reporterId: userId };
+  if (view === "saved") return { savedBy: { some: { userId } } };
+  return undefined;
 }
 
 export default async function BugsPage({
@@ -77,12 +107,18 @@ export default async function BugsPage({
   const sortParam = toSingleQueryParam(params.sort);
   const pageParam = toSingleQueryParam(params.page);
   const deletedParam = toSingleQueryParam(params.deleted);
+  const categoryParam = toSingleQueryParam(params.category);
+  const platformParam = toSingleQueryParam(params.platform);
+  const viewParam = toSingleQueryParam(params.view);
   const isDeletedView = canDelete && deletedParam === "true";
+  const view = isView(viewParam) ? viewParam : "all";
+  const platform = isPlatform(platformParam) ? platformParam : undefined;
 
   const currentSort = parseBugSort(sortParam);
   const where: Prisma.BugWhereInput = {
     isDeleted: isDeletedView,
   };
+  const conditions: Prisma.BugWhereInput[] = [];
 
   if (isStatus(statusParam)) {
     where.status = statusParam;
@@ -90,18 +126,97 @@ export default async function BugsPage({
   if (isSeverity(severityParam)) {
     where.severity = severityParam;
   }
+  if (categoryParam) {
+    where.categoryId = categoryParam;
+  }
+  if (platform) {
+    where.platform = platform;
+  }
   if (qParam?.trim()) {
     const q = escapeSearchQuery(qParam.trim());
-    where.OR = [
-      { title: { contains: q, mode: "insensitive" } },
-      { description: { contains: q, mode: "insensitive" } },
-    ];
+    conditions.push({
+      OR: [
+        { title: { contains: q, mode: "insensitive" } },
+        { description: { contains: q, mode: "insensitive" } },
+      ],
+    });
   }
+  const viewWhere = issueWhereForView(view, userId);
+  if (viewWhere) conditions.push(viewWhere);
+  if (conditions.length > 0) where.AND = conditions;
 
-  const totalCount = await prisma.bug.count({ where });
+  const active = { isDeleted: false };
+  const [
+    totalCount,
+    openCount,
+    inProgressCount,
+    closedCount,
+    mineCount,
+    createdCount,
+    assignedCount,
+    savedCount,
+    categoryGroups,
+    platformGroups,
+    categories,
+  ] = await Promise.all([
+    prisma.bug.count({ where: active }),
+    prisma.bug.count({ where: { ...active, status: "open" } }),
+    prisma.bug.count({ where: { ...active, status: "in_progress" } }),
+    prisma.bug.count({
+      where: { ...active, status: { in: ["resolved", "closed"] } },
+    }),
+    userId
+      ? prisma.bug.count({
+          where: {
+            ...active,
+            OR: [{ reporterId: userId }, { assigneeId: userId }],
+          },
+        })
+      : 0,
+    userId
+      ? prisma.bug.count({ where: { ...active, reporterId: userId } })
+      : 0,
+    userId
+      ? prisma.bug.count({ where: { ...active, assigneeId: userId } })
+      : 0,
+    userId
+      ? prisma.bug.count({
+          where: { ...active, savedBy: { some: { userId } } },
+        })
+      : 0,
+    prisma.bug.groupBy({
+      by: ["categoryId"],
+      where: { ...active, categoryId: { not: null } },
+      _count: { _all: true },
+    }),
+    prisma.bug.groupBy({
+      by: ["platform"],
+      where: { ...active, platform: { not: null } },
+      _count: { _all: true },
+    }),
+    prisma.category.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+  ]);
+
+  const categoryCounts = new Map(
+    categoryGroups.map((group) => [group.categoryId, group._count._all]),
+  );
+  const platformCounts: Partial<Record<BugPlatform, number>> = {};
+  for (const group of platformGroups) {
+    if (group.platform) platformCounts[group.platform] = group._count._all;
+  }
+  const sidebarCategories = categories.map((item) => ({
+    ...item,
+    count: categoryCounts.get(item.id) ?? 0,
+  }));
+
+  const filteredCount = await prisma.bug.count({ where });
   const pagination = calculatePagination({
     page: pageParam,
-    totalCount,
+    totalCount: filteredCount,
   });
 
   const bugs = await prisma.bug.findMany({
@@ -114,6 +229,10 @@ export default async function BugsPage({
       votes: userId
         ? { where: { userId }, select: { id: true, value: true }, take: 1 }
         : false,
+      savedBy: userId
+        ? { where: { userId }, select: { userId: true }, take: 1 }
+        : false,
+      _count: { select: { comments: true } },
     },
     orderBy: getBugOrderBy(currentSort),
     skip: pagination.skip,
@@ -124,7 +243,22 @@ export default async function BugsPage({
   const voterSummaries = await fetchVoterSummaries(bugIds);
 
   return (
-    <div className="space-y-6">
+    <div className="flex min-w-0 flex-col gap-5 lg:flex-row lg:gap-7">
+      <BugSidebar
+        counts={{
+          all: totalCount,
+          mine: mineCount,
+          assigned: assignedCount,
+          created: createdCount,
+          saved: savedCount,
+          platforms: platformCounts,
+        }}
+        categories={sidebarCategories}
+        view={view}
+        categoryId={categoryParam}
+        platform={platform}
+      />
+      <section className="min-w-0 flex-1 space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
@@ -138,7 +272,7 @@ export default async function BugsPage({
             ) : null}
           </div>
           <p className="text-sm text-slate-600">
-            {totalCount} result{totalCount === 1 ? "" : "s"} · sorted by{" "}
+            {filteredCount} result{filteredCount === 1 ? "" : "s"} · sorted by{" "}
             {bugSortDescriptions[currentSort]}
           </p>
         </div>
@@ -166,10 +300,40 @@ export default async function BugsPage({
         </div>
       </div>
 
-      <Suspense
-        fallback={<div className="h-12 animate-pulse rounded-lg bg-slate-100" />}
+      <section
+        aria-label="Issue status summary"
+        className="grid grid-cols-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm sm:grid-cols-4"
       >
-        <BugFilters />
+        {[
+          { label: "Total issues", count: totalCount, marker: "bg-slate-400" },
+          { label: "Open", count: openCount, marker: "bg-sky-500" },
+          { label: "In progress", count: inProgressCount, marker: "bg-violet-500" },
+          { label: "Closed", count: closedCount, marker: "bg-emerald-500" },
+        ].map((stat, index) => (
+          <div
+            key={stat.label}
+            className={`px-4 py-3.5 sm:px-5 ${
+              index > 0 ? "border-l border-slate-100" : ""
+            } ${index > 1 ? "border-t border-slate-100 sm:border-t-0" : ""}`}
+          >
+            <div className="flex items-center gap-2">
+              <span
+                aria-hidden="true"
+                className={`h-2 w-2 rounded-full ${stat.marker}`}
+              />
+              <p className="text-xs font-medium text-slate-600">{stat.label}</p>
+            </div>
+            <p className="mt-1 text-xl font-semibold tabular-nums text-slate-950">
+              {stat.count}
+            </p>
+          </div>
+        ))}
+      </section>
+
+      <Suspense
+        fallback={<div className="h-36 animate-pulse rounded-xl bg-slate-100" />}
+      >
+        <BugFilters categories={categories} />
       </Suspense>
 
       {bugs.length === 0 ? (
@@ -239,6 +403,10 @@ export default async function BugsPage({
                           <span>Unassigned</span>
                         )}
                         <span>· <LocalTime date={bug.updatedAt} /></span>
+                        <span>
+                          · {bug._count.comments} comment
+                          {bug._count.comments === 1 ? "" : "s"}
+                        </span>
                         {bug.proofLinks.length > 0 ? (
                           <span>
                             · {bug.proofLinks.length} proof link
@@ -305,9 +473,24 @@ export default async function BugsPage({
                       <Badge className={severityClass[bug.severity]}>
                         {severityLabels[bug.severity]}
                       </Badge>
+                      {bug.platform ? (
+                        <Badge className="bg-slate-100 text-slate-700">
+                          {bugPlatformLabels[bug.platform]}
+                        </Badge>
+                      ) : null}
                     </div>
                   </div>
                 </Link>
+                <div className="flex shrink-0 items-center gap-1 self-center pl-1">
+                  {userId ? (
+                    <BugActionsMenu
+                      bugId={bug.id}
+                      initiallySaved={
+                        Array.isArray(bug.savedBy) && bug.savedBy.length > 0
+                      }
+                    />
+                  ) : null}
+                </div>
                 {canBoost || canDelete ? (
                   <div className="flex shrink-0 items-center gap-1 self-center pl-1">
                     {canBoost && !bug.isDeleted ? (
@@ -348,12 +531,15 @@ export default async function BugsPage({
         <PaginationControls
           page={pagination.page}
           totalPages={pagination.totalPages}
-          totalCount={totalCount}
+          totalCount={filteredCount}
           from={pagination.from}
           to={pagination.to}
           queryParams={{
             ...(statusParam ? { status: statusParam } : {}),
             ...(severityParam ? { severity: severityParam } : {}),
+            ...(categoryParam ? { category: categoryParam } : {}),
+            ...(platformParam ? { platform: platformParam } : {}),
+            ...(viewParam ? { view: viewParam } : {}),
             ...(qParam ? { q: qParam } : {}),
             ...(isDeletedView ? { deleted: "true" } : {}),
             sort: sortParam,
@@ -361,6 +547,7 @@ export default async function BugsPage({
         />
         </>
       )}
+      </section>
     </div>
   );
 }

@@ -23,6 +23,7 @@ describe("createBugSchema", () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.severity).toBe("high");
+      expect(result.data.platform).toBe("web");
       expect(result.data.title).toBe("Login button broken");
     }
   });
@@ -36,7 +37,31 @@ describe("createBugSchema", () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.severity).toBe("medium");
+      expect(result.data.platform).toBe("web");
     }
+  });
+
+  it("accepts a platform selection", () => {
+    const result = createBugSchema.safeParse({
+      title: "Broken responsive layout",
+      description: "The dashboard overflows on a tablet.",
+      platform: "mobile",
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.platform).toBe("mobile");
+    }
+  });
+
+  it("rejects an invalid platform value", () => {
+    const result = createBugSchema.safeParse({
+      title: "Invalid issue metadata",
+      description: "This payload should not accept unknown choices.",
+      platform: "smartwatch",
+    });
+
+    expect(result.success).toBe(false);
   });
 
   it("rejects a short title", () => {
