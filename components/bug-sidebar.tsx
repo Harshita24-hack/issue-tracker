@@ -173,16 +173,11 @@ export function BugSidebar({
   platform,
 }: BugSidebarProps) {
   const filtered = Boolean(categoryId || platform);
-  const categoryTotal = categories.reduce((sum, item) => sum + item.count, 0);
-  const platformTotal = Object.values(counts.platforms).reduce(
-    (sum, value) => sum + (value ?? 0),
-    0,
-  );
 
   return (
     <aside
       aria-label="Issue navigation"
-      className="min-w-0 border-b border-slate-200 pb-3 lg:w-56 lg:shrink-0 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-4"
+      className="min-w-0 bg-white border-b border-slate-200 pb-3 lg:w-56 lg:shrink-0 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-4"
     >
       <div className="flex gap-6 overflow-x-auto lg:sticky lg:top-6 lg:block lg:space-y-5 lg:overflow-visible">
         <SidebarGroup>
@@ -202,7 +197,7 @@ export function BugSidebar({
             <SidebarLink
               href="/bugs"
               label="All categories"
-              count={categoryTotal}
+              count={counts.all}
               active={false}
               leading={
                 <span className="block h-2.5 w-2.5 rounded-full bg-blue-600" />
@@ -228,7 +223,7 @@ export function BugSidebar({
           <SidebarLink
             href="/bugs"
             label="All platforms"
-            count={platformTotal}
+            count={counts.all}
             active={false}
             leading={icons.web}
           />

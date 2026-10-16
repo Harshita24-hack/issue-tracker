@@ -17,7 +17,7 @@ export default async function AppLayout({
     const ua = (await headers()).get("user-agent");
     if (isLinkPreviewBot(ua)) {
       return (
-        <div className="flex min-h-screen flex-col bg-slate-50">
+        <div className="flex min-h-screen flex-col bg-white">
           <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">
             {children}
           </main>
@@ -29,7 +29,7 @@ export default async function AppLayout({
   const user = await requireUser();
 
   return (
-    <div className="flex min-h-screen flex-col bg-slate-50">
+    <div className="flex min-h-screen flex-col bg-white">
       <AppHeader
         userName={user.name ?? user.email}
         role={user.role}

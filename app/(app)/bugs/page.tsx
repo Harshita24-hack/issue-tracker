@@ -313,6 +313,7 @@ export default async function BugsPage({
             tile: "bg-sky-50 text-sky-700",
             bar: "bg-sky-500",
             icon: "M7 3h7l4 4v14H7zM14 3v5h5M10 13h5M10 17h5",
+            href: "/bugs",
           },
           {
             label: "Open",
@@ -320,6 +321,7 @@ export default async function BugsPage({
             tile: "bg-emerald-50 text-emerald-700",
             bar: "bg-emerald-500",
             icon: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM8.5 12.5l2.5 2.5 4.5-5",
+            href: "/bugs?status=open",
           },
           {
             label: "In progress",
@@ -327,6 +329,7 @@ export default async function BugsPage({
             tile: "bg-violet-50 text-violet-700",
             bar: "bg-violet-500",
             icon: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM12 7v5l3 2",
+            href: "/bugs?status=in_progress",
           },
           {
             label: "Closed",
@@ -335,8 +338,11 @@ export default async function BugsPage({
             bar: "bg-slate-400",
             icon: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM9 12l2 2 4-4",
           },
-        ].map((stat, index) => (
-          <div key={stat.label} className="flex items-center gap-3 bg-white px-4 py-4">
+        ].map((stat) => {
+          const className =
+            "flex items-center gap-3 bg-white px-4 py-4 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-700";
+          const content = (
+            <>
             <span
               aria-hidden="true"
               className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${stat.tile}`}
@@ -365,19 +371,23 @@ export default async function BugsPage({
                 <div
                   className={`h-full rounded-full ${stat.bar}`}
                   style={{
-                    width: `${
-                      index === 0 || totalCount === 0
-                        ? index === 0 && totalCount > 0
-                          ? 100
-                          : 0
-                        : Math.round((stat.count / totalCount) * 100)
-                    }%`,
+                    width: `${totalCount === 0 ? 0 : Math.round((stat.count / totalCount) * 100)}%`,
                   }}
                 />
               </div>
             </div>
-          </div>
-        ))}
+            </>
+          );
+          return stat.href ? (
+            <Link key={stat.label} href={stat.href} className={className}>
+              {content}
+            </Link>
+          ) : (
+            <div key={stat.label} className={className}>
+              {content}
+            </div>
+          );
+        })}
       </section>
 
       <Suspense
