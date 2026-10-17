@@ -1,0 +1,45 @@
+BEFORE -> AFTER  (PR #239: fix(221): reserve bottom clearance for the fixed Report issue FAB)
+Ticket: 221
+Merge commit: b8f2c905a27df9b9d68c59f7e59aabd1dd211520
+
+The BEFORE behaviour is exactly the code removed below.
+
+diff --git a/app/(app)/layout.tsx b/app/(app)/layout.tsx
+index 002c3eb..64c9cbe 100644
+--- a/app/(app)/layout.tsx
++++ b/app/(app)/layout.tsx
+@@ -38,7 +38,15 @@ export default async function AppLayout({
+         isRealSuperAdmin={user.isRealSuperAdmin}
+         isRealAdmin={user.isRealAdmin}
+       />
+-      <main className="mx-auto w-full max-w-5xl flex-1 px-3.5 py-5 sm:px-4 sm:py-8">
++      <main
++        className={`mx-auto w-full max-w-5xl flex-1 px-3.5 pt-5 sm:px-4 sm:pt-8 ${
++          // #221: the fixed FAB sits over the bottom-right of the viewport and
++          // was covering pagination "Next" and the Danger-zone Delete button.
++          // Reserve clearance only when the FAB actually renders, so we don't
++          // leave dead space in deployments without REPORT_FORM_URL.
++          REPORT_FORM_URL ? "pb-20 sm:pb-24" : "pb-5 sm:pb-8"
++        }`}
++      >
+         {children}
+       </main>
+       <ReportIssueFab href={REPORT_FORM_URL} />
+diff --git a/app/(auth)/layout.tsx b/app/(auth)/layout.tsx
+index 19668dd..37bc071 100644
+--- a/app/(auth)/layout.tsx
++++ b/app/(auth)/layout.tsx
+@@ -5,7 +5,12 @@ import { REPORT_FORM_URL } from "@/lib/report-form";
+ export default function AuthLayout({ children }: { children: ReactNode }) {
+   return (
+     <>
+-      {children}
++      {/* #221: reserve clearance for the fixed FAB so it cannot sit on top of
++          the primary action (e.g. "Continue with Google") on short viewports.
++          Applied only when the FAB actually renders. */}
++      <div className={REPORT_FORM_URL ? "pb-20 sm:pb-24" : undefined}>
++        {children}
++      </div>
+       <ReportIssueFab href={REPORT_FORM_URL} />
+     </>
+   );

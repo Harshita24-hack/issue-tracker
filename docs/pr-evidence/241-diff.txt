@@ -1,0 +1,48 @@
+BEFORE -> AFTER  (PR #241: feat(224): own robots.txt via app/robots.ts)
+Ticket: 224
+Merge commit: d3438fe4acca9031535193cca3773cdc60b95c9e
+
+The BEFORE behaviour is exactly the code removed below.
+
+diff --git a/app/robots.ts b/app/robots.ts
+new file mode 100644
+index 0000000..05196c9
+--- /dev/null
++++ b/app/robots.ts
+@@ -0,0 +1,35 @@
++import type { MetadataRoute } from "next";
++
++/**
++ * Owns robots.txt rather than letting the platform generate it (#224).
++ *
++ * The previous file was only Vercel's auto-injected content-signals comment
++ * block: no `User-agent` rules, no `Disallow`, and no `Content-Signal`
++ * directives despite the preamble describing them at length.
++ *
++ * Note on `/bugs`: it is intentionally left crawlable. Link previews are a
++ * supported feature (Slack / WhatsApp / Discord unfurls of shared issue
++ * links), and those crawlers do fetch the URL. Everything that must not be
++ * walked - admin, settings, the API and the auth pages - is disallowed here.
++ * Read access to `/bugs/<id>` for link-preview clients is a separate,
++ * deliberate concern tracked in the User-Agent spoofing report.
++ */
++export default function robots(): MetadataRoute.Robots {
++  return {
++    rules: [
++      {
++        userAgent: "*",
++        allow: "/bugs",
++        disallow: [
++          "/admin",
++          "/settings",
++          "/api/",
++          "/login",
++          "/signup",
++          "/forgot-password",
++          "/reset-password",
++        ],
++      },
++    ],
++  };
++}
+\ No newline at end of file

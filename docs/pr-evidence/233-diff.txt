@@ -1,0 +1,38 @@
+BEFORE -> AFTER  (PR #233: fix(204): key BugFilters on the search query so the input remounts on URL change)
+Ticket: 204
+Merge commit: 4a9135da5d183b718f93733c9a8cce6e1407fb50
+
+The BEFORE behaviour is exactly the code removed below.
+
+diff --git a/app/(app)/bugs/page.tsx b/app/(app)/bugs/page.tsx
+index 39797ed..242c321 100644
+--- a/app/(app)/bugs/page.tsx
++++ b/app/(app)/bugs/page.tsx
+@@ -173,7 +173,11 @@ export default async function BugsPage({
+       <Suspense
+         fallback={<div className="h-12 animate-pulse rounded-lg bg-slate-100" />}
+       >
+-        <BugFilters />
++        {/* #204: keyed on the search query so the uncontrolled input inside
++            BugFilters remounts (and re-reads its defaultValue) whenever the
++            URL changes - including via the browser Back button, which
++            previously left stale text in the box over an unfiltered list. */}
++        <BugFilters key={qParam ?? ""} />
+       </Suspense>
+ 
+       {bugs.length === 0 ? (
+diff --git a/components/bug-filters.tsx b/components/bug-filters.tsx
+index 5dbfb75..36efd0d 100644
+--- a/components/bug-filters.tsx
++++ b/components/bug-filters.tsx
+@@ -43,6 +43,10 @@ export function BugFilters() {
+         <input
+           id="q"
+           name="q"
++          // #204: correct only because the parent keys this component on the
++          // current `q` value, which remounts it whenever the URL query
++          // changes (including via the browser Back button). See
++          // app/(app)/bugs/page.tsx.
+           defaultValue={params.get("q") ?? ""}
+           placeholder="Search title or description"
+           className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 shadow-xs focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"

@@ -1,0 +1,47 @@
+next.config.ts at the pre-fix commit 6dcdf77 (before ENDOR-222)
+
+import type { NextConfig } from "next";
+import { BASE_PATH } from "./lib/base-path";
+
+const nextConfig: NextConfig = {
+  ...(BASE_PATH ? { basePath: BASE_PATH } : {}),
+  env: {
+    NEXTAUTH_URL:
+      process.env.NEXTAUTH_URL ||
+      (BASE_PATH
+        ? `https://contributors.zedu.chat${BASE_PATH}/api/auth`
+        : "https://issues.zedu.chat/api/auth"),
+  },
+  async redirects() {
+    if (!BASE_PATH) {
+      return [
+        {
+          source: "/bug-tracker",
+          destination: "/",
+          permanent: true,
+        },
+        {
+          source: "/bug-tracker/:path*",
+          destination: "/:path*",
+          permanent: true,
+        },
+      ];
+    }
+    return [];
+  },
+  turbopack: {
+    rules: {
+      "*.css": {
+        loaders: ["@tailwindcss/turbopack"],
+        as: "*.css",
+      },
+    },
+  },
+};
+
+export default nextConfig;
+
+
+There is no headers() block in this file, so the app sent none of the six
+response headers. Confirm by curl -sI against a server built from this commit:
+expect no x-frame-options, no content-security-policy, no nosniff.

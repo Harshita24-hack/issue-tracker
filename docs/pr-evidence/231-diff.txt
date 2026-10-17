@@ -1,0 +1,159 @@
+BEFORE -> AFTER  (PR #231: fix(202): gate status changes on the current assignee so self-assignment cannot close issues)
+Ticket: 202
+Merge commit: a0127b3122613d8b2d27c43303ae4ba77d2f1c86
+
+The BEFORE behaviour is exactly the code removed below.
+
+diff --git a/app/actions/bugs.ts b/app/actions/bugs.ts
+index 93d18a5..766ddae 100644
+--- a/app/actions/bugs.ts
++++ b/app/actions/bugs.ts
+@@ -44,6 +44,7 @@ import {
+ } from "@/lib/ticket-deletion";
+ import { canBoostTicket, TICKET_BOOST_ERRORS } from "@/lib/ticket-boosting";
+ import { canAssignTicket, TICKET_ASSIGN_ERRORS } from "@/lib/ticket-assignment";
++import { canChangeTicketStatus, TICKET_TRIAGE_ERRORS } from "@/lib/ticket-triage";
+ import {
+   canEditTicket,
+   formatEditSummary,
+@@ -277,6 +278,23 @@ export async function updateBugAction(
+   const isSelfAssigning =
+     targetAssigneeId !== undefined && targetAssigneeId === userId;
+ 
++  // #202: `status` is a triage field and must be gated on the issue's current
++  // assignee (or an admin) - never on the assignee this request is trying to
++  // set. Without this, a self-assignment satisfied the gate above and the same
++  // request could also close/reopen the issue, letting any user close any
++  // unassigned issue. Checked before schema parsing so the error is explicit.
++  const requestedStatus = formData.get("status") || undefined;
++  if (
++    requestedStatus &&
++    !canChangeTicketStatus({
++      actorId: userId,
++      actorRole: user.role,
++      currentAssigneeId: existing.assigneeId,
++    })
++  ) {
++    return { error: TICKET_TRIAGE_ERRORS.statusUnauthorized };
++  }
++
+   if (!admin && !isAssignee && !isSelfAssigning) {
+     return {
+       error: "Only the assignee or an admin can update this issue",
+@@ -299,7 +317,7 @@ export async function updateBugAction(
+   const categoryRaw = formData.get("categoryId");
+   const typeRaw = formData.get("typeId");
+   const parsed = updateBugSchema.safeParse({
+-    status: formData.get("status") || undefined,
++    status: requestedStatus,
+     severity: admin ? formData.get("severity") || undefined : undefined,
+     typeId: admin
+       ? typeRaw === "" || typeRaw === "none"
+diff --git a/lib/ticket-triage.test.ts b/lib/ticket-triage.test.ts
+new file mode 100644
+index 0000000..8e6bfc4
+--- /dev/null
++++ b/lib/ticket-triage.test.ts
+@@ -0,0 +1,62 @@
++import { describe, expect, it } from "vitest";
++import { canChangeTicketStatus } from "@/lib/ticket-triage";
++
++describe("canChangeTicketStatus", () => {
++  it("allows an admin regardless of assignment", () => {
++    expect(
++      canChangeTicketStatus({
++        actorId: "admin-1",
++        actorRole: "admin",
++        currentAssigneeId: null,
++      }),
++    ).toBe(true);
++    expect(
++      canChangeTicketStatus({
++        actorId: "admin-1",
++        actorRole: "super_admin",
++        currentAssigneeId: "someone-else",
++      }),
++    ).toBe(true);
++  });
++
++  it("allows the current assignee", () => {
++    expect(
++      canChangeTicketStatus({
++        actorId: "assignee-1",
++        actorRole: "user",
++        currentAssigneeId: "assignee-1",
++      }),
++    ).toBe(true);
++  });
++
++  // Regression test for #202.
++  it("denies a non-assignee on an unassigned issue", () => {
++    expect(
++      canChangeTicketStatus({
++        actorId: "random-user",
++        actorRole: "user",
++        currentAssigneeId: null,
++      }),
++    ).toBe(false);
++  });
++
++  it("denies a non-assignee on someone else's issue", () => {
++    expect(
++      canChangeTicketStatus({
++        actorId: "random-user",
++        actorRole: "user",
++        currentAssigneeId: "assignee-1",
++      }),
++    ).toBe(false);
++  });
++
++  it("denies an anonymous actor", () => {
++    expect(
++      canChangeTicketStatus({
++        actorId: null,
++        actorRole: "user",
++        currentAssigneeId: null,
++      }),
++    ).toBe(false);
++  });
++});
+\ No newline at end of file
+diff --git a/lib/ticket-triage.ts b/lib/ticket-triage.ts
+new file mode 100644
+index 0000000..118b6d8
+--- /dev/null
++++ b/lib/ticket-triage.ts
+@@ -0,0 +1,32 @@
++import { isAdmin, type AppRole } from "@/lib/roles";
++
++export const TICKET_TRIAGE_ERRORS = {
++  statusUnauthorized:
++    "Only the assignee or an admin can change this issue's status",
++} as const;
++
++export type CanChangeTicketStatusParams = {
++  actorId?: string | null;
++  actorRole?: AppRole | null;
++  currentAssigneeId?: string | null;
++};
++
++/**
++ * Checks whether a user may change an issue's status.
++ *
++ * Allowed: the issue's assignee of record, or an admin / super_admin.
++ *
++ * Note that this is deliberately evaluated against `currentAssigneeId` - the
++ * assignee the issue has *now* - and never against the assignee the request is
++ * trying to set. Otherwise a user could self-assign an unassigned issue and, in
++ * the same request, close it.
++ */
++export function canChangeTicketStatus({
++  actorId,
++  actorRole,
++  currentAssigneeId,
++}: CanChangeTicketStatusParams): boolean {
++  if (!actorId) return false;
++  if (isAdmin(actorRole)) return true;
++  return Boolean(currentAssigneeId && actorId === currentAssigneeId);
++}
+\ No newline at end of file

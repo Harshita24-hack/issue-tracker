@@ -1,0 +1,7 @@
+app/robots.ts at the pre-fix commit 6dcdf77 (before ENDOR-224)
+
+File does not exist in this tree.
+
+With no app/robots.ts, robots.txt was generated entirely by the hosting
+platform and contained only its own comment preamble - no User-agent group,
+no Allow, no Disallow.

@@ -1,0 +1,14 @@
+curl -s https://issues.zedu.chat/robots.txt   (production, after ENDOR-224)
+
+User-Agent: *
+Allow: /bugs
+Disallow: /admin
+Disallow: /settings
+Disallow: /api/
+Disallow: /login
+Disallow: /signup
+Disallow: /forgot-password
+Disallow: /reset-password
+
+Before this change the file contained only Vercel's auto-injected
+content-signals comment block: no User-agent group, no Allow/Disallow rules.

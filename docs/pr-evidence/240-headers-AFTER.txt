@@ -1,0 +1,16 @@
+curl -sI https://issues.zedu.chat/login   (production, after ENDOR-222)
+
+content-security-policy: frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'
+permissions-policy: camera=(), microphone=(), geolocation=(), interest-cohort=()
+referrer-policy: strict-origin-when-cross-origin
+strict-transport-security: max-age=63072000; includeSubDomains
+x-content-type-options: nosniff
+x-frame-options: DENY
+
+Expected per PR #240:
+  x-frame-options: DENY
+  content-security-policy: frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'
+  x-content-type-options: nosniff
+  referrer-policy: strict-origin-when-cross-origin
+  permissions-policy: camera=(), microphone=(), geolocation=(), interest-cohort=()
+  strict-transport-security: max-age=63072000; includeSubDomains   (production only)

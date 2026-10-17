@@ -1,0 +1,47 @@
+BEFORE -> AFTER  (PR #232: fix(203): render the password login form when password auth is enabled)
+Ticket: 203
+Merge commit: 9a5d49274244fae7d647323bd358890e98223c54
+
+The BEFORE behaviour is exactly the code removed below.
+
+diff --git a/app/(auth)/login/page.tsx b/app/(auth)/login/page.tsx
+index 0788b53..b7bf932 100644
+--- a/app/(auth)/login/page.tsx
++++ b/app/(auth)/login/page.tsx
+@@ -1,5 +1,7 @@
+ import { BrandLockup } from "@/components/brand-lockup";
+ import { GoogleSignInButton } from "@/components/google-sign-in-button";
++import { LoginForm } from "@/components/login-form";
++import { isPasswordAuthEnabled } from "@/lib/auth-mode";
+ import { safeCallbackUrl } from "@/lib/safe-callback-url";
+ 
+ /**
+@@ -30,7 +32,10 @@ export default async function LoginPage({
+         </p>
+ 
+         {params.error ? (
+-          <div className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
++          <div
++            className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700"
++            role="alert"
++          >
+             <p className="font-medium">
+               {params.error === "OAuthCallbackError" ||
+               params.error === "Configuration"
+@@ -46,7 +51,15 @@ export default async function LoginPage({
+         ) : null}
+ 
+         <div className="mt-6">
+-          <GoogleSignInButton callbackUrl={callbackUrl} />
++          {/* #203: LoginForm existed with zero importers, so whenever password
++              auth is enabled (local dev, the demo seed, or any deployment with
++              AUTH_PASSWORD_LOGIN=true) this page offered no way to sign in and
++              /forgot-password + /reset-password were unreachable by link. */}
++          {isPasswordAuthEnabled() ? (
++            <LoginForm callbackUrl={callbackUrl} googleEnabled />
++          ) : (
++            <GoogleSignInButton callbackUrl={callbackUrl} />
++          )}
+         </div>
+       </div>
+     </main>
