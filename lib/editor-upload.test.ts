@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyUploadMarkdown,
   escapeLabel,
   filesFrom,
   isFileDrag,
@@ -58,5 +59,51 @@ describe("editor uploads (#305)", () => {
     const many = Array.from({ length: 8 }, (_, i) => ({ name: `${i}` }) as File);
     expect(filesFrom({ files: many })).toHaveLength(5);
     expect(filesFrom(null)).toEqual([]);
+  });
+});
+
+describe("limit-aware upload replacement (#732)", () => {
+  const ph = placeholderFor("t1", "shot.png");
+  const replacement = markdownFor({ filename: "shot.png", contentType: "image/png" }, "abc12345");
+
+  it("applies the replacement while it fits under the limit", () => {
+    const applied = applyUploadMarkdown(`a ${ph} b`, "t1", replacement, { limit: 5000 });
+    expect(applied.next).toBe(`a ${replacement} b`);
+    expect(applied.overLimit).toBe(false);
+    expect(applied.url).toBe("/api/attachments/abc12345");
+  });
+
+  it("does not silently overflow: strips the placeholder and reports over-limit with the url", () => {
+    // Description at exactly the description limit (5,000) with a placeholder at the caret.
+    const text = "x".repeat(5000 - ph.length) + ph;
+    expect(text.length).toBe(5000);
+    const applied = applyUploadMarkdown(text, "t1", replacement, { limit: 5000 });
+    expect(applied.overLimit).toBe(true);
+    expect(applied.next).toBe("x".repeat(5000 - ph.length));
+    expect(applied.next!.length).toBeLessThanOrEqual(5000);
+    expect(applied.url).toBe("/api/attachments/abc12345");
+  });
+
+  it("reports over-limit for comment-sized fields (2,000)", () => {
+    const text = "y".repeat(2000 - ph.length) + ph;
+    const applied = applyUploadMarkdown(text, "t1", replacement, { limit: 2000 });
+    expect(applied.overLimit).toBe(true);
+    expect(applied.url).toBe("/api/attachments/abc12345");
+  });
+
+  it("replaces without a limit exactly like replacePlaceholder", () => {
+    expect(applyUploadMarkdown(`a ${ph} b`, "t1", replacement, {})).toEqual({
+      next: `a ${replacement} b`,
+      overLimit: false,
+      url: '/api/attachments/abc12345',
+    });
+  });
+
+  it("gives up without an over-limit when the placeholder was deleted", () => {
+    expect(applyUploadMarkdown("nothing here", "t3", replacement, { limit: 10 })).toEqual({
+      next: null,
+      overLimit: false,
+      url: null,
+    });
   });
 });

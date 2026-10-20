@@ -17,6 +17,52 @@ export function attachmentPath(id: string): string {
   return `/api/attachments/${id}`;
 }
 
+/** Result of a limit-aware placeholder replacement for one uploaded file. */
+export type AppliedUpload = {
+  /** Text with the placeholder replaced; null when the placeholder is gone. */
+  next: string | null;
+  /** True when the replacement would exceed the limit: the placeholder is stripped instead. */
+  overLimit: boolean;
+  /** The attachment URL parsed from the replacement markdown, when known. */
+  url: string | null;
+};
+
+function attachmentUrl(markdown: string): string | null {
+  const match = markdown.match(/\]\(([^)]*)\)\s*$/);
+  return match ? match[1] : null;
+}
+
+/**
+ * Replaces the placeholder for `token` with the finished upload markdown.
+ *
+ * The insertion path (see `markdown-editor.tsx`) reserves room for the
+ * placeholder, but the replacement is usually longer — so when `limit` is set
+ * and the swap would overflow the field, the placeholder is stripped and
+ * `overLimit` reports `true` with the attachment URL: recoverable and explicit,
+ * never a silent overflow (#732).
+ */
+export function applyUploadMarkdown(
+  text: string,
+  token: string,
+  replacement: string,
+  options: { limit?: number | null },
+): AppliedUpload {
+  const marker = `](#upload-${token})`;
+  const end = text.indexOf(marker);
+  if (end === -1) return { next: null, overLimit: false, url: null };
+  const start = text.lastIndexOf("![Uploading ", end);
+  if (start === -1) return { next: null, overLimit: false, url: null };
+  const next = text.slice(0, start) + replacement + text.slice(end + marker.length);
+  if (options.limit != null && next.length > options.limit) {
+    return {
+      next: text.slice(0, start) + text.slice(end + marker.length),
+      overLimit: true,
+      url: attachmentUrl(replacement),
+    };
+  }
+  return { next, overLimit: false, url: attachmentUrl(replacement) };
+}
+
 /** Brackets and backslashes would end the alt text or link label early. */
 export function escapeLabel(name: string): string {
   const clean = name.replace(/[\r\n]+/g, " ").trim() || "file";

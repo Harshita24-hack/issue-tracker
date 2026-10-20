@@ -47,12 +47,12 @@ import {
 } from "@/lib/markdown-toolbar";
 import { applyTextChange } from "@/lib/editor-dom";
 import {
+  applyUploadMarkdown,
   filesFrom,
   isFileDrag,
   markdownFor,
   nameForPasted,
   placeholderFor,
-  replacePlaceholder,
 } from "@/lib/editor-upload";
 
 export type MarkdownEditorHandle = {
@@ -417,12 +417,20 @@ export const MarkdownEditor = forwardRef<
           }),
         )
         .then(({ markdown, error }) => {
-          const next = replacePlaceholder(valueRef.current, job.token, markdown);
-          if (next !== null) {
-            valueRef.current = next;
-            onChangeRef.current(next);
+          const applied = applyUploadMarkdown(valueRef.current, job.token, markdown, {
+            limit: maxLength,
+          });
+          if (applied.next !== null) {
+            valueRef.current = applied.next;
+            onChangeRef.current(applied.next);
           }
-          if (error) setUploadError(error);
+          if (error) {
+            setUploadError(error);
+          } else if (applied.overLimit && applied.url) {
+            setUploadError(
+              `${job.name}: The upload finished, but there is no room for it in this field. You can link it manually: ${applied.url}`,
+            );
+          }
           setUploading((n) => n - 1);
         });
     }
