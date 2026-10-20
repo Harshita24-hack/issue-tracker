@@ -8,6 +8,10 @@ describe("hasRichFormatting", () => {
     expect(hasRichFormatting("<span>hi</span>")).toBe(false);
     expect(hasRichFormatting("")).toBe(false);
   });
+
+  it("treats anchors as formatting worth converting (#752)", () => {
+    expect(hasRichFormatting('<a href="https://a.com">docs</a>')).toBe(true);
+  });
 });
 
 describe("htmlToMarkdown", () => {
@@ -101,5 +105,23 @@ describe("pasteToMarkdown", () => {
 
   it("keeps plain text when the html converts to nothing", () => {
     expect(pasteToMarkdown({ text: "keep me", html: "<b></b>" })).toBe("keep me");
+  });
+
+  it("preserves a link-only rich paste instead of dropping the href (#752)", () => {
+    expect(
+      pasteToMarkdown({
+        text: "Read guide",
+        html: '<a href="https://example.com/guide">Read guide</a>',
+      }),
+    ).toBe("[Read guide](https://example.com/guide)");
+  });
+
+  it("strips an unsafe href down to the label on link-only paste (#752)", () => {
+    expect(
+      pasteToMarkdown({
+        text: "click",
+        html: '<a href="javascript:alert(1)">click</a>',
+      }),
+    ).toBe("click");
   });
 });
