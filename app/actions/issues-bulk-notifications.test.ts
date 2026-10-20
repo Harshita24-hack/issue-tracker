@@ -21,6 +21,7 @@ vi.mock("@/lib/notify", () => ({ notifyLater: mocks.notifyLater }));
 vi.mock("@/lib/points/award", () => ({ awardSolver: mocks.awardSolver }));
 vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
+  /** Passthrough for unstable_cache so cached lookups run uncached in tests. */
   unstable_cache: (fn: (...a: unknown[]) => unknown) => fn,
 }));
 vi.mock("next/navigation", () => ({
