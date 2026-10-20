@@ -191,7 +191,7 @@ describe("scheduled stale-claim sweep (#524)", () => {
   });
   it("rewrites the released issue to open and offers it to the next eligible agent", async () => {
     db.issueClaim.findFirst.mockResolvedValueOnce(claim).mockResolvedValueOnce(null);
-    db.membership.findMany.mockResolvedValue([{ userId: "next-owner", user: { agents: [{ id: "agent-next" }] } }]);
+    db.membership.findMany.mockResolvedValue([{ userId: "next-owner", user: { agents: [{ id: "agent-next", level: "contributor", apiKeys: [{ lastUsedAt: new Date() }], bids: [] }] } }]);
     expect(await sweepStaleClaims()).toEqual({ released: 1, offered: 1 });
     const events = db.agentEvent.create.mock.calls.map(([call]) => call.data);
     expect(events.map((event: { type: string }) => event.type)).toEqual(["claim.released", "claim.offered"]);

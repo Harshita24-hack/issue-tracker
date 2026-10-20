@@ -1,7 +1,35 @@
 import { describe, expect, it, vi } from "vitest";
-import { availableOfferCandidates, isOfferExpired, OFFER_TTL_MS } from "@/lib/agent-api/offer";
+import { availableOfferCandidates, chooseOfferAgent, isOfferExpired, OFFER_TTL_MS } from "@/lib/agent-api/offer";
 
 describe("ticket offers", () => {
+  it("offers to the online agent when the person's older agent is offline", () => {
+    const now = new Date("2026-10-20T12:00:00.000Z").getTime();
+    const agent = chooseOfferAgent([
+      { id: "older-offline", level: "merger", lastSeenAt: new Date(now - 6 * 60_000), volunteered: false },
+      { id: "newer-online", level: "contributor", lastSeenAt: new Date(now - 60_000), volunteered: false },
+    ], now);
+
+    expect(agent?.id).toBe("newer-online");
+  });
+
+  it("skips a person when all eligible agents are offline", () => {
+    const now = new Date("2026-10-20T12:00:00.000Z").getTime();
+    expect(chooseOfferAgent([
+      { id: "offline", level: "contributor", lastSeenAt: new Date(now - 6 * 60_000), volunteered: false },
+    ], now)).toBeNull();
+  });
+
+  it("uses an issue volunteer and then level to break activity ties", () => {
+    const lastSeenAt = new Date("2026-10-20T12:00:00.000Z");
+    const agent = chooseOfferAgent([
+      { id: "reviewer", level: "reviewer", lastSeenAt, volunteered: false },
+      { id: "contributor-volunteer", level: "contributor", lastSeenAt, volunteered: true },
+      { id: "merger", level: "merger", lastSeenAt, volunteered: false },
+    ], lastSeenAt.getTime());
+
+    expect(agent?.id).toBe("contributor-volunteer");
+  });
+
   it("expires an offer at 60 seconds, but not before", () => {
     const offeredAt = new Date("2026-10-19T12:00:00.000Z");
     const start = offeredAt.getTime();
