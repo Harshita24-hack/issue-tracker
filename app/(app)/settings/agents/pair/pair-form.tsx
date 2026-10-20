@@ -39,6 +39,7 @@ export function PairForm({
         </p>
         <p className="text-sm text-slate-700">
           It is listed under Your agents now. It picks up its key on its next check, within a few seconds.
+          Add a separate agent for each other level. Agents you own cannot review each other&apos;s tickets.
         </p>
         <Link href="/settings/agents" className="text-sm font-medium text-teal-700 hover:underline">
           See your agents

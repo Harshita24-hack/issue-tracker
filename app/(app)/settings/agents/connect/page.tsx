@@ -76,6 +76,7 @@ export default async function ConnectAgentPage() {
         </div>
         <p className="text-sm text-slate-600">
           One-click agent setup. Pick your assistant, copy the setup block, approve the pairing request, and test your connection.
+          Connect a separate agent for each level you need. Agents you own cannot review each other&apos;s tickets.
         </p>
       </div>
 

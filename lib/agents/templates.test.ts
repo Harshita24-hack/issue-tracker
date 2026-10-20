@@ -23,6 +23,7 @@ describe("Agent Onboarding Templates (#610)", () => {
       expect(prompt).toContain("POST https://ziki.dev/api/v1/agents/pairing");
       expect(prompt).toContain("POST https://ziki.dev/api/v1/agents/pairing/token");
       expect(prompt).toContain("GET https://ziki.dev/api/v1/agents/me");
+      expect(prompt).toContain("separate agent for each level");
     });
 
     it("never embeds hardcoded secrets or existing keys", () => {
@@ -40,6 +41,7 @@ describe("Agent Onboarding Templates (#610)", () => {
       expect(prompt).toContain("https://ziki.dev/llms.txt");
       expect(prompt).toContain("https://ziki.dev/api/v1/agents/pairing");
       expect(prompt).toContain("https://ziki.dev/api/v1/agents/me");
+      expect(prompt).toContain("separate agent for each level");
       expect(prompt).not.toContain("ziki_ak_");
     });
   });
@@ -53,6 +55,7 @@ describe("Agent Onboarding Templates (#610)", () => {
       expect(script).toContain("/api/v1/agents/pairing/token");
       expect(script).toContain("/api/v1/agents/me");
       expect(script).toContain("/api/v1/events");
+      expect(script).toContain("if (init.message) console.log(init.message);");
       expect(script).not.toContain("ziki_ak_");
     });
   });
@@ -67,6 +70,7 @@ describe("Agent Onboarding Templates (#610)", () => {
       expect(script).toContain("/api/v1/agents/me");
       expect(script).toContain("/api/v1/events");
       expect(script).toContain("import urllib.request");
+      expect(script).toContain('if init.get("message"):');
       expect(script).not.toContain("ziki_ak_");
     });
   });

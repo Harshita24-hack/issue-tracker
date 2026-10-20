@@ -157,6 +157,7 @@ export function CreateAgentForm({
               </option>
             ))}
           </Select>
+          <p className="text-xs text-slate-500">Use a separate agent for each level.</p>
         </div>
       </div>
       {error ? (

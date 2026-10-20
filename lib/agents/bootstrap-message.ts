@@ -15,6 +15,8 @@ Site: ${site}
 API key: ${input.apiKey}
 
 Confirm with GET ${site}/api/v1/agents/me and header Authorization: Bearer ${input.apiKey}.
+You are one agent. I can have several, and I should keep a separate agent for each level: observer, contributor, reviewer, and merger.
+Another agent I own cannot review a ticket you file or claim, or a ticket that is mine.
 Then read ${site}/llms.txt and use that same key for every later request. Work only in ${project}. You are ready to develop.`;
 }
 
@@ -36,5 +38,7 @@ Request access with POST ${site}/api/v1/agents/pairing and JSON {"name":"<your n
 Then open verification_uri_complete in my browser yourself. Use your browser tool, or run open on macOS, xdg-open on Linux, or start on Windows. Do not only print the link, and do not ask me to copy it. I will approve you on that page.
 Then POST ${site}/api/v1/agents/pairing/token with {"device_code":"..."} every interval seconds until the response includes api_key.
 Confirm with GET ${site}/api/v1/agents/me and header Authorization: Bearer <that key>.
+Remind me to keep a separate agent for each level: observer, contributor, reviewer, and merger.
+Another agent I own cannot review a ticket you file or claim, or a ticket that is mine.
 Read ${site}/llms.txt and work only in ${project}. You are ready to develop.`;
 }

@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { LocalTime } from "@/components/local-time";
 import { RelativeTime } from "@/components/relative-time";
 import { AGENT_LEVEL_DESCRIPTIONS, AGENT_LEVEL_LABELS, AGENT_LEVELS, settableLevels } from "@/lib/agents/levels";
+import { SEVERAL_AGENTS_NOTE } from "@/lib/agents/setup-copy";
 import { isTenantAdminRole } from "@/lib/agents/membership";
 import { projectContextFor } from "@/lib/project-context";
 import { currentTenantIdFor } from "@/lib/tenant-context";
@@ -187,9 +188,9 @@ export default async function AgentsSettingsPage() {
         <p className="text-sm text-slate-600">
           Two ways to connect an agent. Copy Agent Key to send a key that is already an account, with
           this site. Or copy only the site: the agent opens the approval page, you approve it while
-          signed in, and the key comes back to the agent. A key works in one project. Resetting your password
-          signs you out and revokes every agent key you own; the agents stay, and a new personal key
-          is ready the next time you open the app.
+          signed in, and the key comes back to the agent. A key works in one project. {SEVERAL_AGENTS_NOTE}{" "}
+          Resetting your password signs you out and revokes every agent key you own; the agents stay, and a
+          new personal key is ready the next time you open the app.
         </p>
       </div>
 
@@ -232,14 +233,14 @@ export default async function AgentsSettingsPage() {
 
           <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6" aria-labelledby="register-heading">
             <h2 id="register-heading" className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-              Another agent
+              Add an agent for a level
             </h2>
             <p className="mt-2 text-sm text-slate-600">
-              Optional. Register an extra agent here, or approve one that asked to join at{" "}
+              Register a separate agent for a level you still need, or approve one that asked to join at{" "}
               <Link href="/settings/agents/pair" className="text-teal-700 underline">
                 the approval page
               </Link>
-              .
+              . Start it at the level it will work at.
             </p>
             <CreateAgentForm projects={projects} activeProjectId={context.activeProjectId} />
           </section>
@@ -374,7 +375,8 @@ export default async function AgentsSettingsPage() {
             </dl>
             <p className="mt-3 text-xs text-slate-500">
               New agents start as observers. You can raise your own agents up to reviewer; only a team
-              admin can make one a merger. Each agent may make 30 writes an hour, including reviews.
+              admin can make one a merger. Leave each job on its own agent. Each agent may make 30 writes
+              an hour, including reviews.
               An admin can turn on a higher budget of 400 writes an hour.
             </p>
           </section>

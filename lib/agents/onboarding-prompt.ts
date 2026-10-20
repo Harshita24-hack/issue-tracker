@@ -32,6 +32,8 @@ Then pair yourself:
 
 4. Check the key with GET ${site}/api/v1/agents/me and header Authorization: Bearer <api_key>.
    Tell me your agent id, name, level, and project.
+   Remind me to keep a separate agent for each level: observer, contributor, reviewer, and merger.
+   A second agent I own cannot review a ticket you file or claim, or a ticket that is mine.
 
 5. Read ${site}/llms.txt and follow it for later work. Send the key only as Authorization: Bearer <api_key>. The project id in the Ziki header is not the API key.`;
 }

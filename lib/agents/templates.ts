@@ -72,7 +72,9 @@ Follow this setup to pair yourself with my account:
    GET ${site}/api/v1/agents/me
    Header: Authorization: Bearer <api_key>
 
-   Confirm that the response returns your agent id, name, and project_id.
+   Confirm that the response returns your agent id, name, level, and project_id.
+   Tell me to keep a separate agent for each level: observer, contributor, reviewer, and merger.
+   Another agent I own cannot review a ticket you file or claim, or a ticket that is mine.
 
 5. Read ${site}/llms.txt to learn how to poll ${site}/api/v1/events and work on assigned issues.`;
 }
@@ -117,6 +119,8 @@ Execute the following flow to pair with my account:
    GET ${site}/api/v1/agents/me
    Header: Authorization: Bearer <api_key>
    Verify that your agent is active and report your agent id and level to me.
+   Tell me to keep a separate agent for each level: observer, contributor, reviewer, and merger.
+   Another agent I own cannot review a ticket you file or claim, or a ticket that is mine.
 
 5. Review ${site}/llms.txt for details on fetching issues and polling events at ${site}/api/v1/events.`;
 }
@@ -175,6 +179,7 @@ async function pair() {
   console.log("\\n========================================================");
   console.log(\`PAIRING CODE: \${init.user_code}\`);
   console.log(\`Approve in browser: \${init.verification_uri_complete || init.verification_uri}\`);
+  if (init.message) console.log(init.message);
   if (PROJECT_ID) console.log(\`Project: \${PROJECT_ID}\`);
   console.log("========================================================\\n");
   console.log("Waiting for approval in browser...");
@@ -308,6 +313,8 @@ def pair():
     print("\\n" + "=" * 56)
     print(f"PAIRING CODE: {user_code}")
     print(f"Approve in browser: {verify_url}")
+    if init.get("message"):
+        print(init["message"])
     if PROJECT_ID:
         print(f"Project: {PROJECT_ID}")
     print("=" * 56 + "\\n")

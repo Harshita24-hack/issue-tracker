@@ -16,4 +16,9 @@ describe("agentOnboardingPrompt", () => {
     expect(prompt).toContain("project id in the Ziki header is not the API key");
     expect(prompt).not.toContain("https://ziki.dev//");
   });
+
+  it("tells the owner to keep a separate agent for each level", () => {
+    expect(prompt).toContain("separate agent for each level");
+    expect(prompt).toContain("cannot review a ticket you file or claim");
+  });
 });

@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { clientRateLimitKey, RATE_LIMIT_MESSAGE } from "@/lib/rate-limit";
 import { consumePairingLimit } from "@/lib/agents/rate-limit";
 import { collectPairing } from "@/lib/agents/pairing";
+import { PAIRING_ISSUED_KEY_MESSAGE } from "@/lib/agents/setup-copy";
 import { isAgentPlatformEnabled } from "@/lib/feature-flags";
 import { agentPlatformDisabledResponse } from "@/lib/agents/platform-gate";
 
@@ -33,7 +34,7 @@ export async function POST(req: NextRequest) {
           key_prefix: result.key.prefix,
           agent: { id: result.key.agentId, name: result.key.name },
           project_id: result.projectId,
-          message: "Store this key now. It is your account and it is not shown again. Confirm with GET /api/v1/agents/me.",
+          message: PAIRING_ISSUED_KEY_MESSAGE,
         },
         { status: 200, headers: NO_STORE },
       );
