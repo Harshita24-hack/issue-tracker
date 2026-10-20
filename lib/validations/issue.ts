@@ -139,23 +139,31 @@ export const commentSchema = z.object({
     .transform((value) => (value && value.length > 0 ? value : undefined)),
 });
 
+const PASSWORD_TOO_LONG_MESSAGE =
+  "Password is too long: bcrypt keeps only the first 72 bytes, so choose something shorter.";
+
+/**
+ * bcrypt silently ignores everything past the first 72 bytes, so two
+ * passwords sharing a long prefix authenticate identically. Counted in
+ * UTF-8 bytes (not characters), so multibyte input hits the cap sooner
+ * (#735). Applied on sign-up, reset, and sign-in so no two distinct
+ * accepted passwords can collide.
+ */
+const withinBcryptByteLimit = (password: string) =>
+  new TextEncoder().encode(password).length <= BCRYPT_MAX_PASSWORD_BYTES;
+
 export const loginSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(1),
+  password: z.string().min(1).refine(withinBcryptByteLimit, {
+    message: PASSWORD_TOO_LONG_MESSAGE,
+  }),
 });
 
 const passwordField = z
   .string()
   .min(8, "Password must be at least 8 characters")
   .max(128)
-  .refine(
-    (password) =>
-      new TextEncoder().encode(password).length <= BCRYPT_MAX_PASSWORD_BYTES,
-    {
-      message:
-        "Password is too long: bcrypt keeps only the first 72 bytes, so choose something shorter.",
-    },
-  );
+  .refine(withinBcryptByteLimit, { message: PASSWORD_TOO_LONG_MESSAGE });
 
 export const signupSchema = z
   .object({

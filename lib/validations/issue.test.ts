@@ -272,6 +272,57 @@ describe("loginSchema", () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it("accepts a password of exactly 72 bytes (#735)", () => {
+    const result = loginSchema.safeParse({
+      email: "alice@zendor.dev",
+      password: "x".repeat(72),
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a password that only differs past bcrypt's 72-byte limit (#735)", () => {
+    const base = "x".repeat(72);
+    // Same first 72 bytes as `base`: bcryptjs would authenticate it as `base`.
+    const collision = base + "-different-suffix";
+    const result = loginSchema.safeParse({
+      email: "alice@zendor.dev",
+      password: collision,
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toContain("72");
+    }
+    // The 72-byte password itself still signs in.
+    expect(
+      loginSchema.safeParse({ email: "alice@zendor.dev", password: base })
+        .success,
+    ).toBe(true);
+  });
+
+  it("counts multibyte passwords in UTF-8 bytes, not characters (#735)", () => {
+    // 24 cups of tea: 24 characters, exactly 72 bytes — accepted.
+    expect(
+      loginSchema.safeParse({
+        email: "alice@zendor.dev",
+        password: "☕".repeat(24),
+      }).success,
+    ).toBe(true);
+    // 25 cups: 25 characters (well under any char limit) but 73 bytes — rejected.
+    expect(
+      loginSchema.safeParse({
+        email: "alice@zendor.dev",
+        password: "☕".repeat(25),
+      }).success,
+    ).toBe(false);
+    // 19 emoji: only 19 characters, but 76 bytes — rejected.
+    expect(
+      loginSchema.safeParse({
+        email: "alice@zendor.dev",
+        password: "😀".repeat(19),
+      }).success,
+    ).toBe(false);
+  });
 });
 
 describe("signupSchema", () => {
@@ -342,6 +393,27 @@ describe("signupSchema", () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it("rejects a password sharing its first 72 bytes with another one (#735)", () => {
+    const base = "x".repeat(72);
+    const collision = base + "-different-suffix";
+    expect(
+      signupSchema.safeParse({
+        name: "Dana Dev",
+        email: "dana@zendor.dev",
+        password: base,
+        confirmPassword: base,
+      }).success,
+    ).toBe(true);
+    expect(
+      signupSchema.safeParse({
+        name: "Dana Dev",
+        email: "dana@zendor.dev",
+        password: collision,
+        confirmPassword: collision,
+      }).success,
+    ).toBe(false);
+  });
 });
 
 describe("forgotPasswordSchema", () => {
@@ -396,6 +468,28 @@ describe("resetPasswordSchema", () => {
       confirmPassword: "password123",
     });
     expect(result.success).toBe(false);
+  });
+
+  it("rejects a password longer than 72 bytes (#735)", () => {
+    const result = resetPasswordSchema.safeParse({
+      token: "abc123",
+      password: "x".repeat(72) + "-different-suffix",
+      confirmPassword: "x".repeat(72) + "-different-suffix",
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toContain("72");
+    }
+  });
+
+  it("accepts a multibyte password of exactly 72 bytes (#735)", () => {
+    const password = "☕".repeat(24);
+    const result = resetPasswordSchema.safeParse({
+      token: "abc123",
+      password,
+      confirmPassword: password,
+    });
+    expect(result.success).toBe(true);
   });
 });
 
