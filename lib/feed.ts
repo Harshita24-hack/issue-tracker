@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { defaultProjectIdFor } from "@/lib/tenant-context";
@@ -8,7 +8,7 @@ export const FEED_PAGE_SIZE = 50;
 
 export class FeedInputError extends Error {}
 
-const timestampSchema = z.iso.datetime({ offset: true });
+const timestampSchema = z.string().datetime();
 
 export function parseFeedCursor(params: URLSearchParams): FeedCursor | null {
   const after = params.get("after");
@@ -24,8 +24,8 @@ export function feedWhere(tenantId: string, projectId: string, cursor: FeedCurso
   return {
     tenantId, projectId, isDeleted: false,
     ...(cursor ? { OR: [
-      { createdAt: { gt: new Date(cursor.after) } },
-      { createdAt: new Date(cursor.after), id: { gt: cursor.afterId } },
+      { updatedAt: { gt: new Date(cursor.after) } },
+      { updatedAt: new Date(cursor.after), id: { gt: cursor.afterId } },
     ] } : {}),
   };
 }
@@ -36,19 +36,22 @@ export async function feedProject(tenantId: string, requested?: string | null) {
   if (!id) return null;
   return prisma.project.findFirst({ where: { id, tenantId }, select: { id: true, name: true } });
 }
-
 export async function readFeed(tenantId: string, projectId: string, cursor: FeedCursor | null) {
   const rows = await prisma.bug.findMany({
     where: feedWhere(tenantId, projectId, cursor),
-    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    orderBy: [{ updatedAt: "asc" }, { id: "asc" }],
     take: FEED_PAGE_SIZE + 1,
-    select: { id: true, number: true, title: true, status: true, severity: true, createdAt: true, projectId: true },
+    select: { id: true, number: true, title: true, status: true, severity: true, createdAt: true, updatedAt: true, projectId: true },
   });
   const issues = rows.slice(0, FEED_PAGE_SIZE);
   const last = issues.at(-1);
+  
   return {
-    issues,
-    nextCursor: last ? { after: last.createdAt.toISOString(), afterId: last.id } : cursor,
+    issues: issues.map((issue: (typeof issues)[number]) => ({
+      ...issue,
+      change: issue.createdAt.getTime() === issue.updatedAt.getTime() ? "created" : "updated" as const,
+    })),
+    nextCursor: last ? { after: last.updatedAt.toISOString(), afterId: last.id } : cursor,
     hasMore: rows.length > FEED_PAGE_SIZE,
   };
 }
