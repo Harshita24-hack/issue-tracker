@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hasRichFormatting, htmlToMarkdown, pasteToMarkdown } from "./markdown-paste";
+import { hasRichFormatting, htmlToMarkdown, parseHtml, pasteToMarkdown } from "./markdown-paste";
 
 describe("hasRichFormatting", () => {
   it("detects formatting worth converting", () => {
@@ -46,6 +46,21 @@ describe("htmlToMarkdown", () => {
     const html =
       '<ul><li><input type="checkbox" checked="">done</li><li><input type="checkbox">todo</li></ul>';
     expect(htmlToMarkdown(html)).toBe("- [x] done\n- [ ] todo");
+  });
+
+  it("keeps a bare checked attribute when pasting task lists (#751)", () => {
+    expect(
+      htmlToMarkdown('<ul><li><input type="checkbox" checked>done</li></ul>'),
+    ).toBe("- [x] done");
+  });
+
+  it("records bare boolean attributes for later inspection (#751)", () => {
+    const input = parseHtml('<input type="checkbox" disabled required>')[0] as unknown as {
+      attrs: Record<string, string>;
+    };
+    expect(input.attrs.type).toBe("checkbox");
+    expect(input.attrs.disabled).toBe("");
+    expect(input.attrs.required).toBe("");
   });
 
   it("converts blockquotes and rules", () => {
