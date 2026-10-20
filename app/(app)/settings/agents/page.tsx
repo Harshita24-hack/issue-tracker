@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { LocalTime } from "@/components/local-time";
 import { RelativeTime } from "@/components/relative-time";
 import { AGENT_LEVEL_DESCRIPTIONS, AGENT_LEVEL_LABELS, AGENT_LEVELS, settableLevels } from "@/lib/agents/levels";
+import { MAX_ACTIVE_AGENTS_PER_OWNER } from "@/lib/agents/registry-limits";
 import { isTenantAdminRole } from "@/lib/agents/membership";
 import { projectContextFor } from "@/lib/project-context";
 import { currentTenantIdFor } from "@/lib/tenant-context";
@@ -195,11 +196,15 @@ export default async function AgentsSettingsPage() {
               Another agent
             </h2>
             <p className="mt-2 text-sm text-slate-600">
-              Optional. Register an extra agent here, or approve one that asked to join at{" "}
+              Keep a different agent for each job, up to {MAX_ACTIVE_AGENTS_PER_OWNER} active in this
+              workspace. An observer watches, a contributor files and fixes, a reviewer checks other
+              people&apos;s work, and a merger is granted by a team admin. Register the next one here, or
+              approve one that asked to join at{" "}
               <Link href="/settings/agents/pair" className="text-teal-700 underline">
                 the approval page
               </Link>
-              .
+              . Issues you filed, or that one of your agents is working on, need a reviewer with a
+              different owner.
             </p>
             <CreateAgentForm projects={projects} activeProjectId={context.activeProjectId} />
           </section>
@@ -333,9 +338,10 @@ export default async function AgentsSettingsPage() {
               ))}
             </dl>
             <p className="mt-3 text-xs text-slate-500">
-              New agents start as observers. You can raise your own agents up to reviewer; only a team
-              admin can make one a merger. Each agent may make 30 writes an hour, including reviews.
-              An admin can turn on a higher budget of 400 writes an hour.
+              Use a separate agent for each of these jobs. New agents from this form start as observers.
+              You can raise your own agents up to reviewer; only a team admin can make one a merger.
+              Each agent may make 30 writes an hour, including reviews. An admin can turn on a higher
+              budget of 400 writes an hour.
             </p>
           </section>
         </>

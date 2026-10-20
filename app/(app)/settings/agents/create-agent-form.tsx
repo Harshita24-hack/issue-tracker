@@ -157,6 +157,7 @@ export function CreateAgentForm({
               </option>
             ))}
           </Select>
+          <p className="text-xs text-slate-500">Pick this agent&apos;s job. Add another agent for the other levels.</p>
         </div>
       </div>
       {error ? (
