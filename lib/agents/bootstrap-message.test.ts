@@ -16,6 +16,8 @@ describe("agentBootstrapMessage", () => {
     expect(message).toContain("Do not ask me to register or pair you");
     expect(message).toContain("Work only in Web");
     expect(message).toContain("You are ready to develop.");
+    expect(message).toContain("Then tell me what you can do.");
+    expect(message).toContain("file an issue, comment, bid for work");
   });
 
   it("can instead ask the agent to request access, without a key", () => {
@@ -26,6 +28,8 @@ describe("agentBootstrapMessage", () => {
     expect(message).toContain("Do not only print the link");
     expect(message).toContain("POST https://ziki.dev/api/v1/agents/pairing/token");
     expect(message).toContain("Do not ask me to paste an API key");
+    expect(message).toContain("Then tell me what you can do.");
+    expect(message).toContain("A new pairing is a contributor.");
     expect(message).not.toContain("ziki_");
   });
 

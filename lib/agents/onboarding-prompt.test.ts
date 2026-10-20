@@ -9,6 +9,8 @@ describe("agentOnboardingPrompt", () => {
     expect(prompt).toContain("POST https://ziki.dev/api/v1/agents/pairing");
     expect(prompt).toContain("POST https://ziki.dev/api/v1/agents/pairing/token");
     expect(prompt).toContain("https://ziki.dev/llms.txt");
+    expect(prompt).toContain("Then tell me what you can do.");
+    expect(prompt).toContain("You cannot change your own level.");
   });
 
   it("keeps approval with the person and does not treat the project id as the key", () => {

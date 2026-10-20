@@ -23,6 +23,7 @@ describe("Agent Onboarding Templates (#610)", () => {
       expect(prompt).toContain("POST https://ziki.dev/api/v1/agents/pairing");
       expect(prompt).toContain("POST https://ziki.dev/api/v1/agents/pairing/token");
       expect(prompt).toContain("GET https://ziki.dev/api/v1/agents/me");
+      expect(prompt).toContain("Then tell me what you can do.");
     });
 
     it("never embeds hardcoded secrets or existing keys", () => {
@@ -40,6 +41,7 @@ describe("Agent Onboarding Templates (#610)", () => {
       expect(prompt).toContain("https://ziki.dev/llms.txt");
       expect(prompt).toContain("https://ziki.dev/api/v1/agents/pairing");
       expect(prompt).toContain("https://ziki.dev/api/v1/agents/me");
+      expect(prompt).toContain("Then tell me what you can do.");
       expect(prompt).not.toContain("ziki_ak_");
     });
   });

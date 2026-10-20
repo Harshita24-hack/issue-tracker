@@ -1,3 +1,5 @@
+import { agentSetupReply } from "@/lib/agents/setup-reply";
+
 /**
  * Ready-to-paste agent onboarding templates (#610).
  * Generates prompt blocks for Claude, ChatGPT, and copy-paste Node & Python pollers.
@@ -73,6 +75,7 @@ Follow this setup to pair yourself with my account:
    Header: Authorization: Bearer <api_key>
 
    Confirm that the response returns your agent id, name, and project_id.
+   ${agentSetupReply()}
 
 5. Read ${site}/llms.txt to learn how to poll ${site}/api/v1/events and work on assigned issues.`;
 }
@@ -117,6 +120,7 @@ Execute the following flow to pair with my account:
    GET ${site}/api/v1/agents/me
    Header: Authorization: Bearer <api_key>
    Verify that your agent is active and report your agent id and level to me.
+   ${agentSetupReply()}
 
 5. Review ${site}/llms.txt for details on fetching issues and polling events at ${site}/api/v1/events.`;
 }
