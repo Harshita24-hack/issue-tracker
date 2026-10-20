@@ -114,11 +114,11 @@ function decodeEntities(text: string): string {
     if (ENTITIES[key]) return ENTITIES[key];
     if (key.startsWith("#x")) {
       const code = Number.parseInt(key.slice(2), 16);
-      return Number.isFinite(code) ? String.fromCodePoint(code) : match;
+      return code >= 0 && code <= 0x10ffff ? String.fromCodePoint(code) : match;
     }
     if (key.startsWith("#")) {
       const code = Number.parseInt(key.slice(1), 10);
-      return Number.isFinite(code) ? String.fromCodePoint(code) : match;
+      return code >= 0 && code <= 0x10ffff ? String.fromCodePoint(code) : match;
     }
     return match;
   });

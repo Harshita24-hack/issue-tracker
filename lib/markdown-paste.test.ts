@@ -103,3 +103,19 @@ describe("pasteToMarkdown", () => {
     expect(pasteToMarkdown({ text: "keep me", html: "<b></b>" })).toBe("keep me");
   });
 });
+
+describe("entity decoding (#750)", () => {
+  it("falls back literally on out-of-range code points instead of throwing", () => {
+    expect(htmlToMarkdown("<p>&#x110000;</p>")).toBe("&#x110000;");
+    expect(htmlToMarkdown("<p>&#1114112;</p>")).toBe("&#1114112;");
+  });
+
+  it("keeps decoding valid boundary code points", () => {
+    expect(htmlToMarkdown("<p>&#x10ffff;</p>")).toBe("\u{10FFFF}");
+    expect(htmlToMarkdown("<p>&#x1F600;</p>")).toBe("\u{1F600}");
+  });
+
+  it("passes malformed entities through literally", () => {
+    expect(htmlToMarkdown("<p>&#zz;</p>")).toBe("&#zz;");
+  });
+});
