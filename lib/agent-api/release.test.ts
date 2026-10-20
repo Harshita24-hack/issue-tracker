@@ -90,8 +90,8 @@ describe("an agent gives work back (#547)", () => {
     db.bug.findFirstOrThrow.mockResolvedValue({ id: "bug-1", title: "T", status: "in_progress", assigneeId: "ada", projectId: "p" });
     isConfirmed.mockResolvedValue(true);
     db.membership.findMany.mockResolvedValue([
-      { userId: "ada", user: { agents: [{ id: "agent-ada" }] } },
-      { userId: "bob", user: { agents: [{ id: "agent-bob" }] } },
+      { userId: "ada", user: { agents: [{ id: "agent-ada", level: "contributor", apiKeys: [{ lastUsedAt: new Date() }], bids: [] }] } },
+      { userId: "bob", user: { agents: [{ id: "agent-bob", level: "contributor", apiKeys: [{ lastUsedAt: new Date() }], bids: [] }] } },
     ]);
     db.issueClaim.create.mockResolvedValue({ id: "claim-2", bugId: "bug-1", offeredAt: new Date() });
 

@@ -13,11 +13,24 @@ import { ensureWatching } from "@/lib/watch";
 import { assertRedesignOpen } from "@/lib/redesigns";
 
 export const OFFER_TTL_MS = 60_000;
+export const AGENT_ONLINE_WINDOW_MS = 5 * 60_000;
 const id = z.string().trim().min(1).max(191);
 export const offerSchema = z.object({ projectId: id.optional() }).strict();
 
 type Db = typeof prisma | Prisma.TransactionClient;
 type OfferCandidate = { beneficiaryUserId: string; agentId: string; activeClaims: number; lastOfferedAt: Date | null; pendingOffer?: boolean };
+type OnlineAgentCandidate = { id: string; level: string; lastSeenAt: Date; volunteered: boolean };
+
+const agentLevelRank: Record<string, number> = { contributor: 1, reviewer: 2, merger: 3 };
+
+/** Chooses the most recently active eligible agent, with bid and level tie-breakers. */
+export function chooseOfferAgent<T extends OnlineAgentCandidate>(agents: T[], now = Date.now()): T | null {
+  const onlineAfter = now - AGENT_ONLINE_WINDOW_MS;
+  return [...agents].filter((agent) => agent.lastSeenAt.getTime() >= onlineAfter).sort((a, b) => b.lastSeenAt.getTime() - a.lastSeenAt.getTime()
+    || Number(b.volunteered) - Number(a.volunteered)
+    || (agentLevelRank[b.level] ?? 0) - (agentLevelRank[a.level] ?? 0)
+    || a.id.localeCompare(b.id))[0] ?? null;
+}
 
 export function isOfferExpired(offeredAt: Date | null, now = Date.now()): boolean {
   return !offeredAt || now - offeredAt.getTime() >= OFFER_TTL_MS;
@@ -41,19 +54,28 @@ export function scheduleOfferExpiry(claimId: string): void {
 /** Picks by active workload, then by who has waited longest since their last offer.
  * Exported for the stale-claim sweep (#524), which re-offers a reopened issue with no agent caller. */
 export async function offerNext(db: Db, caller: { agentId?: string; tenantId: string }, bug: { id: string; projectId: string; title: string; assigneeId?: string | null }, excludeUserIds: string[] = []) {
+  const onlineAfter = new Date(Date.now() - AGENT_ONLINE_WINDOW_MS);
   const memberships = await db.membership.findMany({
     where: {
       tenantId: caller.tenantId,
-      user: { agents: { some: { tenantId: caller.tenantId, revokedAt: null, level: { in: ["contributor", "reviewer", "merger"] } } } },
+      user: { agents: { some: { tenantId: caller.tenantId, revokedAt: null, level: { in: ["contributor", "reviewer", "merger"] }, apiKeys: { some: { revokedAt: null, lastUsedAt: { gte: onlineAfter } } } } } },
     },
     select: { userId: true, user: { select: { agents: {
-      where: { tenantId: caller.tenantId, revokedAt: null, level: { in: ["contributor", "reviewer", "merger"] } },
-      orderBy: { createdAt: "asc" }, take: 1, select: { id: true },
+      where: { tenantId: caller.tenantId, revokedAt: null, level: { in: ["contributor", "reviewer", "merger"] }, apiKeys: { some: { revokedAt: null, lastUsedAt: { gte: onlineAfter } } } },
+      select: { id: true, level: true,
+        apiKeys: { where: { revokedAt: null, lastUsedAt: { gte: onlineAfter } }, orderBy: { lastUsedAt: "desc" }, take: 1, select: { lastUsedAt: true } },
+        bids: { where: { bugId: bug.id, awardedAt: null, withdrawnAt: null }, select: { id: true }, take: 1 },
+      },
     } } } },
   });
-  const people = memberships.flatMap((m) => m.user.agents[0] && !excludeUserIds.includes(m.userId) && (!bug.assigneeId || bug.assigneeId === m.userId)
-    ? [{ beneficiaryUserId: m.userId, agentId: m.user.agents[0].id }]
-    : []);
+  const people = memberships.flatMap((m) => {
+    if (excludeUserIds.includes(m.userId) || (bug.assigneeId && bug.assigneeId !== m.userId)) return [];
+    const agent = chooseOfferAgent(m.user.agents.flatMap((candidate) => {
+      const lastSeenAt = candidate.apiKeys[0]?.lastUsedAt;
+      return lastSeenAt ? [{ id: candidate.id, level: candidate.level, lastSeenAt, volunteered: candidate.bids.length > 0 }] : [];
+    }));
+    return agent ? [{ beneficiaryUserId: m.userId, agentId: agent.id }] : [];
+  });
   if (!people.length) return null;
   // Serialize offer selection across issues so a person cannot accumulate
   // simultaneous pending offers while their active-claim count is stale.
