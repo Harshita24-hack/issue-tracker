@@ -48,6 +48,7 @@ function bound(value: Date | string | null | undefined, field: string): Date | n
   return date;
 }
 
+/** Sum of `points` and count of rows in `PointEntry` matching `where`. */
 async function totals(
   db: Db,
   where: Prisma.PointEntryWhereInput,

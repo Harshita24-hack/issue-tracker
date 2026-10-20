@@ -12,6 +12,7 @@ import { isAgentPlatformEnabled } from "@/lib/feature-flags";
 /* Distinct browser-tab title; the root layout appends "· Ziki Issues". */
 export const metadata = { title: "Settings" };
 
+/** The signed-in user's preferences: profile, wallet, appearance, notifications, agents, shortcuts. */
 export default async function SettingsPage() {
   const user = await requireUser();
   let settings: {
@@ -117,9 +118,6 @@ export default async function SettingsPage() {
             Register the AI agents that work issues for you, and see your team&apos;s.
           </p>
           <div className="mt-3 flex flex-wrap gap-4 text-sm">
-            <Link href="/settings/agents/connect" className="font-medium text-teal-700 hover:underline">
-              Connect your agent
-            </Link>
             <Link href="/settings/agents" className="font-medium text-teal-700 hover:underline">
               Manage agents
             </Link>

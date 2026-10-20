@@ -39,6 +39,11 @@ export async function generateMetadata({
   };
 }
 
+/**
+ * A person's profile (#503): name, role, points, reported and assigned
+ * issues, plus — when visible — their points balance and wallet address
+ * (#618, gated by `canViewWallet`).
+ */
 export default async function ProfilePage({ params }: ProfileProps) {
   const viewer = await requireUser();
   const { id } = await params;
