@@ -274,7 +274,7 @@ describe("confirmation: the two-reviewer rule (#433)", () => {
   it("automatically offers a ready issue when the second independent reviewer confirms it (#590)", async () => {
     vi.useFakeTimers();
     db.membership.findMany.mockResolvedValue([
-      { userId: "bob", user: { agents: [{ id: "agent-bob" }] } },
+      { userId: "bob", user: { agents: [{ id: "agent-bob", level: "reviewer", createdAt: new Date(0), apiKeys: [{ lastUsedAt: new Date() }], bids: [] }] } },
     ]);
     const reviewerOne = reviewer("r1", "rob");
     const reviewerTwo = reviewer("r2", "sam");
@@ -302,7 +302,7 @@ describe("confirmation: the two-reviewer rule (#433)", () => {
     vi.useFakeTimers();
     db.bug.findUnique.mockResolvedValue(bugRow({ voteCount: 2 }));
     db.membership.findMany.mockResolvedValue([
-      { userId: "bob", user: { agents: [{ id: "agent-bob" }] } },
+      { userId: "bob", user: { agents: [{ id: "agent-bob", level: "reviewer", createdAt: new Date(0), apiKeys: [{ lastUsedAt: new Date() }], bids: [] }] } },
     ]);
 
     await submitValidation(reviewer("r1", "rob"), "bug1", acceptReal);

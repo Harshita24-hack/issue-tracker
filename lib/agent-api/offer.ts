@@ -13,11 +13,53 @@ import { ensureWatching } from "@/lib/watch";
 import { assertRedesignOpen } from "@/lib/redesigns";
 
 export const OFFER_TTL_MS = 60_000;
+/**
+ * How long an agent counts as online after it was last seen on the API (#591).
+ * Provisional until #592 records presence explicitly: `AgentApiKey.lastUsedAt`
+ * moves on every authenticated agent request (throttled to once a minute), and
+ * agents that are working long-poll far more often than this.
+ */
+export const AGENT_PRESENCE_WINDOW_MS = 5 * 60_000;
 const id = z.string().trim().min(1).max(191);
 export const offerSchema = z.object({ projectId: id.optional() }).strict();
 
 type Db = typeof prisma | Prisma.TransactionClient;
 type OfferCandidate = { beneficiaryUserId: string; agentId: string; activeClaims: number; lastOfferedAt: Date | null; pendingOffer?: boolean };
+
+/** One of a person's agents, as offer selection sees it (#591). */
+export type OfferAgentCandidate = {
+  id: string;
+  level: string;
+  createdAt: Date;
+  /** Newest `lastUsedAt` across the agent's live keys; null when it was never seen. */
+  lastSeenAt: Date | null;
+  /** The agent bid on this issue. */
+  volunteered?: boolean;
+};
+
+const LEVEL_RANK: Record<string, number> = { observer: 0, contributor: 1, reviewer: 2, merger: 3 };
+
+export function isAgentOnline(agent: Pick<OfferAgentCandidate, "lastSeenAt">, now = Date.now()): boolean {
+  return agent.lastSeenAt !== null && now - agent.lastSeenAt.getTime() < AGENT_PRESENCE_WINDOW_MS;
+}
+
+/**
+ * Picks which of one person's agents gets the offer (#591): one that
+ * volunteered for the issue first, then the one seen most recently, then the
+ * highest level. Returns null when none of them has been seen inside the
+ * presence window, so the person is skipped instead of burning the offer TTL
+ * on an agent that is switched off.
+ */
+export function pickOfferAgent<T extends OfferAgentCandidate>(agents: T[], now = Date.now()): T | null {
+  const online = agents.filter((agent) => isAgentOnline(agent, now));
+  if (!online.length) return null;
+  return [...online].sort((a, b) =>
+    Number(b.volunteered ?? false) - Number(a.volunteered ?? false)
+    || b.lastSeenAt!.getTime() - a.lastSeenAt!.getTime()
+    || (LEVEL_RANK[b.level] ?? 0) - (LEVEL_RANK[a.level] ?? 0)
+    || a.createdAt.getTime() - b.createdAt.getTime()
+    || a.id.localeCompare(b.id))[0];
+}
 
 export function isOfferExpired(offeredAt: Date | null, now = Date.now()): boolean {
   return !offeredAt || now - offeredAt.getTime() >= OFFER_TTL_MS;
@@ -48,12 +90,27 @@ export async function offerNext(db: Db, caller: { agentId?: string; tenantId: st
     },
     select: { userId: true, user: { select: { agents: {
       where: { tenantId: caller.tenantId, revokedAt: null, level: { in: ["contributor", "reviewer", "merger"] } },
-      orderBy: { createdAt: "asc" }, take: 1, select: { id: true },
+      select: {
+        id: true, level: true, createdAt: true,
+        apiKeys: { where: { revokedAt: null }, select: { lastUsedAt: true } },
+        bids: { where: { bugId: bug.id, withdrawnAt: null }, select: { id: true }, take: 1 },
+      },
     } } } },
   });
-  const people = memberships.flatMap((m) => m.user.agents[0] && !excludeUserIds.includes(m.userId) && (!bug.assigneeId || bug.assigneeId === m.userId)
-    ? [{ beneficiaryUserId: m.userId, agentId: m.user.agents[0].id }]
-    : []);
+  const people = memberships.flatMap((m) => {
+    if (excludeUserIds.includes(m.userId) || (bug.assigneeId && bug.assigneeId !== m.userId)) return [];
+    const now = Date.now();
+    const picked = pickOfferAgent(m.user.agents.map((agent) => ({
+      id: agent.id,
+      level: agent.level,
+      createdAt: agent.createdAt,
+      lastSeenAt: agent.apiKeys.reduce<Date | null>((latest, key) => (
+        key.lastUsedAt && (!latest || key.lastUsedAt > latest) ? key.lastUsedAt : latest
+      ), null),
+      volunteered: agent.bids.length > 0,
+    })), now);
+    return picked ? [{ beneficiaryUserId: m.userId, agentId: picked.id }] : [];
+  });
   if (!people.length) return null;
   // Serialize offer selection across issues so a person cannot accumulate
   // simultaneous pending offers while their active-claim count is stale.
