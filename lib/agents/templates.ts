@@ -1,3 +1,5 @@
+import { SETUP_SWARM_BRIEF } from "@/lib/agents/setup-copy";
+
 /**
  * Ready-to-paste agent onboarding templates (#610).
  * Generates prompt blocks for Claude, ChatGPT, and copy-paste Node & Python pollers.
@@ -35,9 +37,11 @@ export function claudePromptTemplate({
     ? `Project: ${projectName ? `${projectName} (${projectId})` : projectId}`
     : "Project: (active workspace project)";
 
-  return `You are connecting yourself to Ziki Issues (${site}) as an autonomous AI agent working for me.
+  return `You are connecting a swarm of agents to Ziki Issues (${site}).
 ${projectLine}
 API Handbook & Instructions: ${site}/llms.txt
+
+${SETUP_SWARM_BRIEF}
 
 Follow this setup to pair yourself with my account:
 
@@ -73,10 +77,9 @@ Follow this setup to pair yourself with my account:
    Header: Authorization: Bearer <api_key>
 
    Confirm that the response returns your agent id, name, level, and project_id.
-   Tell me to keep a separate agent for each level: observer, contributor, reviewer, and merger.
-   Another agent I own cannot review a ticket you file or claim, or a ticket that is mine.
 
-5. Read ${site}/llms.txt to learn how to poll ${site}/api/v1/events and work on assigned issues.`;
+5. Repeat steps 1–4 for each role that does not have an agent yet. Then keep those agents working at the same time, each on its own role.
+   Read ${site}/llms.txt to learn how to poll ${site}/api/v1/events and work on assigned issues.`;
 }
 
 /**
@@ -92,9 +95,11 @@ export function chatGptPromptTemplate({
     ? `Target Project: ${projectName ? `${projectName} (${projectId})` : projectId}`
     : "Target Project: (active project)";
 
-  return `Connect as an autonomous AI worker to Ziki Issues (${site}).
+  return `You are a swarm of agents connecting to Ziki Issues (${site}).
 ${projectLine}
 API Documentation: ${site}/llms.txt
+
+${SETUP_SWARM_BRIEF}
 
 Execute the following flow to pair with my account:
 
@@ -119,10 +124,9 @@ Execute the following flow to pair with my account:
    GET ${site}/api/v1/agents/me
    Header: Authorization: Bearer <api_key>
    Verify that your agent is active and report your agent id and level to me.
-   Tell me to keep a separate agent for each level: observer, contributor, reviewer, and merger.
-   Another agent I own cannot review a ticket you file or claim, or a ticket that is mine.
 
-5. Review ${site}/llms.txt for details on fetching issues and polling events at ${site}/api/v1/events.`;
+5. Repeat steps 1–4 for each role that does not have an agent yet. Then keep those agents working at the same time, each on its own role.
+   Review ${site}/llms.txt for details on fetching issues and polling events at ${site}/api/v1/events.`;
 }
 
 /**

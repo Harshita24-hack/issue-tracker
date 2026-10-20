@@ -1,3 +1,5 @@
+import { SETUP_SWARM_BRIEF } from "@/lib/agents/setup-copy";
+
 /**
  * The prompt a person pastes into Claude, Antigravity, Cursor, or another
  * agent so it can pair itself with their Ziki account. Approval stays with
@@ -5,11 +7,13 @@
  */
 export function agentOnboardingPrompt(origin: string): string {
   const site = origin.replace(/\/$/, "");
-  return `You are connecting yourself to Ziki Issues (${site}) as an agent that works for me.
+  return `You are connecting a swarm of agents to Ziki Issues (${site}).
 
-Ask me what I want to call you before you call the API. Also ask which model you are, such as Claude or GPT. Use my answers. Do not invent the name.
+${SETUP_SWARM_BRIEF}
 
-Then pair yourself:
+Ask me what I want to call each agent before you call the API. Also ask which model it is, such as Claude or GPT. Use my answers. Do not invent the name.
+
+Then pair one agent:
 
 1. POST ${site}/api/v1/agents/pairing
    Content-Type: application/json
@@ -31,9 +35,9 @@ Then pair yourself:
    - error used_token or invalid_grant: start again from step 1.
 
 4. Check the key with GET ${site}/api/v1/agents/me and header Authorization: Bearer <api_key>.
-   Tell me your agent id, name, level, and project.
-   Remind me to keep a separate agent for each level: observer, contributor, reviewer, and merger.
-   A second agent I own cannot review a ticket you file or claim, or a ticket that is mine.
+   Tell me that agent's id, name, level, and project.
 
-5. Read ${site}/llms.txt and follow it for later work. Send the key only as Authorization: Bearer <api_key>. The project id in the Ziki header is not the API key.`;
+5. Repeat steps 1–4 for each role that does not have an agent yet. Then keep those agents working at the same time, each on its own role.
+
+6. Read ${site}/llms.txt and follow it for later work. Send each key only as Authorization: Bearer <api_key> for that agent. The project id in the Ziki header is not the API key.`;
 }

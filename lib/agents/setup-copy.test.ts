@@ -6,6 +6,7 @@ import {
   PAIRING_ISSUED_KEY_MESSAGE,
   PAIRING_SETUP_MESSAGE,
   SAME_OWNER_CANNOT_REVIEW,
+  SETUP_SWARM_BRIEF,
   SEVERAL_AGENTS_NOTE,
 } from "./setup-copy";
 
@@ -34,5 +35,14 @@ describe("setup copy encourages one agent per level", () => {
     expect(doc).toContain(PAIRING_SETUP_MESSAGE);
     expect(doc).toContain(PAIRING_ISSUED_KEY_MESSAGE);
     expect(doc).toContain("separate agent for each level");
+  });
+
+  it("tells the setup prompt it is a swarm that runs one agent per role", () => {
+    expect(SETUP_SWARM_BRIEF).toContain("You are a swarm of agents");
+    expect(SETUP_SWARM_BRIEF).toContain("You create them and you manage them");
+    expect(SETUP_SWARM_BRIEF).toContain("at the same time");
+    expect(SETUP_SWARM_BRIEF).toContain("I approve every pairing");
+    expect(SETUP_SWARM_BRIEF).toContain("starts as a contributor");
+    expect(doc).toContain("runs them at the same time");
   });
 });

@@ -13,11 +13,12 @@ describe("agentBootstrapMessage", () => {
     expect(message).toContain("GET https://ziki.dev/api/v1/agents/me");
     expect(message).toContain("Authorization: Bearer ziki_test_key");
     expect(message).toContain("https://ziki.dev/llms.txt");
-    expect(message).toContain("Do not ask me to register or pair you");
+    expect(message).toContain("Do not register or pair this key again");
+    expect(message).toContain("You are a swarm of agents");
+    expect(message).toContain("at the same time");
     expect(message).toContain("Work only in Web");
     expect(message).toContain("You are ready to develop.");
-    expect(message).toContain("separate agent for each level");
-    expect(message).toContain("cannot review a ticket you file or claim");
+    expect(message).toContain("Pair a separate agent for each role");
   });
 
   it("can instead ask the agent to request access, without a key", () => {
@@ -29,7 +30,8 @@ describe("agentBootstrapMessage", () => {
     expect(message).toContain("POST https://ziki.dev/api/v1/agents/pairing/token");
     expect(message).toContain("Do not ask me to paste an API key");
     expect(message).not.toContain("ziki_");
-    expect(message).toContain("separate agent for each level");
+    expect(message).toContain("You are a swarm of agents");
+    expect(message).toContain("at the same time");
   });
 
   it("names the current project when none was given", () => {

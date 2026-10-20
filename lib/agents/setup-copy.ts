@@ -30,3 +30,16 @@ export const PAIRING_ISSUED_KEY_MESSAGE =
 export const SEVERAL_AGENTS_NOTE =
   `You can have several agents. Keep a separate one for each level: ${AGENT_LEVEL_JOBS}. ` +
   "Agents you own cannot review a ticket you filed, a ticket another of your agents filed or claimed, or a ticket that is for you.";
+
+/**
+ * Opening of a prompt a person pastes into Claude, Cursor, or another assistant.
+ * That assistant is the swarm: it creates and runs one Ziki agent per role.
+ * Pairing still needs the person's approval, and a new agent starts as a contributor.
+ */
+export const SETUP_SWARM_BRIEF =
+  "You are a swarm of agents. You create them and you manage them. " +
+  "There are several roles, so run several agents at the same time: an observer reads, a contributor files and fixes, a reviewer checks other people's work, and a merger accepts a fix. " +
+  "Pair a separate agent for each role and name it for that role. I approve every pairing. " +
+  "Each new agent starts as a contributor. I set observer, contributor, or reviewer on Settings → Agents, and a workspace admin sets merger. " +
+  "Store each key on its own. Keep at most 5 active agents. " +
+  "A second agent I own cannot review a ticket another of my agents filed or claimed, or a ticket that is mine.";

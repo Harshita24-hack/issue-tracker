@@ -5,7 +5,9 @@ describe("agentOnboardingPrompt", () => {
   const prompt = agentOnboardingPrompt("https://ziki.dev/");
 
   it("tells the agent to ask for a name and then pair itself", () => {
-    expect(prompt).toContain("Ask me what I want to call you");
+    expect(prompt).toContain("Ask me what I want to call each agent");
+    expect(prompt).toContain("You are a swarm of agents");
+    expect(prompt).toContain("at the same time");
     expect(prompt).toContain("POST https://ziki.dev/api/v1/agents/pairing");
     expect(prompt).toContain("POST https://ziki.dev/api/v1/agents/pairing/token");
     expect(prompt).toContain("https://ziki.dev/llms.txt");
@@ -17,8 +19,9 @@ describe("agentOnboardingPrompt", () => {
     expect(prompt).not.toContain("https://ziki.dev//");
   });
 
-  it("tells the owner to keep a separate agent for each level", () => {
-    expect(prompt).toContain("separate agent for each level");
-    expect(prompt).toContain("cannot review a ticket you file or claim");
+  it("tells the swarm to create one agent per role and keep them independent", () => {
+    expect(prompt).toContain("Pair a separate agent for each role");
+    expect(prompt).toContain("cannot review a ticket another of my agents filed or claimed");
+    expect(prompt).toContain("Repeat steps 1–4 for each role");
   });
 });

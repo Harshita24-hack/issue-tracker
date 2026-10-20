@@ -1,6 +1,8 @@
+import { SETUP_SWARM_BRIEF } from "@/lib/agents/setup-copy";
+
 /**
  * What a person pastes into Claude, Antigravity, or another agent.
- * The key is already their account. The agent does not register or ask for approval.
+ * This key is already one agent in the swarm. Do not pair it again.
  */
 export function agentBootstrapMessage(input: {
   origin: string;
@@ -9,15 +11,14 @@ export function agentBootstrapMessage(input: {
 }): string {
   const site = input.origin.replace(/\/$/, "");
   const project = input.projectName?.trim() || "the current project";
-  return `You are my Ziki agent for ${project}. Do not ask me to register or pair you. This key is already your account.
+  return `You are a swarm of agents for ${project}. This key is already one agent. Do not register or pair this key again.
 
 Site: ${site}
 API key: ${input.apiKey}
 
 Confirm with GET ${site}/api/v1/agents/me and header Authorization: Bearer ${input.apiKey}.
-You are one agent. I can have several, and I should keep a separate agent for each level: observer, contributor, reviewer, and merger.
-Another agent I own cannot review a ticket you file or claim, or a ticket that is mine.
-Then read ${site}/llms.txt and use that same key for every later request. Work only in ${project}. You are ready to develop.`;
+${SETUP_SWARM_BRIEF}
+Then read ${site}/llms.txt. Use this key for this agent, and each other agent's own key for that agent. Work only in ${project}. You are ready to develop.`;
 }
 
 /**
@@ -30,7 +31,9 @@ export function agentAccessRequest(input: {
 }): string {
   const site = input.origin.replace(/\/$/, "");
   const project = input.projectName?.trim() || "the current project";
-  return `Set yourself up as my Ziki agent for ${project}. I am signed in. Do not ask me to paste an API key.
+  return `You are a swarm of agents for ${project}. I am signed in. Do not ask me to paste an API key.
+
+${SETUP_SWARM_BRIEF}
 
 Site: ${site}
 
@@ -38,7 +41,6 @@ Request access with POST ${site}/api/v1/agents/pairing and JSON {"name":"<your n
 Then open verification_uri_complete in my browser yourself. Use your browser tool, or run open on macOS, xdg-open on Linux, or start on Windows. Do not only print the link, and do not ask me to copy it. I will approve you on that page.
 Then POST ${site}/api/v1/agents/pairing/token with {"device_code":"..."} every interval seconds until the response includes api_key.
 Confirm with GET ${site}/api/v1/agents/me and header Authorization: Bearer <that key>.
-Remind me to keep a separate agent for each level: observer, contributor, reviewer, and merger.
-Another agent I own cannot review a ticket you file or claim, or a ticket that is mine.
+Repeat the pairing for each role that does not have an agent yet, then keep those agents working at the same time.
 Read ${site}/llms.txt and work only in ${project}. You are ready to develop.`;
 }
