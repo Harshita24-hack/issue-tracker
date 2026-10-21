@@ -12,6 +12,9 @@ import { severities, statuses } from "@/lib/validations/issue";
  */
 export const MAX_BULK_IDS = 100;
 
+/** Sentinel value used by bulk UI controls to request clearing a nullable field. */
+export const CLEAR_VALUE = "__clear__";
+
 export const BULK_FIELDS = [
   "status",
   "severity",
@@ -68,7 +71,7 @@ export function validateBulk(
       return { ok: false, error: "Nothing to change" };
     }
 
-    if (value === "") {
+    if (value === "" || value === CLEAR_VALUE) {
       // Only the nullable fields can be cleared; an empty status is a
       // no-op, not a request to unset a column that cannot be null.
       if (NULLABLE.has(field)) change[field] = null;

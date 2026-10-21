@@ -10,9 +10,11 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import { bulkUpdateBugsAction } from "@/app/actions/issues-bulk";
-import { MAX_BULK_IDS } from "@/lib/bulk-actions";
+import { CLEAR_VALUE, MAX_BULK_IDS } from "@/lib/bulk-actions";
 import { severities, statuses } from "@/lib/validations/issue";
 import { severityLabel, statusLabel } from "@/lib/labels";
+
+export { CLEAR_VALUE };
 
 type Selection = {
   selected: ReadonlySet<string>;
@@ -117,10 +119,11 @@ function BulkBar({
 
   function apply(field: string, value: string) {
     if (!value || count === 0) return;
+    const finalValue = value === CLEAR_VALUE ? "" : value;
     setMessage(null);
     setFailures([]);
     startTransition(async () => {
-      const result = await bulkUpdateBugsAction([...selected], { [field]: value });
+      const result = await bulkUpdateBugsAction([...selected], { [field]: finalValue });
       if (result.error) {
         setMessage(result.error);
         setFailures(result.skipped ?? []);
@@ -216,16 +219,19 @@ function BulkBar({
             ))}
           </Field>
           <Field label="Type" disabled={pending || overLimit} onPick={(v) => apply("typeId", v)}>
+            <option value={CLEAR_VALUE}>No type</option>
             {types.map((t) => (
               <option key={t.id} value={t.id}>{t.name}</option>
             ))}
           </Field>
           <Field label="Platform" disabled={pending || overLimit} onPick={(v) => apply("categoryId", v)}>
+            <option value={CLEAR_VALUE}>No platform</option>
             {platforms.map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </Field>
           <Field label="Assignee" disabled={pending || overLimit} onPick={(v) => apply("assigneeId", v)}>
+            <option value={CLEAR_VALUE}>Unassigned</option>
             {users.map((u) => (
               <option key={u.id} value={u.id}>{u.name}</option>
             ))}
@@ -292,6 +298,7 @@ function Field({
         onChange={(event) => {
           const value = event.target.value;
           event.target.value = "";
+          if (value === "") return;
           onPick(value);
         }}
       >

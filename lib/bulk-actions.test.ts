@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_BULK_IDS, validateBulk } from "./bulk-actions";
+import { CLEAR_VALUE, MAX_BULK_IDS, validateBulk } from "./bulk-actions";
 
 const ok = (result: ReturnType<typeof validateBulk>) => {
   if (!result.ok) throw new Error(`expected ok, got: ${result.error}`);
@@ -68,9 +68,33 @@ describe("validateBulk", () => {
     });
   });
 
+  it("clears the nullable fields on CLEAR_VALUE (#719)", () => {
+    const result = ok(
+      validateBulk(["a"], {
+        typeId: CLEAR_VALUE,
+        categoryId: CLEAR_VALUE,
+        assigneeId: CLEAR_VALUE,
+      }),
+    );
+    expect(result.change).toEqual({
+      typeId: null,
+      categoryId: null,
+      assigneeId: null,
+    });
+  });
+
   it("treats an empty status or severity as no change, not as clearing it", () => {
     // Those columns are NOT NULL; clearing them would fail at the database.
     const result = validateBulk(["a"], { status: "", severity: "", typeId: "" });
+    expect(ok(result).change).toEqual({ typeId: null });
+  });
+
+  it("treats CLEAR_VALUE on status or severity as no change (#719)", () => {
+    const result = validateBulk(["a"], {
+      status: CLEAR_VALUE,
+      severity: CLEAR_VALUE,
+      typeId: CLEAR_VALUE,
+    });
     expect(ok(result).change).toEqual({ typeId: null });
   });
 
