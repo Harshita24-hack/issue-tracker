@@ -1,6 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Avatar } from "@/components/avatar";
+import {
+  StatusPage,
+  primaryActionClass,
+  secondaryActionClass,
+} from "@/components/status-page";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LocalTime } from "@/components/local-time";
@@ -16,6 +21,7 @@ import {
   TENANT_NAME_MAX,
   memberTenantBySlug,
   tenantMembersFrom,
+  type TenantChoice,
 } from "@/lib/tenants";
 import {
   deleteTenantAction,
@@ -32,6 +38,7 @@ import { joinedSummary, listShareLinks, shareLinkStatusLabel } from "@/lib/share
 import { InviteForm } from "./invite-form";
 import { ShareLinkForm } from "./share-link-form";
 import { pendingTenantJoinRequests, TENANT_DESCRIPTION_MAX, tenantSummary } from "@/lib/tenant-join-requests";
+import { databaseErrorReason } from "@/lib/db-error";
 
 /* Static on purpose: a title built from the slug could name someone else's tenant. */
 export const metadata = { title: "Tenant" };
@@ -40,6 +47,21 @@ const card = "rounded-xl border border-slate-200 bg-white p-4 sm:p-6";
 
 function plural(count: number, word: string): string {
   return `${count} ${word}${count === 1 ? "" : "s"}`;
+}
+
+async function loadTenant(
+  userId: string,
+  slug: string,
+): Promise<{ tenant: TenantChoice | null; problem: string | null }> {
+  try {
+    return { tenant: await memberTenantBySlug(prisma, userId, slug), problem: null };
+  } catch (error) {
+    console.error("[tenant] lookup failed", error);
+    return {
+      tenant: null,
+      problem: databaseErrorReason(error) ?? "The workspace record could not be read.",
+    };
+  }
 }
 
 async function loadQuietly<T>(label: string, task: Promise<T>, empty: T): Promise<T> {
@@ -95,7 +117,27 @@ export default async function TenantPage({
   } = await searchParams;
   const error = typeof errorParam === "string" ? errorParam : "";
   const notice = typeof noticeParam === "string" ? noticeParam : "";
-  const tenant = await memberTenantBySlug(prisma, user.id, slug);
+  const loaded = await loadTenant(user.id, slug);
+  if (loaded.problem) {
+    return (
+      <StatusPage
+        title="This page didn't load"
+        actions={
+          <>
+            <Link href={`/tenants/${encodeURIComponent(slug)}`} className={primaryActionClass}>
+              Try again
+            </Link>
+            <Link href="/issues" className={secondaryActionClass}>
+              Go to issues
+            </Link>
+          </>
+        }
+      >
+        <p>{loaded.problem}</p>
+      </StatusPage>
+    );
+  }
+  const tenant = loaded.tenant;
   // Someone else's tenant looks exactly like no tenant: its name is never read.
   if (!tenant) notFound();
 
