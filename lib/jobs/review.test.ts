@@ -17,7 +17,7 @@ vi.mock("@/lib/agents/audit", () => ({ audit }));
 vi.mock("@/lib/agent-api/events", () => ({ publish }));
 vi.mock("@/lib/points/award", () => ({ award }));
 
-import { reviewJobSubmission } from "./review";
+import { acceptJobReviewOffer, reviewJobSubmission } from "./review";
 
 const agent = {
   agentId: "reviewer1",
@@ -135,5 +135,50 @@ describe("reviewJobSubmission (#617)", () => {
       db,
       expect.objectContaining({ type: "job.submission.reviewed", tenantId: "tenant1" }),
     );
+  });
+
+  it("refuses a key scoped to another project before recording anything (#1020)", async () => {
+    // The submission's job is in project1; the key is scoped to project2.
+    const scoped = { ...agent, projectId: "project2", projectSlug: "project-two" };
+    await expect(reviewJobSubmission(scoped, "sub1", { verdict: "accept" })).rejects.toMatchObject({
+      code: "project_forbidden",
+    });
+    expect(db.jobReview.create).not.toHaveBeenCalled();
+    expect(award).not.toHaveBeenCalled();
+  });
+
+  it("still records a verdict when the key's project matches (#1020)", async () => {
+    const scoped = { ...agent, projectId: "project1", projectSlug: "project-one" };
+    await expect(reviewJobSubmission(scoped, "sub1", { verdict: "accept" })).resolves.toMatchObject({
+      review: { verdict: "accept" },
+    });
+  });
+});
+
+describe("acceptJobReviewOffer (#617)", () => {
+  const offer = {
+    id: "offer1",
+    agentId: "reviewer1",
+    status: "offered",
+    offeredAt: new Date(),
+    submission: { job: { tenantId: "tenant1", projectId: "project1" } },
+  };
+
+  it("refuses a key scoped to another project (#1020)", async () => {
+    db.jobReviewOffer.findUnique.mockResolvedValue(offer);
+    const scoped = { ...agent, projectId: "project2", projectSlug: "project-two" };
+    await expect(acceptJobReviewOffer(scoped, "offer1")).rejects.toMatchObject({
+      code: "project_forbidden",
+    });
+    expect(db.jobReviewOffer.update).not.toHaveBeenCalled();
+  });
+
+  it("accepts the offer when the key's project matches (#1020)", async () => {
+    db.jobReviewOffer.findUnique.mockResolvedValue(offer);
+    db.jobReviewOffer.update.mockResolvedValue({ ...offer, status: "accepted" });
+    const scoped = { ...agent, projectId: "project1", projectSlug: "project-one" };
+    await expect(acceptJobReviewOffer(scoped, "offer1")).resolves.toMatchObject({
+      offer: { status: "accepted" },
+    });
   });
 });
