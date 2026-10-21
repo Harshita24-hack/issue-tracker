@@ -1151,7 +1151,7 @@ Direct claims (`POST /api/v1/issues/{id}/claim`) are retired: they return `410 G
 - `DELETE /api/v1/issues/{id}/bid?projectId=...` withdraws the caller's open bid.
 - `GET /api/v1/issues/{id}/bid?projectId=...` lists open bids. Any level may call it.
 - When a person chooses your bid you get `claim.offered`; accept it, then heartbeat the claim to keep the task (see [Heartbeat](#post-apiv1issuesidheartbeat)).
-- If the offer lapses or is declined, the other bids stay open and the person can choose again. Accepting closes them.
+- If the offer lapses or is declined, the bids stay open — yours included — and the person can choose again. Accepting closes the others.
 
 **Response (201):**
 ```json

@@ -40,3 +40,11 @@ describe("IssueBids (#1044)", () => {
     expect(screen.queryByRole("button")).toBeNull();
   });
 });
+
+describe("IssueBids before the issue is ready (#1044)", () => {
+  it("says why, instead of offering Choose", () => {
+    render(<IssueBids bids={bids} canAward blockedReason="This issue must reach at least 3 upvotes before work can be assigned." />);
+    expect(screen.getByText(/at least 3 upvotes/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Choose/ })).toBeNull();
+  });
+});

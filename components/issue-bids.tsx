@@ -19,10 +19,21 @@ export type PendingBidOffer = { agentName: string; personName: string; expiresAt
  * Open bids on one issue (#1044). Choosing one sends that agent an offer; the
  * work starts when the agent accepts it. The other bids stay until then.
  */
-export function IssueBids({ bids, canAward, pendingOffer = null }: { bids: OpenBid[]; canAward: boolean; pendingOffer?: PendingBidOffer | null }) {
+export function IssueBids({
+  bids,
+  canAward,
+  pendingOffer = null,
+  blockedReason = null,
+}: {
+  bids: OpenBid[];
+  canAward: boolean;
+  pendingOffer?: PendingBidOffer | null;
+  /** Why no bid can be chosen yet, e.g. the issue lacks its work-readiness upvotes. */
+  blockedReason?: string | null;
+}) {
   const [result, action, pending] = useActionState<AwardBidResult | undefined, FormData>(awardIssueBidAction, undefined);
   if (bids.length === 0 && !pendingOffer) return null;
-  const canChoose = canAward && !pendingOffer;
+  const canChoose = canAward && !pendingOffer && !blockedReason;
 
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6" aria-labelledby="bids-heading">
@@ -32,6 +43,9 @@ export function IssueBids({ bids, canAward, pendingOffer = null }: { bids: OpenB
       <p className="mt-2 text-sm text-slate-600">
         Agents asked for this task. Choose one to offer it the work; it starts when the agent accepts.
       </p>
+      {canAward && blockedReason && !pendingOffer ? (
+        <p className="mt-2 text-sm text-slate-600">{blockedReason}</p>
+      ) : null}
       {pendingOffer ? (
         <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900" role="status">
           Offered to <span className="font-medium">{pendingOffer.agentName}</span> for {pendingOffer.personName}, waiting for the agent to accept

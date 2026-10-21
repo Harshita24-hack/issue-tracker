@@ -10,6 +10,7 @@ import { workflowFor } from "@/lib/workflow";
 import { isOfferExpired } from "@/lib/agent-api/offer";
 import { assertRedesignOpen } from "@/lib/redesigns";
 import { notifyClaimOffered } from "@/lib/agent-notifications";
+import { TICKET_ASSIGN_ERRORS, WORK_READINESS_VOTE_THRESHOLD } from "@/lib/ticket-assignment";
 import type { AppRole } from "@/lib/roles";
 
 export const BID_NOTE_MAX = 280;
@@ -22,9 +23,37 @@ export const bidSchema = z.object({
 type Actor = { id: string; role?: AppRole | null };
 type Tx = Prisma.TransactionClient;
 
-function openBidWhere(bugId: string) {
-  return { bugId, withdrawnAt: null, awardedAt: null };
+/**
+ * Bids a person can still choose. #1044: a chosen bid whose offer was declined
+ * or lapsed (released, or past the offer window and not yet swept) is open
+ * again, so the person can choose it — or another — once more.
+ */
+export function openBidWhere(bugId: string, offerWindowMs: number, now = new Date()): Prisma.IssueBidWhereInput {
+  return {
+    bugId,
+    withdrawnAt: null,
+    OR: [
+      { awardedAt: null },
+      { claim: { status: "released", claimedAt: null } },
+      { claim: { status: "offered", releasedAt: null, offeredAt: { lte: new Date(now.getTime() - offerWindowMs) } } },
+    ],
+  };
 }
+
+/** The same rule for one bid already loaded with its claim. */
+function bidIsOpen(
+  bid: { withdrawnAt: Date | null; awardedAt: Date | null; claim: { status: string; claimedAt: Date | null; offeredAt: Date | null; releasedAt: Date | null } | null },
+  offerWindowMs: number,
+  now = new Date(),
+): boolean {
+  if (bid.withdrawnAt) return false;
+  if (!bid.awardedAt) return true;
+  if (!bid.claim) return false;
+  if (bid.claim.status === "released") return !bid.claim.claimedAt;
+  return bid.claim.status === "offered" && !bid.claim.releasedAt && isOfferExpired(bid.claim.offeredAt, now.getTime(), offerWindowMs);
+}
+
+const bidClaimSelect = { select: { status: true, claimedAt: true, offeredAt: true, releasedAt: true } } as const;
 
 /** A live offer or an active claim already has this task. An expired offer does not. */
 async function competingClaim(tx: Tx, bugId: string) {
@@ -64,9 +93,20 @@ export async function placeBid(caller: AgentContext, projectId: string, bugId: s
     const { maxActiveClaims } = await workflowFor(projectId, tx);
     if (activeClaims >= maxActiveClaims) throw new IssueApiError(409, "This person already has the maximum number of active tasks.");
 
-    const existing = await tx.issueBid.findUnique({ where: { bugId_agentId: { bugId, agentId: caller.agentId } } });
-    if (existing?.awardedAt) throw new IssueApiError(409, "This bid was already awarded.");
-    if (existing && !existing.withdrawnAt) return existing;
+    const existing = await tx.issueBid.findUnique({ where: { bugId_agentId: { bugId, agentId: caller.agentId } }, include: { claim: bidClaimSelect } });
+    if (existing?.awardedAt) {
+      // #1044: an offer this bid got and let lapse leaves it open; bidding again keeps it.
+      const windowMs = (await workflowFor(projectId, tx)).offerWindowSeconds * 1000;
+      if (!bidIsOpen(existing, windowMs)) throw new IssueApiError(409, "This bid was already awarded.");
+      const { claim: _claim, ...open } = existing;
+      void _claim;
+      return open;
+    }
+    if (existing && !existing.withdrawnAt) {
+      const { claim: _claim, ...open } = existing;
+      void _claim;
+      return open;
+    }
 
     const bid = existing
       ? await tx.issueBid.update({
@@ -93,8 +133,9 @@ export async function listBids(caller: AgentContext, projectId: string, bugId: s
     select: { id: true, areaId: true },
   });
   if (!bug) throw new IssueApiError(404, "Issue not found in this project.");
+  const windowMs = (await workflowFor(projectId)).offerWindowSeconds * 1000;
   const bids = await prisma.issueBid.findMany({
-    where: openBidWhere(bugId),
+    where: openBidWhere(bugId, windowMs),
     orderBy: { createdAt: "asc" },
     select: {
       id: true,
@@ -167,10 +208,18 @@ export async function awardBid(actor: Actor, bidId: string) {
       if (!locked.length) throw new IssueApiError(404, "Bid not found.");
       const fresh = await tx.issueBid.findUnique({
         where: { id: bidId },
-        include: { bug: { select: { id: true, title: true, status: true, assigneeId: true, tenantId: true, projectId: true } } },
+        include: { claim: bidClaimSelect, bug: { select: { id: true, title: true, status: true, assigneeId: true, tenantId: true, projectId: true, voteCount: true } } },
       });
-      if (!fresh || fresh.withdrawnAt || fresh.awardedAt) throw new IssueApiError(409, "This bid is no longer open.");
+      if (!fresh) throw new IssueApiError(409, "This bid is no longer open.");
+      // #1044: a bid chosen before whose offer lapsed or was declined can be chosen again.
+      const offerWindowMs = (await workflowFor(fresh.bug.projectId, tx)).offerWindowSeconds * 1000;
+      if (!bidIsOpen(fresh, offerWindowMs)) throw new IssueApiError(409, "This bid is no longer open.");
       if (fresh.bug.status !== "open") throw new IssueApiError(409, "Only open issues can be given out.");
+      // The agent's accept needs the work-readiness upvotes (#590), so an offer
+      // made without them could never be taken. Say so now, not at accept time.
+      if (fresh.bug.voteCount < WORK_READINESS_VOTE_THRESHOLD) {
+        throw new IssueApiError(409, `The issue needs at least ${WORK_READINESS_VOTE_THRESHOLD} upvotes before its work can be given out.`);
+      }
       if (fresh.bug.assigneeId && fresh.bug.assigneeId !== fresh.beneficiaryUserId) {
         throw new IssueApiError(409, "This issue is already assigned to someone else.");
       }
@@ -207,7 +256,7 @@ export async function awardBid(actor: Actor, bidId: string) {
         },
       });
       const marked = await tx.issueBid.updateMany({
-        where: { id: fresh.id, awardedAt: null, withdrawnAt: null },
+        where: { id: fresh.id, withdrawnAt: null, awardedAt: fresh.awardedAt, claimId: fresh.claimId },
         data: { awardedAt: now, claimId: claim.id },
       });
       if (marked.count !== 1) throw new IssueApiError(409, "This bid is no longer open.");
@@ -237,6 +286,23 @@ export async function awardBid(actor: Actor, bidId: string) {
   }
 }
 
+/** #1044: the bids on an issue a person can choose, for the issue page. */
+export async function openBidsFor(bugId: string, projectId: string, areaId: string | null, now = new Date()) {
+  const windowMs = (await workflowFor(projectId)).offerWindowSeconds * 1000;
+  return prisma.issueBid.findMany({
+    where: openBidWhere(bugId, windowMs, now),
+    orderBy: { createdAt: "asc" },
+    select: {
+      id: true,
+      note: true,
+      createdAt: true,
+      beneficiaryUserId: true,
+      agent: { select: { name: true, areaPreferences: { where: { projectAreaId: areaId ?? "" }, select: { projectAreaId: true } } } },
+      beneficiary: { select: { name: true } },
+    },
+  });
+}
+
 /**
  * The offer waiting on an agent's answer, if any (#1044): the issue page shows
  * it under the bids, and holds the Choose buttons until it is answered or lapses.
@@ -254,4 +320,9 @@ export async function liveOfferFor(bugId: string, projectId: string, now = new D
     personName: row.beneficiary.name ?? "a member",
     expiresAt: new Date(row.offeredAt.getTime() + windowMs).toISOString(),
   };
+}
+
+/** #1044: why no bid can be chosen yet, or null. The agent's accept needs the work-readiness upvotes. */
+export function chooseBlockedReason(voteCount: number): string | null {
+  return voteCount < WORK_READINESS_VOTE_THRESHOLD ? TICKET_ASSIGN_ERRORS.needsVotes : null;
 }

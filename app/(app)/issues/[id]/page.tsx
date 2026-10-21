@@ -40,7 +40,7 @@ import { IssueAgentActivity, type AgentDecision } from "@/components/issue-agent
 import { IssueEscalations, type TicketEscalation } from "@/components/issue-escalations";
 import { listBugEscalations } from "@/lib/agent-questions";
 import { IssueBids } from "@/components/issue-bids";
-import { liveOfferFor } from "@/lib/agent-api/bid";
+import { chooseBlockedReason, liveOfferFor, openBidsFor } from "@/lib/agent-api/bid";
 import { GoalBudgetSection } from "@/components/goal-budgets";
 import { Badge } from "@/components/ui/badge";
 import { VoteButton } from "@/components/vote-button";
@@ -356,27 +356,12 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
     ),
   ]) : [[], null] as const;
   const canChooseRedesign = isTenantAdminRole(membership?.role, user.role);
-  const openBids = await loadOptional("bids", [], () =>
-    prisma.issueBid.findMany({
-      where: { bugId: bug.id, withdrawnAt: null, awardedAt: null },
-      orderBy: { createdAt: "asc" },
-      select: {
-        id: true,
-        note: true,
-        createdAt: true,
-        beneficiaryUserId: true,
-        agent: { select: { name: true, areaPreferences: {
-          where: { projectAreaId: bug.areaId ?? "" },
-          select: { projectAreaId: true },
-        } } },
-        beneficiary: { select: { name: true } },
-      },
-    }),
-  );
+  const openBids = await loadOptional("bids", [], () => openBidsFor(bug.id, bug.projectId, bug.areaId));
   const hasAreaMatch = (bid: { agent: { areaPreferences: unknown[] } }) =>
     Boolean(bug.areaId && bid.agent.areaPreferences.length);
   // #1044: a chosen bid's offer, while the agent hasn't answered it.
   const pendingBidOffer = await loadOptional("bid offer", null, () => liveOfferFor(bug.id, bug.projectId));
+  const bidsBlocked = await loadOptional("bids blocked", null, async () => chooseBlockedReason(bug.voteCount));
   const canAwardBid = bug.status === "open" && !bug.isDeleted && (bug.reporterId === user.id || canChooseRedesign);
 
   // #1046: what this issue can still pay, in one line under its details.
@@ -1056,6 +1041,7 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
           }))}
         canAward={canAwardBid}
         pendingOffer={pendingBidOffer}
+        blockedReason={bidsBlocked}
       />
 
       <IssueEscalations escalations={escalations} />

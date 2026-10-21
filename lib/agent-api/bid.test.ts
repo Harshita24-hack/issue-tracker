@@ -47,6 +47,7 @@ const openBug = {
   reporterId: "reporter",
   isDeleted: false,
   assignee: null,
+  voteCount: 3,
 };
 
 beforeEach(() => {
@@ -187,10 +188,64 @@ describe("awardBid", () => {
     expect(db.issueClaim.create).toHaveBeenCalledTimes(1);
   });
 
+  it("refuses to choose a bid before the issue has the work-readiness upvotes (#1044)", async () => {
+    db.issueBid.findUnique.mockResolvedValue({ ...stored, bug: { ...openBug, voteCount: 2 } });
+    await expect(awardBid({ id: "reporter" }, "bid1")).rejects.toMatchObject({ status: 409, message: expect.stringContaining("upvotes") });
+    expect(db.issueClaim.create).not.toHaveBeenCalled();
+  });
+
   it("refuses someone who did not report the issue and is not an admin", async () => {
     db.issueBid.findUnique.mockResolvedValue(stored);
     await expect(awardBid({ id: "bob" }, "bid1")).rejects.toMatchObject({ status: 403 });
     expect(db.issueClaim.create).not.toHaveBeenCalled();
+  });
+});
+
+describe("choosing again after an offer lapses (#1044)", () => {
+  const chosen = {
+    id: "bid1", bugId: "issue1", agentId: "agent1", beneficiaryUserId: "ada", withdrawnAt: null,
+    awardedAt: new Date(Date.now() - 120_000), claimId: "offer0", bug: openBug,
+  };
+
+  it("lets the person choose a bid again once its offer lapsed, and sends a fresh offer", async () => {
+    db.issueBid.findUnique.mockResolvedValue({ ...chosen, claim: { status: "offered", claimedAt: null, releasedAt: null, offeredAt: new Date(Date.now() - 61_000) } });
+    db.issueClaim.findFirst.mockResolvedValue({
+      id: "offer0", status: "offered", offeredAt: new Date(Date.now() - 61_000), agentId: "agent1", beneficiaryUserId: "ada",
+      bug: { tenantId: "tenant", projectId: "project" },
+    });
+    db.issueClaim.create.mockResolvedValue({ id: "offer1" });
+    await expect(awardBid({ id: "reporter" }, "bid1")).resolves.toMatchObject({ claimId: "offer1" });
+    expect(db.issueClaim.update).toHaveBeenCalledWith({ where: { id: "offer0" }, data: expect.objectContaining({ status: "released", releaseReason: "expired" }) });
+    expect(db.issueBid.updateMany).toHaveBeenCalledWith({
+      where: { id: "bid1", withdrawnAt: null, awardedAt: chosen.awardedAt, claimId: "offer0" },
+      data: expect.objectContaining({ claimId: "offer1" }),
+    });
+  });
+
+  it("lets the person choose a bid again once its offer was declined", async () => {
+    db.issueBid.findUnique.mockResolvedValue({ ...chosen, claim: { status: "released", claimedAt: null, releasedAt: new Date(), offeredAt: new Date() } });
+    db.issueClaim.create.mockResolvedValue({ id: "offer1" });
+    await expect(awardBid({ id: "reporter" }, "bid1")).resolves.toMatchObject({ claimId: "offer1" });
+  });
+
+  it("refuses a bid whose offer is still live, or whose agent accepted it", async () => {
+    db.issueBid.findUnique.mockResolvedValue({ ...chosen, claim: { status: "offered", claimedAt: null, releasedAt: null, offeredAt: new Date() } });
+    await expect(awardBid({ id: "reporter" }, "bid1")).rejects.toMatchObject({ status: 409, message: "This bid is no longer open." });
+    db.issueBid.findUnique.mockResolvedValue({ ...chosen, claim: { status: "released", claimedAt: new Date(), releasedAt: new Date(), offeredAt: new Date() } });
+    await expect(awardBid({ id: "reporter" }, "bid1")).rejects.toMatchObject({ status: 409 });
+    expect(db.issueClaim.create).not.toHaveBeenCalled();
+  });
+
+  it("lists the lapsed bid as open again", async () => {
+    db.bug.findFirst.mockResolvedValue({ id: "issue1", areaId: null });
+    db.issueBid.findMany.mockResolvedValue([]);
+    await listBids(caller, "project", "issue1");
+    const where = db.issueBid.findMany.mock.calls[0][0].where;
+    expect(where.OR).toEqual(expect.arrayContaining([
+      { awardedAt: null },
+      { claim: { status: "released", claimedAt: null } },
+      expect.objectContaining({ claim: expect.objectContaining({ status: "offered", offeredAt: { lte: expect.any(Date) } }) }),
+    ]));
   });
 });
 

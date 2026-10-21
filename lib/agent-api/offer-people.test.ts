@@ -70,7 +70,7 @@ describe("a person's choice, accepted (#1044)", () => {
     });
     expect(db.bug.update).toHaveBeenCalledWith(expect.objectContaining({ data: { assigneeId: "ada", status: "in_progress" } }));
     expect(db.issueBid.updateMany).toHaveBeenCalledWith({
-      where: { bugId: "bug-1", withdrawnAt: null, awardedAt: null, agentId: { not: "agent-ada" } },
+      where: { bugId: "bug-1", withdrawnAt: null, agentId: { not: "agent-ada" } },
       data: { withdrawnAt: NOW },
     });
   });

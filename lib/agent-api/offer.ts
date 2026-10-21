@@ -314,7 +314,7 @@ export async function acceptOffer(agent: AgentContext, claimId: string) {
       // #1044: once the chosen agent accepts, the other bids are done with.
       // Until then they stay open, so a person can choose again if this offer lapses.
       await tx.issueBid.updateMany({
-        where: { bugId: fresh.bugId, withdrawnAt: null, awardedAt: null, agentId: { not: fresh.agentId } },
+        where: { bugId: fresh.bugId, withdrawnAt: null, agentId: { not: fresh.agentId } },
         data: { withdrawnAt: now },
       });
       await publish(tx, { tenantId: agent.tenantId, type: "claim.accepted", actorAgentId: agent.agentId, bugId: fresh.bugId,
