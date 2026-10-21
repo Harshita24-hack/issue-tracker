@@ -49,4 +49,16 @@ describe("DocsPage", () => {
     await user.click(copyButtons[0]);
     expect(copySpy).toHaveBeenCalled();
   });
+
+  it("lets the error-codes table scroll on its own, reachable by keyboard", () => {
+    render(<DocsPage />);
+    const region = screen.getByRole("region", { name: /4\. Error Codes & Handling/i });
+
+    // overflow-hidden used to cut the last column off on phones.
+    expect(region.className).toContain("overflow-x-auto");
+    expect(region.className).not.toContain("overflow-hidden");
+    expect(region.getAttribute("tabindex")).toBe("0");
+    expect(region.querySelector("table")?.className).toMatch(/min-w-\[/);
+    expect(screen.getByRole("columnheader", { name: "Resolution" })).toBeTruthy();
+  });
 });
