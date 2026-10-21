@@ -9,6 +9,7 @@ vi.mock("@/lib/tenant-context", () => ({
 vi.mock("@/lib/agents/membership", () => ({ isTenantAdmin: vi.fn() }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
+    $transaction: vi.fn(),
     pointDispute: { findUnique: vi.fn(), findMany: vi.fn(), update: vi.fn(), create: vi.fn() },
     pointEntry: { findUnique: vi.fn(), findMany: vi.fn(), update: vi.fn(), createMany: vi.fn() },
     bug: { findUnique: vi.fn(), findFirst: vi.fn() },
@@ -23,6 +24,7 @@ import { openDisputeAction, resolveDisputeAction } from "./actions";
 
 type Mock = ReturnType<typeof vi.fn>;
 const p = prisma as unknown as {
+  $transaction: Mock;
   pointDispute: Record<"findUnique" | "findMany" | "update" | "create", Mock>;
   pointEntry: Record<"findUnique" | "findMany" | "update" | "createMany", Mock>;
   bug: Record<"findFirst" | "findUnique", Mock>;
@@ -102,6 +104,7 @@ describe("openDisputeAction (#436)", () => {
 describe("resolveDisputeAction (#436)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    p.$transaction.mockImplementation((callback) => callback(p));
     vi.mocked(requireUser).mockResolvedValue(admin);
     vi.mocked(currentTenantIdFor).mockResolvedValue("tenant-1");
     vi.mocked(isTenantAdmin).mockResolvedValue(true);
@@ -204,6 +207,67 @@ describe("resolveDisputeAction (#436)", () => {
       }),
     );
   });
+
+  it.each(["reversal", "dispute", null] as const)(
+    "commits the entire correction only on success (failure: %s)",
+    async (failure) => {
+      const entry = {
+        id: "entry-1", tenantId: "tenant-1", userId: "user-1",
+        bugId: "bug-1", role: "solver", points: 25, correctedAt: null,
+      };
+      const initial = { correctedAt: null as Date | null, points: 25, status: "open" };
+      let committed = { ...initial };
+      p.pointDispute.findUnique.mockResolvedValue({ ...openDisputeRow, pointEntryId: entry.id });
+      p.pointEntry.findUnique.mockResolvedValue(entry);
+      const writes: string[] = [];
+      // Separate transaction delegates stage writes until the callback succeeds.
+      p.$transaction.mockImplementation(async (callback) => {
+        const pending = { ...committed };
+        const tx = {
+          pointEntry: {
+            findUnique: vi.fn(async () => ({ correctedAt: pending.correctedAt })),
+            update: vi.fn(async ({ data }: { data: { correctedAt: Date } }) => {
+              writes.push("marker");
+              pending.correctedAt = data.correctedAt;
+            }),
+            createMany: vi.fn(async ({ data }: { data: Array<{ points: number }> }) => {
+              writes.push("reversal");
+              if (failure === "reversal") throw new Error("Injected reversal failure");
+              pending.points += data[0].points;
+              return { count: 1 };
+            }),
+          },
+          pointDispute: {
+            update: vi.fn(async ({ data }: { data: { status: string } }) => {
+              writes.push("dispute");
+              if (failure === "dispute") throw new Error("Injected dispute failure");
+              pending.status = data.status;
+            }),
+          },
+        };
+        const result = await callback(tx);
+        committed = pending;
+        return result;
+      });
+
+      const { revalidatePath } = await import("next/cache");
+      const action = resolveDisputeAction(undefined, fd({ disputeId: "dispute-1", decision: "correct" }));
+      if (failure) {
+        await expect(action).rejects.toThrow(`Injected ${failure} failure`);
+        expect(committed).toEqual(initial);
+        expect(revalidatePath).not.toHaveBeenCalled();
+      } else {
+        await expect(action).resolves.toMatchObject({ ok: true });
+        expect(committed).toEqual({ correctedAt: expect.any(Date), points: 0, status: "granted" });
+        expect(revalidatePath).toHaveBeenCalledWith("/points/disputes");
+      }
+      expect(p.$transaction).toHaveBeenCalledOnce();
+      expect(writes).toEqual(failure === "reversal" ? ["marker", "reversal"] : ["marker", "reversal", "dispute"]);
+      expect(p.pointEntry.update).not.toHaveBeenCalled();
+      expect(p.pointEntry.createMany).not.toHaveBeenCalled();
+      expect(p.pointDispute.update).not.toHaveBeenCalled();
+    },
+  );
 
   it("rejects without touching the ledger", async () => {
     const result = await resolveDisputeAction(

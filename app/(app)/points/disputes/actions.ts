@@ -145,12 +145,14 @@ export async function resolveDisputeAction(
     if (!entry || entry.tenantId !== dispute.tenantId) {
       return { ok: false, error: NOT_IN_WORKSPACE };
     }
-    const result = await correctEntry(prisma, {
-      dispute,
-      entry,
-      resolvedById: user.id,
-      note,
-    });
+    const result = await prisma.$transaction((tx) =>
+      correctEntry(tx, {
+        dispute,
+        entry,
+        resolvedById: user.id,
+        note,
+      }),
+    );
     if (!result.ok) return { ok: false, error: result.error };
     revalidatePath("/points/disputes");
     return {
