@@ -2,7 +2,7 @@ import { createSign } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { audit } from "@/lib/agents/audit";
-import type { AgentContext } from "@/lib/agents/require-agent";
+import { AgentProjectError, type AgentContext } from "@/lib/agents/require-agent";
 import { publish } from "@/lib/agent-api/events";
 import { notifyMergeFailed } from "@/lib/agent-notifications";
 import { checkApprovalOpen } from "@/lib/approvals";
@@ -270,6 +270,7 @@ export function clientForInstallation(installationId: string | null | undefined,
 
 export type MergeFailureReason =
   | "not_found"
+  | "project_forbidden"
   | "not_accepted"
   | "no_pull_request"
   | "repo_mismatch"
@@ -409,6 +410,12 @@ export async function mergeAcceptedFix(
     select: mergeBugSelect,
   })) as LoadedBug | null;
   if (!bug) return fail(404, "not_found", "No such issue in this agent's tenant.");
+
+  // #742: a key issued for one project cannot merge a fix in another. This
+  // merges real code, so the check has to come before every other gate.
+  if (agent.projectId && agent.projectId !== bug.projectId) {
+    return fail(403, "project_forbidden", new AgentProjectError(agent.projectSlug).message);
+  }
 
   // Gate 1: #434 accepted the fix. Gate on its audit row, not on `status`,
   // which a person can also set by resolving the issue. A tenant admin's undo

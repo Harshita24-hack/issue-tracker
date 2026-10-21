@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { audit } from "@/lib/agents/audit";
 import { reviewerConflict, reviewerCreditConflict, type ReviewedBug } from "@/lib/agents/independence";
 import { hasLevel } from "@/lib/agents/levels";
-import type { AgentContext } from "@/lib/agents/require-agent";
+import { AgentProjectError, type AgentContext } from "@/lib/agents/require-agent";
 import { award } from "@/lib/points/award";
 import { confirmationReviewerSourceKey, CONFIRMATION_REVIEWER_POINTS, pointSourceKey } from "@/lib/points/rules";
 import {
@@ -238,7 +238,7 @@ export type SubmitValidationResult =
       newlyConfirmed: boolean;
     }
   | { status: 400; error: "invalid_request"; message: string; field?: string }
-  | { status: 403; error: "insufficient_level" | "creator_cannot_validate" | "not_independent"; message: string }
+  | { status: 403; error: "insufficient_level" | "creator_cannot_validate" | "not_independent" | "project_forbidden"; message: string }
   | { status: 404; error: "not_found"; message: string }
   | { status: 409; error: "already_validated"; message: string };
 
@@ -276,6 +276,14 @@ export async function submitValidation(
     select: reviewedBugSelect,
   });
   if (!bug) return { status: 404, error: "not_found", message: "No such issue in this agent's tenant." };
+  // #742: a key issued for one project cannot validate an issue in another.
+  if (agent.projectId && agent.projectId !== bug.projectId) {
+    return {
+      status: 403,
+      error: "project_forbidden",
+      message: new AgentProjectError(agent.projectSlug).message,
+    };
+  }
 
   if (bug.createdByAgentId === agent.agentId) {
     return {

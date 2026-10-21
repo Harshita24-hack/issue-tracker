@@ -89,6 +89,15 @@ describe("submitTestVerdict: who may verdict (#434)", () => {
     expect(db.bug.findFirst.mock.calls[0][0].where).toEqual({ id: "bug1", tenantId: "tenant_zedu", isDeleted: false });
   });
 
+  it("rejects a key scoped to another project (#1019)", async () => {
+    const scoped = { ...reviewer("r9", "rob"), projectId: "project_mobile", projectSlug: "mobile" };
+    const result = await submitTestVerdict(scoped, "bug1", good);
+
+    expect(result).toMatchObject({ status: 403, error: "project_forbidden" });
+    expect(result).toHaveProperty("message", expect.stringContaining("mobile"));
+    expect(db.testVerdict.create).not.toHaveBeenCalled();
+  });
+
   it("rejects the agent holding the active claim", async () => {
     db.bug.findFirst.mockResolvedValue(
       bugRow({ claims: [{ status: "active", releasedAt: null, agentId: "r1", agent: { ownerUserId: "rob" } }] }),

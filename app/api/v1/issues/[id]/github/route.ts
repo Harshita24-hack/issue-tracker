@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { createReviewOffers } from "@/lib/agent-api/review-offer";
 import { agentIssueRequest, issueJson } from "@/lib/agent-api/issues";
+import { AgentProjectError } from "@/lib/agents/require-agent";
 import { publish } from "@/lib/agent-api/events";
 import {
   clientForInstallation,
@@ -52,6 +53,14 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       },
     });
     if (!bug) return NextResponse.json({ error: "No such issue." }, { status: 404 });
+
+    // #742: a key issued for one project cannot link a fix in another.
+    if (agent.projectId && agent.projectId !== bug.projectId) {
+      return NextResponse.json(
+        { error: "project_forbidden", message: new AgentProjectError(agent.projectSlug).message },
+        { status: 403 },
+      );
+    }
 
     const claim = await prisma.issueClaim.findFirst({
       where: { bugId: bug.id, agentId: agent.agentId, status: "active", releasedAt: null },

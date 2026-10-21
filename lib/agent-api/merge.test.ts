@@ -45,6 +45,7 @@ function bugRow(overrides: Record<string, unknown> = {}) {
   return {
     id: "bug1",
     tenantId: "tenant_zedu",
+    projectId: "proj_alpha",
     pullRequestUrl: PR,
     pullRequestHeadSha: "linked-sha",
     severity: "medium",
@@ -66,6 +67,11 @@ function bugRow(overrides: Record<string, unknown> = {}) {
 
 function merger(id: string, ownerId: string, level: "observer" | "contributor" | "reviewer" | "merger" = "merger") {
   return { agentId: id, name: id, ownerId, tenantId: "tenant_zedu", level, burst: false, keyId: `key-${id}` };
+}
+
+/** A merger whose key is scoped to one project (#742). */
+function scopedMerger(projectId: string, projectSlug: string) {
+  return { ...merger("m1", "mo"), projectId, projectSlug };
 }
 
 /** The two independent accepts that confirm an issue. */
@@ -135,6 +141,30 @@ describe("acceptFix: who may merge (#434)", () => {
   it("is 404 for an issue outside the agent's tenant", async () => {
     db.bug.findFirst.mockResolvedValue(null);
     expect(await acceptFix(merger("m1", "mo", "merger"), "bug1")).toMatchObject({ status: 404 });
+  });
+
+  it("refuses a key scoped to another project, before awarding anything (#1019)", async () => {
+    confirmWith("carl", "dana");
+    verdict("v1", "carl");
+    verdict("v2", "dana");
+    // The bug lives in proj_alpha; the key is scoped to proj_beta.
+    const result = await acceptFix(scopedMerger("proj_beta", "beta"), "bug1");
+
+    expect(result).toMatchObject({ status: 403, error: "project_forbidden" });
+    expect(result).toHaveProperty("message", expect.stringContaining("beta"));
+    // Nothing was written and no points were awarded.
+    expect(db.pointEntry.createMany).not.toHaveBeenCalled();
+    expect(db.bug.update).not.toHaveBeenCalled();
+  });
+
+  it("still accepts when the key's project matches the issue's project (#1019)", async () => {
+    confirmWith("carl", "dana");
+    verdict("v1", "carl");
+    verdict("v2", "dana");
+    expect(await acceptFix(scopedMerger("proj_alpha", "alpha"), "bug1")).toMatchObject({
+      status: 200,
+      accepted: true,
+    });
   });
 });
 

@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { audit } from "@/lib/agents/audit";
 import { reviewerConflict, reviewerCreditConflict, ReviewerNotIndependentError, type ReviewedBug } from "@/lib/agents/independence";
 import { hasLevel } from "@/lib/agents/levels";
-import type { AgentContext } from "@/lib/agents/require-agent";
+import { AgentProjectError, type AgentContext } from "@/lib/agents/require-agent";
 import { IssueApiError } from "@/lib/agent-api/issues";
 import { publish } from "@/lib/agent-api/events";
 import { isConfirmed } from "@/lib/agent-api/validation";
@@ -74,7 +74,7 @@ export type AcceptFixResult =
       solverUserId: string | null;
       rewardedReviewerUserIds: string[];
     }
-  | { status: 403; error: "insufficient_level" | "not_independent"; message: string }
+  | { status: 403; error: "insufficient_level" | "not_independent" | "project_forbidden"; message: string }
   | { status: 404; error: "not_found"; message: string }
   | {
       status: 409;
@@ -93,6 +93,15 @@ export async function acceptFix(agent: AgentContext, bugId: string): Promise<Acc
     select: mergeBugSelect,
   });
   if (!bug) return { status: 404, error: "not_found", message: "No such issue in this agent's tenant." };
+  // #742: a key issued for one project cannot accept a fix in another. This
+  // path awards points, so the check must run before anything else.
+  if (agent.projectId && agent.projectId !== bug.projectId) {
+    return {
+      status: 403,
+      error: "project_forbidden",
+      message: new AgentProjectError(agent.projectSlug).message,
+    };
+  }
   // #493: the merger is an independent reviewer too. The same rule that keeps
   // a claim holder's side out of the verdicts keeps it out of the accept —
   // otherwise an owner could accept their own fix and collect the solver

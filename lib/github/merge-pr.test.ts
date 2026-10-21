@@ -151,6 +151,21 @@ describe("mergeAcceptedFix gates (#452)", () => {
     expect(notify.notifyMergeFailed).not.toHaveBeenCalled();
   });
 
+  it("refuses to merge for a key scoped to another project (#1019)", async () => {
+    const client = fakeClient();
+
+    const result = await mergeAcceptedFix(
+      { ...agent, projectId: "project-2", projectSlug: "project-two" },
+      "bug1",
+      { client },
+    );
+
+    expect(result).toMatchObject({ status: 403, reason: "project_forbidden" });
+    expect(result).toHaveProperty("message", expect.stringContaining("project-two"));
+    // Never reaches the GitHub API.
+    expect(client.getPullRequest).not.toHaveBeenCalled();
+  });
+
   it("refuses to merge an acceptance a tenant admin has undone (#490)", async () => {
     // A fake table holding only an undone acceptance row: the lookup must
     // filter on `undoneAt: null` or it comes back and the merge goes ahead.

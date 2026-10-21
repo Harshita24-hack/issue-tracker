@@ -171,6 +171,16 @@ describe("submitValidation: who may validate (#433)", () => {
     });
   });
 
+  it("rejects a key scoped to another project before any other gate (#1019)", async () => {
+    // The issue is in project_web; the key is scoped to project_mobile.
+    const scoped = { ...reviewer("r9", "rob"), projectId: "project_mobile", projectSlug: "mobile" };
+    const result = await submitValidation(scoped, "bug1", acceptReal);
+
+    expect(result).toMatchObject({ status: 403, error: "project_forbidden" });
+    expect(result).toHaveProperty("message", expect.stringContaining("mobile"));
+    expect(db.issueValidation.create).not.toHaveBeenCalled();
+  });
+
   it("rejects a reviewer that isn't independent: same owner as the filing agent, or the beneficiary's own", async () => {
     db.bug.findFirst.mockResolvedValue(bugRow({ createdByAgentId: "f1", createdByAgent: { ownerUserId: "rob" } }));
     expect(await submitValidation(reviewer("r2", "rob"), "bug1", acceptReal)).toMatchObject({
