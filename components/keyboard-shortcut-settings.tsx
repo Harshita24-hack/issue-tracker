@@ -27,12 +27,17 @@ export function KeyboardShortcutSettings({ initialEnabled }: { initialEnabled: b
             setEnabled(next);
             setMessage(null);
             startTransition(async () => {
-              const result = await setKeyboardShortcutsAction(next);
-              if (result.error) {
+              try {
+                const result = await setKeyboardShortcutsAction(next);
+                if (result.error) {
+                  setEnabled(!next);
+                  setMessage(result.error);
+                } else {
+                  setMessage(next ? "Keyboard shortcuts turned on." : "Keyboard shortcuts turned off.");
+                }
+              } catch {
                 setEnabled(!next);
-                setMessage(result.error);
-              } else {
-                setMessage(next ? "Keyboard shortcuts turned on." : "Keyboard shortcuts turned off.");
+                setMessage("Couldn't save keyboard shortcut setting. Please try again.");
               }
             });
           }}
@@ -45,7 +50,11 @@ export function KeyboardShortcutSettings({ initialEnabled }: { initialEnabled: b
         to see them. They never fire while you&apos;re typing.
       </p>
       <ShowShortcutsButton />
-      <p role="status" aria-live="polite" className="text-sm text-emerald-700 empty:hidden">
+      <p
+        role={message?.startsWith("Couldn't save") ? "alert" : "status"}
+        aria-live={message?.startsWith("Couldn't save") ? "assertive" : "polite"}
+        className="text-sm text-emerald-700 empty:hidden"
+      >
         {message ?? ""}
       </p>
     </div>
