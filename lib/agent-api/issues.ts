@@ -13,7 +13,7 @@ import { boundSearchTerm, escapeSearchQuery } from "@/lib/search";
 import { parseProjectAreaFilter, projectAreaFilterWhere } from "@/lib/project-area-filter";
 import { intakeKind, openIssueStages, type IssueStage } from "@/lib/issue-stage";
 import { parseIssueRef } from "@/lib/issue-ref";
-import { createIssueWithPolicy, cursorOrderBy, cursorWhere, decodeCursor, hashCreateRequest, pageSize, toPage, type IssueCursor } from "@/lib/agent-api/create-policy";
+import { createIssueWithPolicy, cursorOrderBy, cursorWhere, decodeCursor, hashCreateRequest, LIMIT_RANGE_ERROR, pageSize, toPage, type IssueCursor } from "@/lib/agent-api/create-policy";
 import { createdSummary, commentedSummary, commentPreview } from "@/lib/activity-log";
 import { extractMentionedUserIds, normalizeMentions } from "@/lib/mentions";
 import { commentDepth, MAX_COMMENT_DEPTH } from "@/lib/comments";
@@ -156,6 +156,7 @@ export async function listAgentIssues(scope: Scope, params: URLSearchParams) {
   const cursor = decodeCursor(cursorRaw);
   if (cursorRaw !== null && !cursor) throw new IssueApiError(400, "Invalid cursor.");
   const limit = pageSize(params.get("limit"));
+  if (limit === null) throw new IssueApiError(400, LIMIT_RANGE_ERROR);
   const q = params.get("q")?.trim();
   // #460: same escaped, bounded title/description match the app list uses. AND keeps it apart from the cursor's OR.
   const search: Prisma.BugWhereInput = q
@@ -252,6 +253,7 @@ export async function listAgentIssueComments(scope: Scope, id: string, params: U
   const cursor = decodeCursor(cursorRaw);
   if (cursorRaw !== null && !cursor) throw new IssueApiError(400, "Invalid cursor.");
   const limit = pageSize(params.get("limit"));
+  if (limit === null) throw new IssueApiError(400, LIMIT_RANGE_ERROR);
   const typeParam = params.get("type");
   const validTypes = ["comment", "bid", "review", "delivery", "request_to_merge"];
   if (typeParam && !validTypes.includes(typeParam)) {
