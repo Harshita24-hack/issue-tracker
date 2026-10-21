@@ -303,6 +303,7 @@ export async function sweepStaleClaims(limit = 50): Promise<ClaimSweepResult> {
     if (outcome.released) released++;
     if (outcome.offered) offered++;
   }
-  const waits = await sweepOwnerWaits(now, cutoff, {}, { limit });
+  const fallbackCutoff = heartbeatCutoff(now, DEFAULT_PROJECT_WORKFLOW.heartbeatMinutes);
+  const waits = await sweepOwnerWaits(now, fallbackCutoff, {}, { limit });
   return { released: released + waits.released, offered: offered + waits.offered };
 }
