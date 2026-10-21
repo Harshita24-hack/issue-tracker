@@ -51,6 +51,14 @@ export type UserExportData = {
 };
 
 /**
+ * A whole-history dump is expensive (four unbounded queries plus one big
+ * `JSON.stringify`), so it is rate limited like every other costly route
+ * (#1024): a person downloads their archive rarely, and a button-masher or
+ * script should not be able to hammer the database through it.
+ */
+export const DATA_EXPORT_RATE_LIMIT = { max: 5, windowMs: 60 * 60 * 1000 };
+
+/**
  * Exports a user's personal data (#571):
  * - Authored issues (what they filed)
  * - Comments authored by them

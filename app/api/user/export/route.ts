@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
-import { exportUserData } from "@/lib/user-data-export";
+import { DATA_EXPORT_RATE_LIMIT, exportUserData } from "@/lib/user-data-export";
+import { consumeRateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rate-limit";
 
 /**
  * Download personal data archive (#571).
@@ -10,6 +11,13 @@ import { exportUserData } from "@/lib/user-data-export";
 export async function GET() {
   try {
     const user = await requireUser();
+
+    // #1024: the dump is four unbounded queries plus a full serialize, so it
+    // is rate limited rather than left open to repeated calls.
+    if (!(await consumeRateLimit(`user-export:${user.id}`, DATA_EXPORT_RATE_LIMIT)).allowed) {
+      return NextResponse.json({ error: RATE_LIMIT_MESSAGE }, { status: 429 });
+    }
+
     const data = await exportUserData(prisma, user.id);
 
     return new NextResponse(JSON.stringify(data, null, 2), {
