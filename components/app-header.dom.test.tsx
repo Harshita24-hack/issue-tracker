@@ -82,19 +82,18 @@ describe("account menu role switch", () => {
     expect(screen.getByLabelText("5 pending")).toBeTruthy();
   });
 
-  it("renders Manage Project dropdown and displays grouped links (#761)", async () => {
+  it("shows project settings entry points only to project managers (#1069)", async () => {
     const user = userEvent.setup();
-    renderHeader();
+    renderHeader({ canManagePlatforms: true });
+    expect(screen.getByRole("link", { name: "Manage project settings" }).getAttribute("href")).toBe("/projects/ziki/settings");
+    await user.click(screen.getByRole("button", { name: /account menu/i }));
+    expect(screen.getByRole("link", { name: "Manage project" }).getAttribute("href")).toBe("/projects/ziki/settings");
 
-    const manageBtn = screen.getByRole("button", { name: /manage project/i });
-    expect(manageBtn).toBeTruthy();
-
-    await user.click(manageBtn);
-
-    expect(screen.getByRole("menuitem", { name: /projects/i })).toBeTruthy();
-    expect(screen.getByRole("menuitem", { name: /milestones/i })).toBeTruthy();
-    expect(screen.getByRole("menuitem", { name: /platforms/i })).toBeTruthy();
-    expect(screen.getByRole("menuitem", { name: /types/i })).toBeTruthy();
+    cleanup();
+    renderHeader({ canManagePlatforms: false });
+    expect(screen.queryByRole("link", { name: "Manage project settings" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: /account menu/i }));
+    expect(screen.queryByRole("link", { name: "Manage project" })).toBeNull();
   });
 
   it("renders Docs & /llms.txt link in the account menu (#625)", async () => {

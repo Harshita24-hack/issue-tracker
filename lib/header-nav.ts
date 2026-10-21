@@ -1,4 +1,4 @@
-import { isAdmin, isSuperAdmin, type AppRole } from "@/lib/roles";
+import { isSuperAdmin, type AppRole } from "@/lib/roles";
 import { isAgentPlatformEnabled } from "@/lib/feature-flags";
 
 export type HeaderNavSubItem = {
@@ -17,40 +17,14 @@ export type HeaderNavItem = {
 /** #444: pick another tenant, create one, or accept an invite. */
 export const SWITCH_TENANT_LINK: HeaderNavItem = { href: "/tenants", label: "Switch tenant" };
 
-/** Links shown in the header for the role the user is currently viewing as (#761). */
+/** Links shown in the main header navigation for the current role. */
 export function headerNavItems(
   role?: AppRole | null,
-  options?: { agentPlatform?: boolean; managePlatforms?: boolean; pendingEscalations?: number },
+  options?: { agentPlatform?: boolean; pendingEscalations?: number },
 ): HeaderNavItem[] {
-  const manageProjectChildren: HeaderNavSubItem[] = [
-    { href: "/projects", label: "Projects", description: "View, switch, and create workspace projects" },
-    { href: "/milestones", label: "Milestones", description: "Track release goals and milestones" },
-  ];
-
-  if (options?.managePlatforms || isAdmin(role)) {
-    manageProjectChildren.push({
-      href: "/admin/categories",
-      label: "Platforms",
-      description: "Manage target platforms (Web, Mobile, Desktop, Backend)",
-    });
-  }
-
-  if (isAdmin(role)) {
-    manageProjectChildren.push({
-      href: "/admin/types",
-      label: "Types",
-      description: "Manage issue classifications",
-    });
-  }
-
   const items: HeaderNavItem[] = [
     { href: "/issues", label: "Issues" },
     { href: "/team", label: "Team" },
-    {
-      href: "/projects",
-      label: "Manage Project",
-      children: manageProjectChildren,
-    },
   ];
 
   if (options?.agentPlatform ?? isAgentPlatformEnabled()) {

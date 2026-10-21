@@ -217,7 +217,6 @@ export function AppHeader({
   }
 
   const items = headerNavItems(role, {
-    managePlatforms: canManagePlatforms,
     pendingEscalations: pendingEscalationsCount,
   });
   const canSwitchRole = Boolean((isRealSuperAdmin || isRealAdmin) && role);
@@ -227,6 +226,8 @@ export function AppHeader({
     pathname?.replace(/\/+$/, "") === "/issues/new" ||
     pathname?.replace(/\/+$/, "") === "/bugs/new";
   const effectiveRole: AppRole = role ?? "user";
+  const settingsProject = projects.find((project) => project.id === activeProjectId) ?? projects[0];
+  const projectSettingsHref = settingsProject ? `/projects/${encodeURIComponent(settingsProject.slug)}/settings` : null;
 
   return (
     <header ref={headerRef} className="sticky top-0 z-40">
@@ -374,6 +375,12 @@ export function AppHeader({
 
           <ThemeToggle />
 
+          {canManagePlatforms && projectSettingsHref ? (
+            <Link href={projectSettingsHref} aria-label="Manage project settings" title="Manage project settings" className={`inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-900 ${linkFocus}`}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M12 8.25a3.75 3.75 0 1 0 0 7.5 3.75 3.75 0 0 0 0-7.5Z"/><path strokeLinecap="round" strokeLinejoin="round" d="m19.4 15 .05.04a1.9 1.9 0 0 1-2.69 2.69l-.04-.05a1.9 1.9 0 0 0-3.23 1.34v.14a1.9 1.9 0 0 1-3.8 0v-.07a1.9 1.9 0 0 0-3.24-1.34l-.04.05a1.9 1.9 0 1 1-2.69-2.69l.05-.04a1.9 1.9 0 0 0-1.34-3.24h-.14a1.9 1.9 0 0 1 0-3.8h.07a1.9 1.9 0 0 0 1.34-3.24l-.05-.04a1.9 1.9 0 1 1 2.69-2.69l.04.05a1.9 1.9 0 0 0 3.24-1.34v-.14a1.9 1.9 0 0 1 3.8 0v.07a1.9 1.9 0 0 0 3.24 1.34l.04-.05a1.9 1.9 0 1 1 2.69 2.69l-.05.04a1.9 1.9 0 0 0 1.34 3.24h.14a1.9 1.9 0 0 1 0 3.8h-.07A1.9 1.9 0 0 0 19.4 15Z"/></svg>
+            </Link>
+          ) : null}
+
           <Link
             href="/issues/new"
             aria-current={onNewIssue ? "page" : undefined}
@@ -439,6 +446,7 @@ export function AppHeader({
                   >
                     {SWITCH_TENANT_LINK.label}
                   </MenuLink>
+                  {canManagePlatforms && projectSettingsHref ? <MenuLink href={projectSettingsHref} active={isNavItemActive(pathname, projectSettingsHref)}>Manage project</MenuLink> : null}
                   <MenuLink href="/settings" active={isNavItemActive(pathname, "/settings")}>
                     Settings
                   </MenuLink>
@@ -556,6 +564,7 @@ export function AppHeader({
             <MenuLink href="/settings" active={isNavItemActive(pathname, "/settings")} large>
               Settings
             </MenuLink>
+            {canManagePlatforms && projectSettingsHref ? <MenuLink href={projectSettingsHref} active={isNavItemActive(pathname, projectSettingsHref)} large>Manage project</MenuLink> : null}
             <MenuLink href="/docs" active={isNavItemActive(pathname, "/docs")} large>
               Docs & /llms.txt
             </MenuLink>
