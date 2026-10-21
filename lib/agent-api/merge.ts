@@ -8,17 +8,11 @@ import { IssueApiError } from "@/lib/agent-api/issues";
 import { publish } from "@/lib/agent-api/events";
 import { isConfirmed } from "@/lib/agent-api/validation";
 import { award } from "@/lib/points/award";
-import {
-  MAX_REWARDED_REVIEWERS,
-  pointSourceKey,
-} from "@/lib/points/rules";
-import {
-  calculateReviewerPoints,
-  calculateSolverPoints,
-  getProjectRewardConfig,
-} from "@/lib/points/project-rewards";
+import { pointSourceKey } from "@/lib/points/rules";
+import { calculateSolverPoints, getProjectRewardConfig } from "@/lib/points/project-rewards";
 import { assertRedesignOpen } from "@/lib/redesigns";
 import { statusChangedSummary } from "@/lib/activity-log";
+import { payReviewers } from "@/lib/points/review-caps";
 import { workflowFor } from "@/lib/workflow";
 
 /**
@@ -180,7 +174,7 @@ export async function acceptFix(agent: AgentContext, bugId: string): Promise<Acc
       if (verdict.headSha) acceptedHeadSha = verdict.headSha;
     }
 
-    const { verdictsNeeded } = await workflowFor(bug.projectId, tx);
+    const { verdictsNeeded, confirmationsNeeded } = await workflowFor(bug.projectId, tx);
     if (reviewers.length < verdictsNeeded) {
       return {
         status: 409 as const,
@@ -190,7 +184,6 @@ export async function acceptFix(agent: AgentContext, bugId: string): Promise<Acc
       };
     }
 
-    const rewardedReviewerUserIds = reviewers.slice(0, MAX_REWARDED_REVIEWERS);
     const solverUserId = claim?.beneficiaryUserId ?? bug.assigneeId;
 
     await tx.bug.update({ where: { id: bug.id }, data: { status: "resolved" } });
@@ -226,17 +219,18 @@ export async function acceptFix(agent: AgentContext, bugId: string): Promise<Acc
         sourceKey: pointSourceKey("solver", bug.id, solverUserId),
       });
     }
-    const reviewerPoints = calculateReviewerPoints(rewardConfig);
-    for (const userId of rewardedReviewerUserIds) {
-      await award(tx, {
-        tenantId: bug.tenantId,
-        userId,
-        bugId: bug.id,
-        role: "reviewer",
-        points: reviewerPoints,
-        sourceKey: pointSourceKey("reviewer", bug.id, userId),
-      });
-    }
+    // #1046: fix reviewers are paid in order, up to the project's paid
+    // reviews per issue (two by default) and its daily review budget.
+    const reviewPayouts = await payReviewers(tx, {
+      stage: "fix",
+      tenantId: bug.tenantId,
+      projectId: bug.projectId,
+      bugId: bug.id,
+      reviewerUserIds: reviewers,
+      config: rewardConfig,
+      workflow: { confirmationsNeeded },
+    });
+    const rewardedReviewerUserIds = reviewPayouts.filter((payout) => payout.paid).map((payout) => payout.userId);
 
     await audit(
       agent,

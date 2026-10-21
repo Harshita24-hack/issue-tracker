@@ -72,6 +72,9 @@ import { SelfAssignButton } from "@/components/self-assign-button";
 import { EditableIssueDescription } from "@/components/editable-issue-description";
 import { EditableProofLinks } from "@/components/editable-proof-links";
 import { EditableRepository } from "@/components/editable-repository";
+import { rewardsForIssues, type IssueRewards } from "@/lib/points/review-caps";
+import { getProjectRewardConfig } from "@/lib/points/project-rewards";
+import { workflowFor } from "@/lib/workflow";
 import { IssuePullRequest } from "@/components/issue-pull-request";
 import { withCurrentOption } from "@/lib/triage-options";
 import { issueTenantHintFor } from "@/lib/issue-tenant-hint";
@@ -373,6 +376,21 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
     Boolean(bug.areaId && bid.agent.areaPreferences.length);
   const canAwardBid = bug.status === "open" && !bug.isDeleted && (bug.reporterId === user.id || canChooseRedesign);
 
+  // #1046: what this issue can still pay, in one line under its details.
+  const rewardsPromise: Promise<IssueRewards | null> = loadOptional("rewards", null, async () => {
+    const [config, workflow] = await Promise.all([
+      getProjectRewardConfig(prisma, bug.projectId),
+      workflowFor(bug.projectId, prisma),
+    ]);
+    const rewards = await rewardsForIssues(prisma, {
+      projectId: bug.projectId,
+      issues: [{ id: bug.id, severity: bug.severity }],
+      config,
+      workflow,
+    });
+    return rewards.get(bug.id) ?? null;
+  });
+
   const [users, categories, areas, types, voterSummary, activities, activityCount, watchRow, comments, latestStatusChange, attachments, lastRevision, agentDecisions, escalations, volunteerCount, pendingApproval] =
     await Promise.all([
       canTriage
@@ -579,6 +597,7 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
       membershipRole: access.membershipRole,
       reporterId: bug.reporterId,
     }) && !bug.isDeleted;
+  const issueRewards = await rewardsPromise;
   const canSelfAssign =
     !bug.isDeleted &&
     canAssignTicket({
@@ -953,6 +972,12 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
               </dd>
             </div>
           ) : null}
+          {issueRewards && !bug.isDeleted ? (
+            <div className="sm:col-span-2">
+              <dt className="font-medium text-slate-500">Pays</dt>
+              <dd className="text-slate-700">{rewardsLine(issueRewards)}</dd>
+            </div>
+          ) : null}
           {/* #1047: where the work happens; the PR goes here. */}
           <div>
             <dt className="font-medium text-slate-500">Repository</dt>
@@ -1109,3 +1134,13 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
     </div>
   );
 }
+
+/** #1046: "Review 5 pts (1 of 2 paid left) · Fix review 10 pts (2 left) · Fix 40 pts". */
+function rewardsLine(rewards: IssueRewards): string {
+  const stage = (label: string, s: IssueRewards["review"]) =>
+    s.remaining > 0 ? `${label} ${s.points} pts (${s.remaining} of ${s.cap} paid left)` : `${label}: no paid places left`;
+  const parts = [stage("Review", rewards.review), stage("Fix review", rewards.fixReview), `Fix ${rewards.solve.points} pts`];
+  if (rewards.dailyReviewBudgetLeft !== null) parts.push(`${rewards.dailyReviewBudgetLeft} review pts left today`);
+  return parts.join(" · ");
+}
+

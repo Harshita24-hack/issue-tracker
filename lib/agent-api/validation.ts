@@ -6,7 +6,8 @@ import { reviewerConflict, reviewerCreditConflict, type ReviewedBug } from "@/li
 import { hasLevel } from "@/lib/agents/levels";
 import type { AgentContext } from "@/lib/agents/require-agent";
 import { award } from "@/lib/points/award";
-import { confirmationReviewerSourceKey, CONFIRMATION_REVIEWER_POINTS, pointSourceKey } from "@/lib/points/rules";
+import { pointSourceKey } from "@/lib/points/rules";
+import { payReviewers, type ReviewPayout } from "@/lib/points/review-caps";
 import {
   calculateReporterPoints,
   getProjectRewardConfig,
@@ -375,31 +376,37 @@ export async function submitValidation(
 
       const confirmed = (await countedConfirmations(tx, bug)) >= confirmationsNeeded;
       const newlyConfirmed = confirmed && !wasConfirmed;
-      if (newlyConfirmed && !(await isDuplicate(tx, bug))) {
-        // The person the issue is for earns the reporter points (#422), once:
-        // the sourceKey makes a second award, or the backfill (#435), a no-op.
-        const userId = bug.beneficiaryUserId ?? bug.reporterId;
+      let reviewPayouts: ReviewPayout[] = [];
+      if (confirmed && !(await isDuplicate(tx, bug))) {
         const rewardConfig = await getProjectRewardConfig(tx, bug.projectId);
-        const points = calculateReporterPoints(rewardConfig);
-        await award(tx, {
-          tenantId: bug.tenantId,
-          userId,
-          bugId: bug.id,
-          role: "reporter",
-          points,
-          sourceKey: pointSourceKey("reporter", bug.id, userId),
-        });
-        const reviewers = (await countedConfirmationReviewers(tx, bug)).slice(0, confirmationsNeeded);
-        for (const reviewerUserId of reviewers) {
+        if (newlyConfirmed) {
+          // The person the issue is for earns the reporter points (#422), once:
+          // the sourceKey makes a second award, or the backfill (#435), a no-op.
+          const userId = bug.beneficiaryUserId ?? bug.reporterId;
+          const points = calculateReporterPoints(rewardConfig);
           await award(tx, {
             tenantId: bug.tenantId,
-            userId: reviewerUserId,
+            userId,
             bugId: bug.id,
-            role: "reviewer",
-            points: CONFIRMATION_REVIEWER_POINTS,
-            sourceKey: confirmationReviewerSourceKey(bug.id, reviewerUserId),
+            role: "reporter",
+            points,
+            sourceKey: pointSourceKey("reporter", bug.id, userId),
           });
         }
+        // #1046: reviewers are paid in the order their reviews counted, up to
+        // the project's paid reviews per issue and its daily review budget.
+        // On confirmation that's everyone counted so far; after it, a later
+        // review pays its own reviewer if the cap still allows.
+        reviewPayouts = await payReviewers(tx, {
+          stage: "confirm",
+          tenantId: bug.tenantId,
+          projectId: bug.projectId,
+          bugId: bug.id,
+          reviewerUserIds: await countedConfirmationReviewers(tx, bug),
+          config: rewardConfig,
+          workflow: { confirmationsNeeded },
+          ...(newlyConfirmed ? {} : { only: onBehalfOfUserId }),
+        });
       }
 
       await audit(
@@ -415,6 +422,7 @@ export async function submitValidation(
           ...(severityDisagreement ? { severityDisagreement: true } : {}),
           ...(body.duplicateOfId ? { duplicateOfId: body.duplicateOfId } : {}),
           ...(newlyConfirmed ? { confirmed: true } : {}),
+          ...(reviewPayouts.length ? { reviewPayouts } : {}),
         },
         { bugId: bug.id, db: tx },
       );

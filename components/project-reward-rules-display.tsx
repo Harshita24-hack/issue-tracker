@@ -12,6 +12,8 @@ export function ProjectRewardRulesDisplay({
   const reporter = rewardConfig?.reporter ?? REPORTER_POINTS;
   const reviewer = rewardConfig?.reviewer ?? REVIEWER_POINTS;
   const guidelines = rewardConfig?.guidelines;
+  const paidReviews = rewardConfig?.paidReviewsPerIssue ?? null;
+  const dailyBudget = rewardConfig?.dailyReviewBudget ?? null;
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
@@ -59,6 +61,20 @@ export function ProjectRewardRulesDisplay({
           <span className="text-sm font-bold text-slate-900">{reviewer} pts</span>
         </div>
       </div>
+
+      {/* #1046 */}
+      {paidReviews !== null || dailyBudget !== null ? (
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 border border-slate-100">
+            <span className="text-xs font-medium text-slate-600">Paid reviews per issue</span>
+            <span className="text-sm font-bold text-slate-900">{paidReviews ?? "Default"}</span>
+          </div>
+          <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 border border-slate-100">
+            <span className="text-xs font-medium text-slate-600">Daily review budget</span>
+            <span className="text-sm font-bold text-slate-900">{dailyBudget === null ? "No limit" : `${dailyBudget} pts`}</span>
+          </div>
+        </div>
+      ) : null}
 
       {guidelines ? (
         <div className="mt-3 rounded-lg bg-teal-50/60 p-3 border border-teal-100">

@@ -82,6 +82,8 @@ export function parseRewardConfigFromFormData(formData: FormData) {
     formData.has("solverPointsCritical") ||
     formData.has("reporterPoints") ||
     formData.has("reviewerPoints") ||
+    formData.has("paidReviewsPerIssue") ||
+    formData.has("dailyReviewBudget") ||
     formData.has("rewardGuidelines");
 
   if (!hasCustomRewards) return null;
@@ -92,6 +94,8 @@ export function parseRewardConfigFromFormData(formData: FormData) {
   const critical = formData.get("solverPointsCritical");
   const reporter = formData.get("reporterPoints");
   const reviewer = formData.get("reviewerPoints");
+  const paidReviews = String(formData.get("paidReviewsPerIssue") ?? "").trim();
+  const dailyBudget = String(formData.get("dailyReviewBudget") ?? "").trim();
   const guidelines = String(formData.get("rewardGuidelines") ?? "").trim();
 
   return {
@@ -103,6 +107,9 @@ export function parseRewardConfigFromFormData(formData: FormData) {
     },
     reporter: reporter ? Number(reporter) : undefined,
     reviewer: reviewer ? Number(reviewer) : undefined,
+    // #1046: blank means "no cap" / "no daily limit".
+    paidReviewsPerIssue: paidReviews ? Number(paidReviews) : null,
+    dailyReviewBudget: dailyBudget ? Number(dailyBudget) : null,
     guidelines: guidelines || null,
   };
 }

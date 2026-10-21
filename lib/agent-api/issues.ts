@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
-import type { AgentLevel, Prisma } from "@prisma/client";
+import type { AgentLevel, Prisma, Severity } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { agentErrorResponse, assertKeyProject, requireAgent, type AgentContext } from "@/lib/agents/require-agent";
 import { requireLevel } from "@/lib/agents/levels";
@@ -23,6 +23,9 @@ import { notifyLater } from "@/lib/notify";
 import type { NotificationEvent } from "@/lib/notifications";
 import { logger } from "@/lib/logger";
 import { issueRepositoryUrl, normalizeRepositoryUrl, repositoryUrlSchema } from "@/lib/issue-repository";
+import { rewardsForIssues, type IssueRewards } from "@/lib/points/review-caps";
+import { getProjectRewardConfig } from "@/lib/points/project-rewards";
+import { workflowFor } from "@/lib/workflow";
 
 export class IssueApiError extends Error {
   constructor(public status: number, message: string, public body?: Record<string, unknown>) { super(message); }
@@ -119,6 +122,29 @@ export async function issueProject(agent: AgentContext, params: URLSearchParams,
 }
 
 type Scope = { tenantId: string; projectId: string };
+
+/**
+ * #1046: what each issue can still pay (paid reviews left at each stage,
+ * what one pays, the fix, and the project's review budget left today).
+ */
+async function withRewards<T extends { id: string; severity: Severity }>(
+  scope: Scope,
+  rows: T[],
+): Promise<(T & { rewards: IssueRewards | null })[]> {
+  if (rows.length === 0) return [];
+  try {
+    const [config, workflow] = await Promise.all([
+      getProjectRewardConfig(prisma, scope.projectId),
+      workflowFor(scope.projectId, prisma),
+    ]);
+    const rewards = await rewardsForIssues(prisma, { projectId: scope.projectId, issues: rows, config, workflow });
+    return rows.map((row) => ({ ...row, rewards: rewards.get(row.id) ?? null }));
+  } catch (error) {
+    // Rewards are a hint for deciding what to work on; never fail a read for them.
+    logger.error("[agent-api] issue rewards failed", { projectId: scope.projectId }, error);
+    return rows.map((row) => ({ ...row, rewards: null }));
+  }
+}
 const issueSelect = {
   id: true, number: true, title: true, description: true, status: true, severity: true,
   categoryId: true, typeId: true, reporterId: true, assigneeId: true, beneficiaryUserId: true,
@@ -177,7 +203,7 @@ export async function listAgentIssues(scope: Scope, params: URLSearchParams) {
   const where: Prisma.BugWhereInput = { ...filtered, ...cursorWhere(cursor) };
   const rows = await prisma.bug.findMany({ where, orderBy: cursorOrderBy(), take: limit + 1, select: issueSelect });
   const page = toPage(rows, limit);
-  return { ...page, items: page.items.map(withRepository) };
+  return { ...page, items: (await withRewards(scope, page.items)).map(withRepository) };
 }
 
 const validationSelect = {
@@ -207,7 +233,8 @@ export async function readAgentIssue(scope: Scope, id: string) {
     }, _count: { select: { comments: { where: { deletedAt: null } } } } },
   });
   if (!issue) throw new IssueApiError(404, "Issue not found.");
-  return { ...withRepository(issue), confirmed: await isConfirmed(issue.id) };
+  const [withPay] = await withRewards(scope, [issue]);
+  return { ...withRepository(withPay!), confirmed: await isConfirmed(issue.id) };
 }
 
 /** What a paged comment carries: the embedded read's fields plus who wrote it. */

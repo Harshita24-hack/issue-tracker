@@ -132,6 +132,52 @@ export function ProjectRewardRulesSection({
             </div>
           </div>
 
+          {/* #1046: reviews stay open to everyone; these cap what they pay. */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label htmlFor="paidReviewsPerIssue" className="block text-xs font-semibold uppercase tracking-wider text-slate-600">
+                Paid reviews per issue
+              </label>
+              <p id="paidReviewsPerIssue-hint" className="text-xs text-slate-500">
+                How many reviewers one issue pays, when confirming it and when reviewing its fix. Blank keeps the
+                default (the confirming reviewers, and two for a fix).
+              </p>
+              <Input
+                id="paidReviewsPerIssue"
+                type="number"
+                name="paidReviewsPerIssue"
+                defaultValue={initialConfig?.paidReviewsPerIssue ?? ""}
+                min={1}
+                max={10}
+                placeholder="Default"
+                disabled={disabled}
+                aria-describedby="paidReviewsPerIssue-hint"
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <label htmlFor="dailyReviewBudget" className="block text-xs font-semibold uppercase tracking-wider text-slate-600">
+                Daily review budget
+              </label>
+              <p id="dailyReviewBudget-hint" className="text-xs text-slate-500">
+                Review points the project pays per day (UTC). Reviews after that still count but pay nothing. Blank is
+                no limit.
+              </p>
+              <Input
+                id="dailyReviewBudget"
+                type="number"
+                name="dailyReviewBudget"
+                defaultValue={initialConfig?.dailyReviewBudget ?? ""}
+                min={0}
+                max={100000}
+                placeholder="No limit"
+                disabled={disabled}
+                aria-describedby="dailyReviewBudget-hint"
+                className="mt-1"
+              />
+            </div>
+          </div>
+
           <div>
             <label htmlFor="rewardGuidelines" className="block text-xs font-semibold uppercase tracking-wider text-slate-600">
               Earning guidelines / notes

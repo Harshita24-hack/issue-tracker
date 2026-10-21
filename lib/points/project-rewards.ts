@@ -24,6 +24,13 @@ export const projectRewardConfigSchema = z
     reporter: z.coerce.number().int().min(0).max(10000).default(REPORTER_POINTS),
     reviewer: z.coerce.number().int().min(0).max(10000).default(REVIEWER_POINTS),
     guidelines: z.string().trim().max(2000).optional().nullable().default(null),
+    /**
+     * #1046: how many reviewers one issue pays at each review stage (confirm
+     * and fix). Unset keeps today's: the confirming reviewers, and two for a fix.
+     */
+    paidReviewsPerIssue: z.coerce.number().int().min(1).max(10).optional().nullable().default(null),
+    /** #1046: review points the project pays per UTC day. Unset is no limit. */
+    dailyReviewBudget: z.coerce.number().int().min(0).max(100000).optional().nullable().default(null),
   })
   .default({
     solver: {
@@ -35,6 +42,8 @@ export const projectRewardConfigSchema = z
     reporter: REPORTER_POINTS,
     reviewer: REVIEWER_POINTS,
     guidelines: null,
+    paidReviewsPerIssue: null,
+    dailyReviewBudget: null,
   });
 
 export type ProjectRewardConfig = z.infer<typeof projectRewardConfigSchema>;

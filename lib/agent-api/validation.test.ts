@@ -33,6 +33,7 @@ const db = vi.hoisted(() => ({
   webhookSubscription: { findMany: vi.fn() },
   webhookDelivery: { createMany: vi.fn() },
   projectWorkflow: { findUnique: vi.fn() },
+  project: { findUnique: vi.fn() },
   $queryRaw: vi.fn(),
   $transaction: vi.fn(),
 }));
@@ -97,6 +98,7 @@ beforeEach(() => {
   db.webhookSubscription.findMany.mockResolvedValue([]);
   db.webhookDelivery.createMany.mockResolvedValue({ count: 0 });
   db.projectWorkflow.findUnique.mockResolvedValue(null);
+  db.project.findUnique.mockResolvedValue({ rewardConfig: null });
   promotion.promoteEarnedReviewer.mockResolvedValue({ ok: true, changed: false, standing: 1 });
   db.bugRevision.findFirst.mockResolvedValue(null);
   db.issueValidation.findMany.mockImplementation(async ({ where }: { where: Record<string, unknown> }) =>
@@ -412,6 +414,25 @@ describe("confirmation: the two-reviewer rule (#433)", () => {
     const third = await submitValidation(reviewer("r3", "tia"), "bug1", acceptReal);
     expect(third).toMatchObject({ confirmed: true, newlyConfirmed: false });
     expect(db.pointEntry.createMany).toHaveBeenCalledTimes(3);
+  });
+
+  it("pays a third reviewer after confirmation when the project pays three per issue (#1046)", async () => {
+    db.project.findUnique.mockResolvedValue({ rewardConfig: { paidReviewsPerIssue: 3 } });
+    await submitValidation(reviewer("r1", "rob"), "bug1", acceptReal);
+    await submitValidation(reviewer("r2", "sam"), "bug1", acceptReal);
+    const before = db.pointEntry.createMany.mock.calls.length;
+
+    await submitValidation(reviewer("r3", "tia"), "bug1", acceptReal);
+    const third = db.pointEntry.createMany.mock.calls.slice(before).map((call) => call[0].data[0]);
+    expect(third).toEqual([
+      expect.objectContaining({ userId: "tia", role: "reviewer", points: 5, sourceKey: "reviewer-confirm:bug1:tia" }),
+    ]);
+
+    // The fourth is still accepted, but the cap is reached: nobody is paid.
+    const fourthBefore = db.pointEntry.createMany.mock.calls.length;
+    const fourth = await submitValidation(reviewer("r4", "uma"), "bug1", acceptReal);
+    expect(fourth).toMatchObject({ status: 201, confirmed: true });
+    expect(db.pointEntry.createMany.mock.calls.length).toBe(fourthBefore);
   });
 
   it("two agents of the same owner count once", async () => {

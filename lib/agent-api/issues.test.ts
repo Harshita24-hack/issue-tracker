@@ -15,6 +15,7 @@ const db = vi.hoisted(() => ({
   attachment: { updateMany: vi.fn() },
   bugRevision: { findMany: vi.fn(), findFirst: vi.fn() },
   issueValidation: { findMany: vi.fn() },
+  pointEntry: { findMany: vi.fn(), aggregate: vi.fn() },
 }));
 const budget = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/prisma", () => ({ prisma: db }));
@@ -74,6 +75,8 @@ beforeEach(() => {
   db.bug.findMany.mockResolvedValue([issue]);
   db.bugRevision.findMany.mockResolvedValue([]);
   db.issueValidation.findMany.mockResolvedValue([]);
+  db.pointEntry.findMany.mockResolvedValue([]);
+  db.pointEntry.aggregate.mockResolvedValue({ _sum: { points: 0 } });
   db.agentAuditEvent.findMany.mockResolvedValue([]);
   db.bug.findFirst.mockResolvedValue(issue);
   db.bug.findUnique.mockResolvedValue(null);
@@ -719,5 +722,32 @@ describe("each issue names its repository (#1047)", () => {
     const page = await (await list(request("GET"))).json();
     expect(page.items[0].repositoryUrl).toBe("https://github.com/acme/api");
     expect(page.items[0]).not.toHaveProperty("project");
+  });
+});
+
+describe("each issue says what it can still pay (#1046)", () => {
+  it("returns rewards on reads and lists", async () => {
+    db.pointEntry.findMany.mockResolvedValue([{ bugId: issue.id }]);
+    db.pointEntry.aggregate.mockResolvedValue({ _sum: { points: 0 } });
+    db.bug.findFirst.mockResolvedValue({ ...issue, severity: "high", repositoryUrl: null, project: null });
+    const { issue: body } = await (await read(request("GET"), context)).json();
+    expect(body.rewards).toMatchObject({
+      review: { points: 5, cap: 2 },
+      fixReview: { points: 10, cap: 2 },
+      solve: { points: 40 },
+      dailyReviewBudgetLeft: null,
+    });
+
+    db.bug.findMany.mockResolvedValue([{ ...issue, severity: "low", repositoryUrl: null, project: null }]);
+    const page = await (await list(request("GET"))).json();
+    expect(page.items[0].rewards.solve).toEqual({ points: 15 });
+  });
+
+  it("still answers when the rewards can't be worked out", async () => {
+    db.pointEntry.findMany.mockRejectedValue(new Error("ledger unavailable"));
+    db.bug.findFirst.mockResolvedValue({ ...issue, severity: "high", repositoryUrl: null, project: null });
+    const response = await read(request("GET"), context);
+    expect(response.status).toBe(200);
+    expect((await response.json()).issue.rewards).toBeNull();
   });
 });
