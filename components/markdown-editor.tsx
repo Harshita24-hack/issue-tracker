@@ -234,6 +234,24 @@ export const MarkdownEditor = forwardRef<
   useEffect(() => {
     onUploadingChangeRef.current = onUploadingChange;
   });
+
+  // Track editor mount / disposal session (#1167)
+  const isMountedRef = useRef(true);
+  const activeSessionRef = useRef(0);
+  const abortControllersRef = useRef<Set<AbortController>>(new Set());
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    activeSessionRef.current += 1;
+    return () => {
+      isMountedRef.current = false;
+      // Abort any in-flight fetch requests for this editor session
+      for (const controller of abortControllersRef.current) {
+        controller.abort();
+      }
+      abortControllersRef.current.clear();
+    };
+  }, []);
   useEffect(() => {
     const isUploading = uploading > 0;
     onUploadingChangeRef.current?.(isUploading);
@@ -436,11 +454,17 @@ export const MarkdownEditor = forwardRef<
     setTab("write");
     insertAtCaret(text);
 
+    const session = activeSessionRef.current;
+
     for (const job of jobs) {
       setUploading((n) => n + 1);
+      const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+      if (controller) {
+        abortControllersRef.current.add(controller);
+      }
       const body = new FormData();
       body.set("file", job.file, job.name);
-      void fetch("/api/uploads", { method: "POST", body })
+      void fetch("/api/uploads", { method: "POST", body, signal: controller?.signal })
         .then(async (res) => {
           const data = (await res.json().catch(() => ({}))) as {
             id?: string;
@@ -462,6 +486,14 @@ export const MarkdownEditor = forwardRef<
           }),
         )
         .then(({ markdown, error }) => {
+          if (controller) {
+            abortControllersRef.current.delete(controller);
+          }
+          // If editor has unmounted or session has changed, discard results (#1167)
+          if (!isMountedRef.current || activeSessionRef.current !== session) {
+            return;
+          }
+
           const current = valueRef.current;
           let next = replacePlaceholder(current, job.token, markdown);
           // #732: the finished Markdown (attachment URL included) is longer

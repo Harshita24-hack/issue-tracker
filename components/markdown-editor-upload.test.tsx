@@ -177,3 +177,181 @@ describe("MarkdownEditor upload rejects oversized files client-side (#540)", () 
     expect(screen.queryByRole("alert")).toBeNull();
   });
 });
+
+describe("MarkdownEditor late upload disposal and session invalidation (#1167)", () => {
+  it("never overwrites replaced text when an abandoned upload resolves after unmount/reopen", async () => {
+    let releaseUpload: (payload: unknown) => void = () => {};
+    let signalReceived: AbortSignal | undefined;
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation((_url, options) => {
+        signalReceived = options?.signal;
+        return new Promise((resolve) => {
+          releaseUpload = (payload) =>
+            resolve({ ok: true, json: async () => payload });
+        });
+      }),
+    );
+
+    const onUploadingChange = vi.fn();
+    const onChange1 = vi.fn();
+
+    // 1. Mount first editor session
+    const { unmount, rerender } = render(
+      <MarkdownEditor
+        value="Initial description"
+        onChange={onChange1}
+        onUploadingChange={onUploadingChange}
+        aria-label="Description"
+      />,
+    );
+
+    const textarea1 = screen.getByRole("textbox") as HTMLTextAreaElement;
+    dropScreenshot(textarea1);
+
+    expect(onChange1).toHaveBeenCalled();
+    expect(onUploadingChange).toHaveBeenCalledWith(true);
+
+    // 2. User cancels edit (unmounts editor)
+    unmount();
+
+    // The signal was aborted on unmount
+    expect(signalReceived?.aborted).toBe(true);
+    expect(onUploadingChange).toHaveBeenLastCalledWith(false);
+
+    // 3. User reopens edit and types replacement text
+    const onChange2 = vi.fn();
+    render(
+      <MarkdownEditor
+        value="Replacement text after cancel"
+        onChange={onChange2}
+        onUploadingChange={onUploadingChange}
+        aria-label="Description"
+      />,
+    );
+
+    const textarea2 = screen.getByRole("textbox") as HTMLTextAreaElement;
+    expect(textarea2.value).toBe("Replacement text after cancel");
+
+    // 4. Original upload finishes late
+    await act(async () => {
+      releaseUpload(PAYLOAD);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    // 5. Replacement text survives! Old callback and new callback are NOT corrupted
+    expect(onChange1).toHaveBeenCalledTimes(2); // Initial drop calls applyTextChange (which dispatches change & calls onChange)
+    expect(onChange2).not.toHaveBeenCalled();
+    expect(textarea2.value).toBe("Replacement text after cancel");
+  });
+
+  it("handles upload rejection after unmount without crashing or setting error", async () => {
+    let rejectUpload: (err: unknown) => void = () => {};
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(() => {
+        return new Promise((_resolve, reject) => {
+          rejectUpload = (err) => reject(err);
+        });
+      }),
+    );
+
+    const { unmount } = render(
+      <MarkdownEditor
+        value="Initial text"
+        onChange={vi.fn()}
+        aria-label="Description"
+      />,
+    );
+
+    const textarea = screen.getByRole("textbox") as HTMLTextAreaElement;
+    dropScreenshot(textarea);
+
+    unmount();
+
+    await act(async () => {
+      rejectUpload(new Error("Network disconnect"));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    // Ensure no unhandled errors or leaks occurred
+  });
+
+  it("handles two uploads completing in reverse order properly", async () => {
+    const releases: Array<(payload: unknown) => void> = [];
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(() => {
+        return new Promise((resolve) => {
+          releases.push((payload) => resolve({ ok: true, json: async () => payload }));
+        });
+      }),
+    );
+
+    let editorVal = "Initial text";
+    function DualHarness() {
+      const [val, setVal] = useState(editorVal);
+      return (
+        <MarkdownEditor
+          value={val}
+          onChange={(next) => {
+            editorVal = next;
+            setVal(next);
+          }}
+          aria-label="Description"
+        />
+      );
+    }
+
+    const { container } = render(<DualHarness />);
+    const textarea = container.querySelector("textarea") as HTMLTextAreaElement;
+
+    // Drop file 1
+    const file1 = new File(["bytes1"], "first.png", { type: "image/png" });
+    const event1 = new Event("drop", { bubbles: true, cancelable: true });
+    Object.assign(event1, { dataTransfer: { types: ["Files"], files: [file1] } });
+    act(() => {
+      textarea.dispatchEvent(event1);
+    });
+
+    // Drop file 2
+    const file2 = new File(["bytes2"], "second.png", { type: "image/png" });
+    const event2 = new Event("drop", { bubbles: true, cancelable: true });
+    Object.assign(event2, { dataTransfer: { types: ["Files"], files: [file2] } });
+    act(() => {
+      textarea.dispatchEvent(event2);
+    });
+
+    expect(releases).toHaveLength(2);
+
+    // Resolve upload 2 first
+    await act(async () => {
+      releases[1]({
+        id: "id_second",
+        filename: "second.png",
+        contentType: "image/png",
+      });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(textarea.value).toContain("![second.png](/api/attachments/id_second)");
+    expect(textarea.value).toContain("#upload-");
+
+    // Resolve upload 1 second
+    await act(async () => {
+      releases[0]({
+        id: "id_first",
+        filename: "first.png",
+        contentType: "image/png",
+      });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(textarea.value).toContain("![first.png](/api/attachments/id_first)");
+    expect(textarea.value).toContain("![second.png](/api/attachments/id_second)");
+    expect(textarea.value).not.toContain("#upload-");
+  });
+});
