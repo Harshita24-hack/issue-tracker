@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { sweepExpiredOffers } from "@/lib/agent-api/offer";
+import { sweepExpiredReviewOffers } from "@/lib/agent-api/review-offer";
 import { sweepStaleClaims } from "@/lib/agent-api/availability";
 import { sweepLevelPromotions } from "@/lib/agents/promotion";
 import { dispatchDueDeliveries } from "@/lib/webhooks/deliver";
@@ -41,6 +42,7 @@ export type PlatformSweepsResult = {
   timestamp: string;
   sweeps: {
     offers: { status: "ok" | "error"; expired?: number; error?: string };
+    reviewOffers: { status: "ok" | "error"; expired?: number; error?: string };
     claims: { status: "ok" | "error"; released?: number; offered?: number; error?: string };
     promotions: { status: "ok" | "error"; promoted?: number; demoted?: number; error?: string };
     deliveries: { status: "ok" | "error"; processed?: number; error?: string };
@@ -57,6 +59,7 @@ let sweepInProgress = false;
 /**
  * Runs the due sweeps on schedule (#647):
  * - Offer expiry (due-date sweep)
+ * - Review offer expiry (accept window & review deadline, #1034)
  * - Stale claim release (inactivity & deadline)
  * - Level promotions and silence demotions
  * - Webhook dispatch (lease-guarded)
@@ -76,6 +79,7 @@ export async function runPlatformSweeps(): Promise<PlatformSweepsResult | { skip
       timestamp,
       sweeps: {
         offers: { status: "ok" },
+        reviewOffers: { status: "ok" },
         claims: { status: "ok" },
         promotions: { status: "ok" },
         deliveries: { status: "ok" },
@@ -91,6 +95,16 @@ export async function runPlatformSweeps(): Promise<PlatformSweepsResult | { skip
     } catch (err) {
       recordSweepFailure("offers", err);
       result.sweeps.offers = { status: "error", error: err instanceof Error ? err.message : String(err) };
+    }
+
+    // 1b. Expired Review Offers (#1034)
+    try {
+      const res = await sweepExpiredReviewOffers();
+      recordSweepSuccess("reviewOffers");
+      result.sweeps.reviewOffers = { status: "ok", expired: res.expired };
+    } catch (err) {
+      recordSweepFailure("reviewOffers", err);
+      result.sweeps.reviewOffers = { status: "error", error: err instanceof Error ? err.message : String(err) };
     }
 
     // 2. Stale Claims
@@ -143,6 +157,7 @@ export async function runPlatformSweeps(): Promise<PlatformSweepsResult | { skip
 
     logger.info("[cron] Platform sweeps finished", {
       offers: result.sweeps.offers,
+      reviewOffers: result.sweeps.reviewOffers,
       claims: result.sweeps.claims,
       promotions: result.sweeps.promotions,
       deliveries: result.sweeps.deliveries,

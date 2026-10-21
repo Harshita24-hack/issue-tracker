@@ -346,6 +346,92 @@ describe("expireReviewOffer moves to next eligible reviewer (#597)", () => {
   });
 });
 
+describe("sweepExpiredReviewOffers (#1034)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    db.$transaction.mockImplementation((fn: (tx: unknown) => unknown) => fn(db));
+    db.issueClaim.groupBy.mockResolvedValue([]);
+    db.reviewOffer.groupBy.mockResolvedValue([]);
+    db.agentEvent.create.mockResolvedValue({ id: "evt-reoffer" });
+    db.webhookSubscription.findMany.mockResolvedValue([]);
+    db.reviewOffer.update.mockResolvedValue({});
+    // Re-offer path finds no other candidate, so it stops cleanly.
+    db.bug.findFirst.mockResolvedValue(null);
+  });
+
+  it("only selects offers past their accept window or review deadline", async () => {
+    db.reviewOffer.findMany.mockResolvedValue([]);
+
+    const { sweepExpiredReviewOffers } = await import("./review-offer");
+    await sweepExpiredReviewOffers();
+
+    const where = db.reviewOffer.findMany.mock.calls[0][0].where;
+    expect(where.OR).toEqual([
+      { status: "offered", offeredAt: { lte: expect.any(Date) } },
+      { status: "accepted", deadlineAt: { lte: expect.any(Date) } },
+    ]);
+
+    // The offered cutoff is the TTL in the past - not "now" - so live offers
+    // are never swept.
+    const offeredCutoff = where.OR[0].offeredAt.lte as Date;
+    expect(Date.now() - offeredCutoff.getTime()).toBeGreaterThanOrEqual(REVIEW_OFFER_TTL_MS);
+  });
+
+  it("scopes to a tenant when one is given", async () => {
+    db.reviewOffer.findMany.mockResolvedValue([]);
+
+    const { sweepExpiredReviewOffers } = await import("./review-offer");
+    await sweepExpiredReviewOffers({ tenantId: "tenant-zedu" });
+
+    expect(db.reviewOffer.findMany.mock.calls[0][0].where.bug).toEqual({ tenantId: "tenant-zedu" });
+  });
+
+  it("expires each stale offer and counts only the ones that actually expired", async () => {
+    const past = new Date(Date.now() - 100_000);
+    // Two candidates found; the second is no longer stale by the time the
+    // transaction re-reads it, and must not be counted.
+    db.reviewOffer.findMany.mockResolvedValue([{ id: "offer-stale-1" }, { id: "offer-stale-2" }]);
+    db.reviewOffer.findUnique
+      .mockResolvedValueOnce({
+        id: "offer-stale-1",
+        bugId: "bug-1",
+        status: "offered",
+        offeredAt: past,
+        deadlineAt: null,
+        pullRequestUrl: "https://github.com/zedu/web/pull/1",
+        headSha: null,
+      })
+      .mockResolvedValueOnce({
+        id: "offer-stale-2",
+        bugId: "bug-1",
+        status: "offered",
+        offeredAt: new Date(),
+        deadlineAt: null,
+        pullRequestUrl: "https://github.com/zedu/web/pull/1",
+        headSha: null,
+      });
+
+    const { sweepExpiredReviewOffers } = await import("./review-offer");
+    const result = await sweepExpiredReviewOffers();
+
+    expect(result.expired).toBe(1);
+    expect(db.reviewOffer.update).toHaveBeenCalledTimes(1);
+    expect(db.reviewOffer.update).toHaveBeenCalledWith({
+      where: { id: "offer-stale-1" },
+      data: { status: "expired", expiredAt: expect.any(Date) },
+    });
+  });
+
+  it("caps the number of offers processed in one run", async () => {
+    db.reviewOffer.findMany.mockResolvedValue([]);
+
+    const { sweepExpiredReviewOffers } = await import("./review-offer");
+    await sweepExpiredReviewOffers({ limit: 25 });
+
+    expect(db.reviewOffer.findMany.mock.calls[0][0].take).toBe(25);
+  });
+});
+
 describe("handleTestVerdictSubmitted and review.completed (#597)", () => {
   beforeEach(() => {
     vi.clearAllMocks();

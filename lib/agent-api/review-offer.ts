@@ -13,6 +13,8 @@ import { DEFAULT_PROJECT_WORKFLOW } from "@/lib/workflow-config";
 export const REVIEW_OFFER_TTL_MS = 60_000; // 60 seconds to accept
 export const REVIEW_DEADLINE_MS = 30 * 60_000; // 30 minutes to review after acceptance
 export const DEFAULT_REVIEW_VERDICTS_NEEDED = DEFAULT_PROJECT_WORKFLOW.verdictsNeeded;
+/** Most offers one durable sweep run will expire (#1034). */
+export const DEFAULT_REVIEW_SWEEP_LIMIT = 500;
 
 type Db = typeof prisma | Prisma.TransactionClient;
 
@@ -488,6 +490,50 @@ export async function expireReviewOffer(offerId: string): Promise<boolean> {
   }
 
   return false;
+}
+
+/**
+ * Sweeps review offers whose accept window or review deadline has elapsed
+ * (#1034). Durable across process restarts, so it is safe to run from cron.
+ *
+ * `expireReviewOffer` was only ever reachable from `setTimeout`
+ * (`scheduleReviewOfferExpiry` / `scheduleReviewDeadlineExpiry`), so on
+ * serverless or multi-instance deploys - or after a restart - a stale offer
+ * was never expired and the PR stalled on it forever. This sweep finds them
+ * from the durable `offeredAt` / `deadlineAt` columns instead.
+ *
+ * Both windows are fixed constants, so one cutoff per status suffices (unlike
+ * the claim sweep, whose window is per project). Rows are ordered oldest
+ * first and capped by `limit` to bound the work in a single run.
+ */
+export async function sweepExpiredReviewOffers(
+  options: { tenantId?: string; limit?: number } = {},
+): Promise<{ expired: number }> {
+  const { tenantId, limit = DEFAULT_REVIEW_SWEEP_LIMIT } = options;
+  const now = Date.now();
+  const scope = tenantId ? { bug: { tenantId } } : {};
+
+  const candidates = await prisma.reviewOffer.findMany({
+    where: {
+      ...scope,
+      OR: [
+        { status: "offered", offeredAt: { lte: new Date(now - REVIEW_OFFER_TTL_MS) } },
+        { status: "accepted", deadlineAt: { lte: new Date(now) } },
+      ],
+    },
+    select: { id: true },
+    orderBy: { offeredAt: "asc" },
+    take: limit,
+  });
+
+  let expired = 0;
+  for (const candidate of candidates) {
+    // expireReviewOffer re-checks the window under a transaction, so a
+    // concurrent accept between the query and here is not clobbered.
+    const didExpire = await expireReviewOffer(candidate.id);
+    if (didExpire) expired++;
+  }
+  return { expired };
 }
 
 /**
