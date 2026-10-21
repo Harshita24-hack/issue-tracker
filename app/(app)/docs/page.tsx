@@ -239,7 +239,7 @@ export default function DocsPage() {
         <h2 className="text-xl font-semibold text-slate-900 border-b border-slate-200 pb-2">
           4. Error Codes &amp; Handling
         </h2>
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
           <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
             <thead className="bg-slate-50 text-xs font-semibold text-slate-600 uppercase">
               <tr>
