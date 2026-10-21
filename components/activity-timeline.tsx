@@ -34,20 +34,25 @@ const typeLabel: Record<ActivityType, string> = {
 export function ActivityTimeline({
   activities,
   totalCount,
+  showHeader = true,
 }: {
   /** The newest entries, oldest first. May be fewer than `totalCount`. */
   activities: ActivityEntry[];
   /** Every entry on the issue, so the heading does not under-report. */
   totalCount?: number;
+  /** Whether to render the outer card and section header. Set false inside a dedicated panel. */
+  showHeader?: boolean;
 }) {
   const total = totalCount ?? activities.length;
   const trimmed = total > activities.length;
-  return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-        Activity ({total})
-      </h2>
-      <p className="mt-1 text-xs text-slate-500">
+  const content = (
+    <>
+      {showHeader ? (
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+          Activity ({total})
+        </h2>
+      ) : null}
+      <p className={`${showHeader ? "mt-1" : ""} text-xs text-slate-500`}>
         Read-only history of changes on this issue.
         {trimmed
           ? ` Showing the ${activities.length} most recent of ${total}.`
@@ -74,14 +79,14 @@ export function ActivityTimeline({
                   date={entry.createdAt}
                 />
               </div>
-              <p className="mt-1 text-sm text-slate-800">
+              <div className="mt-1 text-sm text-slate-800">
                 <span className="font-medium text-slate-900">
                   {entry.actor.name}
                 </span>{" "}
                 <ExpandableText maxLines={2} expandText="View more" collapseText="View less">
                   {entry.summary}
                 </ExpandableText>
-              </p>
+              </div>
               {entry.type === "status_changed" && activityNote(entry.metadata) ? (
                 <ExpandableText maxLines={3} expandText="View more" collapseText="View less">
                   <blockquote className="mt-1 whitespace-pre-wrap break-words border-l-2 border-emerald-300 pl-3 text-sm text-slate-700">
@@ -93,6 +98,16 @@ export function ActivityTimeline({
           ))}
         </ol>
       )}
+    </>
+  );
+
+  if (!showHeader) {
+    return <div>{content}</div>;
+  }
+
+  return (
+    <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
+      {content}
     </section>
   );
 }

@@ -35,7 +35,8 @@ import {
   statusClass,
   statusLabels,
 } from "@/lib/labels";
-import { ActivityTimeline, type ActivityEntry } from "@/components/activity-timeline";
+import { type ActivityEntry } from "@/components/activity-timeline";
+import { IssueActivityPanel } from "@/components/issue-activity-panel";
 import { IssueAgentActivity, type AgentDecision } from "@/components/issue-agent-activity";
 import { IssueEscalations, type TicketEscalation } from "@/components/issue-escalations";
 import { listBugEscalations } from "@/lib/agent-questions";
@@ -609,6 +610,10 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
 
   const headerActions = (
     <>
+      <IssueActivityPanel
+        activities={[...activities].reverse()}
+        totalCount={activityCount}
+      />
       {canSelfAssign ? (
         <SelfAssignButton
           bugId={bug.id}
@@ -1000,11 +1005,6 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
           canEditTriage={canTriage}
         />
       ) : null}
-
-      <ActivityTimeline
-        activities={[...activities].reverse()}
-        totalCount={activityCount}
-      />
 
       <IssueBids
         bids={[...openBids]

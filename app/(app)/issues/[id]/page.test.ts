@@ -167,6 +167,15 @@ describe("BugDetailPage conditional user query (#349)", () => {
     expect(pageSourceFresh).toContain("Conversation ({comments.visibleCount})");
   });
 
+  it("does not render inline ActivityTimeline and renders IssueActivityPanel in headerActions (#1066)", () => {
+    const pageSourceFresh = readFileSync(
+      path.resolve(__dirname, "page.tsx"),
+      "utf8",
+    );
+    expect(pageSourceFresh).not.toMatch(/<ActivityTimeline/);
+    expect(pageSourceFresh).toMatch(/<IssueActivityPanel[\s\S]*?activities=\{/);
+  });
+
   describe("runtime execution", () => {
     beforeEach(() => {
       vi.clearAllMocks();
