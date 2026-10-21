@@ -58,8 +58,9 @@ describe("Bug detail header responsive layout (#698)", () => {
       '<div className="flex shrink-0 flex-wrap items-center gap-2 self-start sm:pt-9 print:hidden">'
     );
 
-    // Danger zone remains at the bottom of the page
-    expect(pageSource).toMatch(/Danger zone[\s\S]*?<DeleteIssueButton/);
+    // Danger zone is removed from the page body; delete is moved inside EditIssueDialog (#1051)
+    expect(pageSource).not.toContain("Danger zone");
+    expect(pageSource).toContain("EditIssueDialog");
   });
 });
 

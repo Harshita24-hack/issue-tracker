@@ -34,19 +34,24 @@ const typeLabel: Record<ActivityType, string> = {
 export function ActivityTimeline({
   activities,
   totalCount,
+  variant = "default",
 }: {
   /** The newest entries, oldest first. May be fewer than `totalCount`. */
   activities: ActivityEntry[];
   /** Every entry on the issue, so the heading does not under-report. */
   totalCount?: number;
+  /** Whether displayed inside a container or as a standalone section. */
+  variant?: "default" | "drawer";
 }) {
   const total = totalCount ?? activities.length;
   const trimmed = total > activities.length;
-  return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-        Activity ({total})
-      </h2>
+  const content = (
+    <>
+      {variant === "default" ? (
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+          Activity ({total})
+        </h2>
+      ) : null}
       <p className="mt-1 text-xs text-slate-500">
         Read-only history of changes on this issue.
         {trimmed
@@ -93,6 +98,16 @@ export function ActivityTimeline({
           ))}
         </ol>
       )}
+    </>
+  );
+
+  if (variant === "drawer") {
+    return <div>{content}</div>;
+  }
+
+  return (
+    <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
+      {content}
     </section>
   );
 }

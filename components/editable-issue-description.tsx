@@ -22,6 +22,8 @@ export type EditableIssueDescriptionProps = {
   /** When the title or description was last edited (#303); null if never. */
   lastEditedAt?: Date | null;
   historyHref?: string;
+  /** Optional custom action button rendered in the header (e.g. an Edit dialog trigger) */
+  action?: ReactNode;
 };
 
 export function EditableIssueDescription({
@@ -33,6 +35,7 @@ export function EditableIssueDescription({
   children,
   lastEditedAt = null,
   historyHref,
+  action,
 }: EditableIssueDescriptionProps) {
   const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
@@ -94,7 +97,7 @@ export function EditableIssueDescription({
             </p>
           ) : null}
         </div>
-        {canEdit && !isEditing ? (
+        {action ?? (canEdit && !isEditing ? (
           <Button
             variant="ghost"
             className="px-2.5 py-1 text-xs text-slate-600 hover:text-slate-900"
@@ -102,7 +105,7 @@ export function EditableIssueDescription({
           >
             Edit
           </Button>
-        ) : null}
+        ) : null)}
       </div>
 
       {isEditing ? (

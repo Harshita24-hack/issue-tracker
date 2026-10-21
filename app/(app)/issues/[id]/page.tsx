@@ -35,7 +35,9 @@ import {
   statusClass,
   statusLabels,
 } from "@/lib/labels";
-import { ActivityTimeline, type ActivityEntry } from "@/components/activity-timeline";
+import { ActivitySidePanel } from "@/components/activity-side-panel";
+import type { ActivityEntry } from "@/components/activity-timeline";
+import { EditIssueDialog } from "@/components/edit-issue-dialog";
 import { IssueAgentActivity, type AgentDecision } from "@/components/issue-agent-activity";
 import { IssueEscalations, type TicketEscalation } from "@/components/issue-escalations";
 import { listBugEscalations } from "@/lib/agent-questions";
@@ -43,8 +45,6 @@ import { IssueBids } from "@/components/issue-bids";
 import { GoalBudgetSection } from "@/components/goal-budgets";
 import { Badge } from "@/components/ui/badge";
 import { VoteButton } from "@/components/vote-button";
-import { WatchButton } from "@/components/watch-button";
-import { isWatchingIssue } from "@/lib/watch";
 import { UpdateIssueForm } from "@/components/update-issue-form";
 import { CommentThread } from "@/components/comment-thread";
 import { AttachmentList, type AttachmentView } from "@/components/attachment-list";
@@ -616,12 +616,6 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
           size="sm"
         />
       ) : null}
-      {!bug.isDeleted ? (
-        <WatchButton
-          bugId={bug.id}
-          watching={isWatchingIssue(user.id, [bug.reporterId, bug.assigneeId], watchRow)}
-        />
-      ) : null}
       {canTriage && !bug.isDeleted && !bug.duplicateOf ? (
         <MarkDuplicateButton bugId={bug.id} />
       ) : null}
@@ -643,8 +637,38 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
     votes: voterSummary.likes.count + voterSummary.dislikes.count,
   };
 
+  const canShowEditDialog = (canEdit || canUpdateStatus || canDelete) && !bug.isDeleted;
+  const editDialogAction = canShowEditDialog ? (
+    <EditIssueDialog
+      bugId={bug.id}
+      initialTitle={bug.title}
+      initialDescription={bug.description}
+      status={bug.status}
+      severity={bug.severity}
+      typeId={bug.typeId}
+      assigneeId={bug.assigneeId}
+      categoryId={bug.categoryId}
+      areaId={bug.areaId}
+      milestoneId={bug.milestoneId}
+      canEditContent={canEdit}
+      canEditTriage={canTriage}
+      canUpdateStatus={canUpdateStatus}
+      canDelete={canDelete}
+      deletionCounts={deletionCounts}
+      users={users}
+      categories={withCurrentOption(categories, bug.category)}
+      areas={areas}
+      types={withCurrentOption(types, bug.type)}
+      milestones={
+        bug.milestone && !milestoneOptions.some((m) => m.id === bug.milestone?.id)
+          ? [...milestoneOptions, { id: bug.milestone.id, title: bug.milestone.title, isClosed: bug.milestone.isClosed }]
+          : milestoneOptions
+      }
+    />
+  ) : null;
+
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-3xl space-y-6">
       {bug.isDeleted ? (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 sm:p-5">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -875,6 +899,7 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
         users={users}
         lastEditedAt={lastRevision?.editedAt ?? null}
         historyHref={`/issues/${bug.id}/history`}
+        action={editDialogAction}
       >
         <dl className="mt-6 grid grid-cols-1 gap-3 text-sm text-slate-600 sm:grid-cols-2">
           {bug.type ? (
@@ -976,34 +1001,6 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
 
       <EditableProofLinks bugId={bug.id} initialLinks={proofLinks} canEdit={canEdit} />
 
-      {canUpdateStatus && !bug.isDeleted ? (
-        <UpdateIssueForm
-          bugId={bug.id}
-          status={bug.status}
-          severity={bug.severity}
-          typeId={bug.typeId}
-          assigneeId={bug.assigneeId}
-          categoryId={bug.categoryId}
-          areaId={bug.areaId}
-          users={users}
-          categories={withCurrentOption(categories, bug.category)}
-          areas={areas}
-          types={withCurrentOption(types, bug.type)}
-          milestoneId={bug.milestoneId}
-          milestones={
-            bug.milestone && !milestoneOptions.some((m) => m.id === bug.milestone?.id)
-              ? [...milestoneOptions, { id: bug.milestone.id, title: bug.milestone.title, isClosed: bug.milestone.isClosed }]
-              : milestoneOptions
-          }
-          canEditTriage={canTriage}
-        />
-      ) : null}
-
-      <ActivityTimeline
-        activities={[...activities].reverse()}
-        totalCount={activityCount}
-      />
-
       <IssueBids
         bids={[...openBids]
           .sort((a, b) => Number(hasAreaMatch(b)) - Number(hasAreaMatch(a)) || a.createdAt.getTime() - b.createdAt.getTime())
@@ -1029,10 +1026,16 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
         id="conversation"
         className="scroll-mt-24 rounded-xl border border-slate-200 bg-white p-4 sm:p-6"
       >
-        <span id="comments" className="sr-only" aria-hidden="true" />
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-          Conversation ({comments.visibleCount})
-        </h2>
+        <div className="flex items-center justify-between gap-3">
+          <span id="comments" className="sr-only" aria-hidden="true" />
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+            Conversation ({comments.visibleCount})
+          </h2>
+          <ActivitySidePanel
+            activities={[...activities].reverse()}
+            totalCount={activityCount}
+          />
+        </div>
         {comments.hiddenThreads > 0 ? (
           <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600 print:hidden">
             <span>
@@ -1073,27 +1076,6 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
           readOnly={bug.isDeleted}
         />
       </section>
-
-      {canDelete && !bug.isDeleted ? (
-        <section className="rounded-xl border border-red-200 bg-red-50/50 p-4 sm:p-6 print:hidden">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="space-y-1">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-red-700">
-                Danger zone
-              </h2>
-              <p className="text-sm text-slate-600">
-                Delete this issue. {deleteSummary(deletionCounts)}
-              </p>
-            </div>
-            <DeleteIssueButton
-              bugId={bug.id}
-              bugTitle={bug.title}
-              counts={deletionCounts}
-              variant="danger"
-            />
-          </div>
-        </section>
-      ) : null}
     </div>
   );
 }

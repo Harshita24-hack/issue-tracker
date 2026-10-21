@@ -152,9 +152,9 @@ describe("BugDetailPage conditional user query (#349)", () => {
     expect(headerActionBlock).not.toContain("DeleteIssueButton");
     expect(headerActionBlock).not.toContain("RestoreIssueButton");
 
-    // Danger zone still retains DeleteIssueButton
-    expect(pageSourceFresh).toContain("Danger zone");
-    expect(pageSourceFresh).toMatch(/Danger zone[\s\S]*?<DeleteIssueButton/);
+    // Danger zone is removed; Delete is accessible through EditIssueDialog (#1051)
+    expect(pageSourceFresh).not.toContain("Danger zone");
+    expect(pageSourceFresh).toContain("EditIssueDialog");
   });
 
   it("renders Conversation section heading and supports conversation anchor (#753)", () => {
