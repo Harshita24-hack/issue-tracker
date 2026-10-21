@@ -8,6 +8,13 @@ import { createBugAction } from "@/app/actions/issues";
 import { serializeDraft } from "@/lib/form-drafts";
 import { CreateBugForm } from "./create-issue-form";
 
+// Next.js rethrows redirect errors; swallow it here so the rejected action
+// doesn't surface as an uncaught exception in the test runner.
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  unstable_rethrow: vi.fn(),
+}));
+
 vi.mock("@/app/actions/issues", () => ({
   createBugAction: vi.fn(),
 }));
@@ -351,6 +358,26 @@ describe("CreateBugForm project-scoped drafts (#729)", () => {
       expect(parsed?.values?.title).toBe("Scoped draft");
     });
     expect(mockStorage["draft:u1:bug:new"]).toBeUndefined();
+  });
+
+  it("clears the saved draft after a successful create redirects to the new issue (#1149)", async () => {
+    // Next.js rejects the client action promise with a redirect on success.
+    mockedCreateBug.mockRejectedValue({
+      digest: "NEXT_REDIRECT;replace;/issues/new-id;307;",
+    });
+    renderForm({ ...defaultProps, currentUserId: "u1", projectId: "project-a" });
+
+    await fillValidForm(user);
+    await waitFor(() => {
+      expect(mockStorage["draft:u1:bug:new:project-a"]).toBeDefined();
+    });
+
+    await user.click(submitButton());
+    await waitFor(() => expect(mockedCreateBug).toHaveBeenCalledTimes(1));
+
+    await waitFor(() => {
+      expect(mockStorage["draft:u1:bug:new:project-a"]).toBeUndefined();
+    });
   });
 });
 
