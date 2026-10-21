@@ -93,6 +93,13 @@ export function AssigneeCombobox({
   };
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (
+      event.nativeEvent.isComposing ||
+      event.nativeEvent.keyCode === 229
+    ) {
+      return;
+    }
+
     switch (event.key) {
       case "ArrowDown":
         event.preventDefault();
