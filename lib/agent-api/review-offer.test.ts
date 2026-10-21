@@ -421,4 +421,33 @@ describe("handleTestVerdictSubmitted and review.completed (#597)", () => {
       }),
     }));
   });
+
+  it("does not count a verdict credited to the active claim's beneficiary (#1032)", async () => {
+    // The reviewing agents' owners (bob, carol) are independent of the issue,
+    // but the verdicts are credited to "dave" — who won the active claim since
+    // the verdict was filed. acceptFix rejects these (merge.ts:184), so the
+    // count here must reject them too and must not emit review.completed.
+    const claimedBug = {
+      ...bug,
+      claims: [{ status: "active", releasedAt: null, agentId: "solver-1", agent: { ownerUserId: "dave" }, beneficiaryUserId: "dave" }],
+    };
+    db.bug.findFirst.mockResolvedValue(claimedBug);
+    db.reviewOffer.updateMany.mockResolvedValue({ count: 1 });
+    db.agentEvent.findFirst.mockResolvedValue(null);
+    db.testVerdict.findMany.mockResolvedValue([
+      { id: "tv-1", onBehalfOfUserId: "dave", agent: { id: "agent-bob", ownerUserId: "bob" } },
+      { id: "tv-2", onBehalfOfUserId: "dave", agent: { id: "agent-carol", ownerUserId: "carol" } },
+    ]);
+
+    const result = await handleTestVerdictSubmitted(db as never, {
+      bugId: "bug-1",
+      agentId: "agent-carol",
+      tenantId: "tenant-zedu",
+      pullRequestUrl: prUrl,
+    });
+
+    expect(result.completed).toBe(false);
+    expect(result.count).toBe(0);
+    expect(db.agentEvent.create).not.toHaveBeenCalled();
+  });
 });

@@ -5,6 +5,7 @@ import { IssueApiError } from "@/lib/agent-api/issues";
 import { publish } from "@/lib/agent-api/events";
 import {
   reviewerConflict,
+  reviewerCreditConflict,
   type ReviewedBug,
 } from "@/lib/agents/independence";
 import { workflowFor } from "@/lib/workflow";
@@ -552,6 +553,12 @@ export async function handleTestVerdictSubmitted(
       continue;
     }
     if (reviewerConflict({ id: v.agent.id, ownerUserId: v.agent.ownerUserId }, reviewed)) {
+      continue;
+    }
+    // #1032: the credited person must be independent too — not only the
+    // reviewing agent's owner. Checked again now, like acceptFix does, because
+    // a claim won since the verdict was filed stops it counting (merge.ts:184).
+    if (reviewerCreditConflict(v.onBehalfOfUserId, reviewed)) {
       continue;
     }
     if (validReviewerOwners.has(v.agent.ownerUserId)) continue;
