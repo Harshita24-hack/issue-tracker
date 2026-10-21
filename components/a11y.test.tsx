@@ -77,6 +77,11 @@ describe("component accessibility (axe)", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("VoteButton (inline, #452) has no violations", async () => {
+    const { container } = render(<VoteButton bugId="b1" voteCount={3} likeCount={2} size="inline" />);
+    await expectNoA11yViolations(container);
+  });
+
   it("VoteButton (md, with voter avatars) has no violations", async () => {
     const { container } = render(
       <VoteButton

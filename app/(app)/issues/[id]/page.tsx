@@ -852,20 +852,6 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
                 </p>
               ) : null}
             </div>
-
-            {/* Reactions and larger avatars sitting under the title */}
-            <div className="pt-1">
-              <VoteButton
-                bugId={bug.id}
-                voteCount={bug.voteCount}
-                userVote={userVote}
-                likeCount={voterSummary.likes.count}
-                likeVoters={voterSummary.likes.voters}
-                size="md"
-                showAvatars
-                readOnly={bug.isDeleted}
-              />
-            </div>
           </div>
         </div>
 
@@ -887,6 +873,18 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
         createdAt={bug.createdAt}
         lastEditedAt={lastRevision?.editedAt ?? null}
         historyHref={`/issues/${bug.id}/history`}
+        headingAction={
+          // #452: a compact thumbs-up beside the description replaces the
+          // large "Upvoted N" button that sat under the status chips.
+          <VoteButton
+            bugId={bug.id}
+            voteCount={bug.voteCount}
+            userVote={userVote}
+            likeCount={voterSummary.likes.count}
+            size="inline"
+            readOnly={bug.isDeleted}
+          />
+        }
       >
         <dl className="mt-6 grid grid-cols-1 gap-3 text-sm text-slate-600 sm:grid-cols-2">
           {bug.type ? (

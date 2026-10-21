@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
@@ -66,5 +66,36 @@ describe("EditableIssueDescription created date (#422)", () => {
 
     expect(headingRow).toContainElement(actionRow);
     expect(actionRow).toContainElement(container.querySelector("time"));
+  });
+});
+
+describe("EditableIssueDescription heading action (#452)", () => {
+  it("renders the heading action on the Description heading row", () => {
+    const { container } = render(
+      <EditableIssueDescription
+        {...base}
+        headingAction={<button type="button">Upvote this issue, 2 votes</button>}
+      />,
+    );
+    const headingRow = container.querySelector("section > div");
+    const action = screen.getByRole("button", { name: /Upvote this issue/ });
+    expect(headingRow).toContainElement(action);
+    expect(headingRow).toHaveTextContent("Description");
+  });
+
+  it("hides the heading action while the issue is being edited", () => {
+    render(
+      <EditableIssueDescription
+        {...base}
+        headingAction={<button type="button">Upvote this issue, 2 votes</button>}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    expect(screen.queryByRole("button", { name: /Upvote this issue/ })).toBeNull();
+  });
+
+  it("renders nothing extra when no heading action is given", () => {
+    render(<EditableIssueDescription {...base} />);
+    expect(screen.queryByRole("button", { name: /Upvote/ })).toBeNull();
   });
 });

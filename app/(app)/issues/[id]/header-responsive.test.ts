@@ -5,10 +5,10 @@ import { describe, expect, it } from "vitest";
 const pageSource = readFileSync(path.resolve(__dirname, "page.tsx"), "utf8");
 
 describe("Bug detail header responsive layout (#698)", () => {
-  it("renders a compact mobile action row pinned directly under the title before badges and votes", () => {
+  it("renders a compact mobile action row pinned directly under the title before badges", () => {
     // Mobile action row must be directly under the title
     expect(pageSource).toMatch(
-      /<h1[\s\S]*?<\/h1>[\s\S]*?data-testid="mobile-actions-row"[\s\S]*?Badge[\s\S]*?<VoteButton/
+      /<h1[\s\S]*?<\/h1>[\s\S]*?data-testid="mobile-actions-row"[\s\S]*?Badge/
     );
 
     // Mobile action row has horizontal scroll and is hidden on desktop (sm:hidden)
@@ -74,5 +74,24 @@ describe("Bug detail header hierarchy (#687)", () => {
   it("drops the redundant score pill so only VoteButton shows the vote total", () => {
     expect(pageSource).not.toMatch(/score \(\{/);
     expect(pageSource).not.toMatch(/\{bug\.voteCount\} score/);
+  });
+});
+
+describe("Upvote control placement (#452)", () => {
+  const header = pageSource.slice(
+    pageSource.indexOf("<h1"),
+    pageSource.indexOf("<EditableIssueDescription"),
+  );
+
+  it("keeps no Upvote button in the header block", () => {
+    expect(header.length).toBeGreaterThan(0);
+    expect(header).not.toContain("<VoteButton");
+    expect(pageSource).not.toMatch(/size="md"[\s\S]*?showAvatars/);
+  });
+
+  it("puts a compact thumbs-up beside the description heading", () => {
+    expect(pageSource).toMatch(
+      /<EditableIssueDescription[\s\S]*?headingAction=\{[\s\S]*?<VoteButton[\s\S]*?size="inline"[\s\S]*?\/>/
+    );
   });
 });

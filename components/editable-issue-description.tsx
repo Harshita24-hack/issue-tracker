@@ -24,6 +24,8 @@ export type EditableIssueDescriptionProps = {
   historyHref?: string;
   /** When the issue was created (#422); shown on the heading row. */
   createdAt?: Date | string | null;
+  /** Shown beside the Description heading (#452): the upvote control. */
+  headingAction?: ReactNode;
 };
 
 export function EditableIssueDescription({
@@ -36,6 +38,7 @@ export function EditableIssueDescription({
   lastEditedAt = null,
   historyHref,
   createdAt = null,
+  headingAction = null,
 }: EditableIssueDescriptionProps) {
   const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
@@ -88,6 +91,9 @@ export function EditableIssueDescription({
           <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
             {isEditing ? "Edit issue" : "Description"}
           </h2>
+          {!isEditing && headingAction ? (
+            <div className="self-center">{headingAction}</div>
+          ) : null}
           {!isEditing && lastEditedAt && historyHref ? (
             <p className="text-xs text-slate-500">
               edited <LocalTime date={lastEditedAt} /> ·{" "}

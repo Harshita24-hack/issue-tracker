@@ -145,7 +145,7 @@ describe("VoteButton optimistic update and rollback", () => {
     expect(like.getAttribute("aria-pressed")).toBe("true");
   });
 
-  it.each(["sm", "md"] as const)("offers no downvote or Dislike (%s, #1059)", (size) => {
+  it.each(["sm", "md", "inline"] as const)("offers no downvote or Dislike (%s, #1059)", (size) => {
     renderVoteButton({ size });
     expect(screen.getAllByRole("button")).toHaveLength(1);
     expect(screen.queryByRole("button", { name: /dislike|downvote/i })).toBeNull();
@@ -160,5 +160,45 @@ describe("VoteButton large size accessible name", () => {
     unmount();
     render(<VoteButton bugId="b1" voteCount={3} userVote={1} size="md" />);
     expect(screen.getByRole("button", { name: /^Upvoted 3 votes, click to remove your vote$/ })).toBeTruthy();
+  });
+});
+
+describe("VoteButton inline size (#452)", () => {
+  beforeEach(() => {
+    mockedToggleVote.mockReset();
+    mockedToggleVote.mockResolvedValue(serverResult);
+  });
+
+  it("shows a thumbs-up with the count and no Upvote label or avatars", () => {
+    renderVoteButton({ size: "inline", likeCount: 4 });
+    const like = likeButton();
+    expect(like.textContent?.trim()).toBe("4");
+    expect(like.querySelector("svg")).toBeTruthy();
+    expect(screen.queryByText(/Upvoted|Work unlocked|to unlock work/)).toBeNull();
+  });
+
+  it("toggles the vote, exposes aria-pressed and updates the count without a reload", async () => {
+    renderVoteButton({ size: "inline" });
+    const like = likeButton();
+    expect(like.getAttribute("aria-pressed")).toBe("false");
+
+    fireEvent.click(like);
+    expect(like.getAttribute("aria-pressed")).toBe("true");
+    expect(countOf(like).textContent).toBe("3");
+    await waitFor(() => expect(mockedToggleVote).toHaveBeenCalledWith("b1", 1));
+  });
+
+  it("is a native button, so Enter and Space work from the keyboard", () => {
+    renderVoteButton({ size: "inline" });
+    const like = likeButton();
+    expect(like.tagName).toBe("BUTTON");
+    expect(like.getAttribute("type")).toBe("button");
+    like.focus();
+    expect(document.activeElement).toBe(like);
+  });
+
+  it("cannot be changed on a deleted issue", () => {
+    renderVoteButton({ size: "inline", readOnly: true });
+    expect(likeButton().disabled).toBe(true);
   });
 });

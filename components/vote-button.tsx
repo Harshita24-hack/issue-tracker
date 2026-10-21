@@ -18,7 +18,8 @@ type VoteButtonProps = {
   /** Upvotes. Falls back to `voteCount`. */
   likeCount?: number;
   likeVoters?: VoterInfo[];
-  size?: "sm" | "md";
+  /** "inline": a compact horizontal pill for heading rows (#452). */
+  size?: "sm" | "md" | "inline";
   showAvatars?: boolean;
   showReadinessGate?: boolean;
   /** Deleted issues: show the count, but it can't be changed. */
@@ -170,6 +171,27 @@ export function VoteButton({
         </div>
         {errorLine}
       </div>
+    );
+  }
+
+  if (size === "inline") {
+    return (
+      <span className="inline-flex flex-col gap-1">
+        <button
+          type="button"
+          disabled={pending || readOnly}
+          aria-pressed={upvoted}
+          aria-label={label}
+          title={upvoted ? "Remove your upvote" : "Upvote"}
+          aria-describedby={error ? errorId : undefined}
+          onClick={handleVote}
+          className={`group inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold shadow-xs transition-all duration-150 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 disabled:opacity-50 ${tone}`}
+        >
+          <ThumbsUp filled={upvoted} className="h-3.5 w-3.5 transition-transform group-hover:scale-110" />
+          <span className="tabular-nums leading-none">{count}</span>
+        </button>
+        {errorLine}
+      </span>
     );
   }
 
