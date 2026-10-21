@@ -18,6 +18,7 @@ type UserOption = { id: string; name: string };
 type CommentFormProps = {
   bugId: string;
   users: UserOption[];
+  currentUserId?: string;
   parentId?: string;
   parentAuthorName?: string;
   onCancel?: () => void;
@@ -27,6 +28,7 @@ type CommentFormProps = {
 export function CommentForm({
   bugId,
   users,
+  currentUserId,
   parentId,
   parentAuthorName,
   onCancel,
@@ -45,7 +47,7 @@ export function CommentForm({
   const [isSettling, setIsSettling] = useState(false);
   const [pending, startTransition] = useTransition();
   const isReply = Boolean(parentId);
-  const key = draftKey(bugId, parentId);
+  const key = draftKey(bugId, parentId, currentUserId);
   const bodyId = parentId ? `body-${parentId}` : "body";
   const errorId = `${bodyId}-error`;
   const [bodyInvalid, setBodyInvalid] = useState(false);

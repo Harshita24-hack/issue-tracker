@@ -299,6 +299,7 @@ function CommentItem({
               <CommentForm
                 bugId={bugId}
                 users={users}
+                currentUserId={currentUserId}
                 parentId={comment.id}
                 parentAuthorName={comment.author.name}
                 onCancel={() => setReplying(false)}
@@ -455,7 +456,7 @@ export function CommentThread({
           ))}
         </ul>
       )}
-      {readOnly ? null : <CommentForm bugId={bugId} users={users} />}
+      {readOnly ? null : <CommentForm bugId={bugId} users={users} currentUserId={currentUserId} />}
     </div>
   );
 }

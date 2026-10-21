@@ -1,3 +1,5 @@
+import { clearUserCommentDrafts } from "./comment-draft";
+
 export const DRAFT_PREFIX = "draft";
 export const DRAFT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days in ms
 
@@ -118,6 +120,7 @@ export function clearUserDrafts(userId?: string | null): void {
     for (const key of keysToRemove) {
       window.localStorage.removeItem(key);
     }
+    clearUserCommentDrafts(window.localStorage, userId);
   } catch {
     // Ignore error
   }
