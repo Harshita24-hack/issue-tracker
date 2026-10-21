@@ -44,4 +44,12 @@ describe("GET /llms.txt", () => {
     const response = await GET(request);
     expect(response.status).toBe(200);
   });
+
+  it("does not mention agent self-pairing (#1043)", async () => {
+    const request = new Request("https://ziki.dev/llms.txt");
+    const response = await GET(request);
+    const text = await response.text();
+    expect(text).not.toContain("/api/v1/agents/pairing");
+    expect(text).not.toContain("## Register Agents");
+  });
 });

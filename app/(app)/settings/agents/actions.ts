@@ -8,7 +8,8 @@ import { approvePairing, findPendingPairing } from "@/lib/agents/pairing";
 import { currentTenantIdFor } from "@/lib/tenant-context";
 import { createAgent, regenerateKey, revokeAgent, setAgentAreaPreferences, setAgentBurst, setAgentLevel } from "@/lib/agents/registry";
 import { RATE_LIMIT_MESSAGE } from "@/lib/rate-limit";
-import { isAgentPlatformEnabled } from "@/lib/feature-flags";
+import { isAgentPairingEnabled, isAgentPlatformEnabled } from "@/lib/feature-flags";
+import { ensureDefaultProjectKey } from "@/lib/agents/default-key";
 
 /** Shown when the platform is off (#505): no new agents or keys get issued. */
 const PLATFORM_OFF = "The agent platform is turned off on this site.";
@@ -131,6 +132,7 @@ export async function pairAgentAction(
   formData: FormData,
 ): Promise<PairingActionResult> {
   if (!isAgentPlatformEnabled()) return { ok: false, error: PLATFORM_OFF };
+  if (!isAgentPairingEnabled()) return { ok: false, error: "Agent pairing is disabled." };
   const user = await requireUser();
   if (await consumePairingLimit("approve", user.id)) return { ok: false, error: RATE_LIMIT_MESSAGE };
 
@@ -153,4 +155,37 @@ export async function pairAgentAction(
     return { ok: false, error: "That code doesn't match a waiting agent. It may have expired; ask the agent for a new one." };
   }
   return { ok: true, step: "confirm", code, name: pending.proposedName, model: pending.proposedModel };
+}
+
+export type EnsureDefaultAgentActionResult =
+  | { ok: true; apiKey: string; prefix: string; agentId: string; projectId: string }
+  | { ok: false; error: string };
+
+/** Ensures the user's personal agent and key exist for a project, creating them if needed (#1043). */
+export async function ensureDefaultAgentKeyAction(
+  projectId: string,
+): Promise<EnsureDefaultAgentActionResult> {
+  if (!isAgentPlatformEnabled()) return { ok: false, error: PLATFORM_OFF };
+  if (!projectId || typeof projectId !== "string") {
+    return { ok: false, error: "Choose a project in this workspace." };
+  }
+  const user = await requireUser();
+  const tenantId = await currentTenantIdFor(user.id);
+  if (!tenantId) return { ok: false, error: "No active workspace found." };
+  const personal = await ensureDefaultProjectKey({
+    userId: user.id,
+    tenantId,
+    projectId,
+  });
+  if (!personal) {
+    return { ok: false, error: "Could not create or load agent key for this project." };
+  }
+  revalidatePath("/settings/agents");
+  return {
+    ok: true,
+    apiKey: personal.rawKey,
+    prefix: personal.prefix,
+    agentId: personal.agentId,
+    projectId: personal.projectId,
+  };
 }

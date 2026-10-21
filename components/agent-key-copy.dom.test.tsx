@@ -4,12 +4,16 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentKeyCopyButton } from "./agent-key-copy";
-import { agentAccessRequest, agentBootstrapMessage } from "@/lib/agents/bootstrap-message";
+import { agentBootstrapMessage } from "@/lib/agents/bootstrap-message";
 import * as clipboard from "@/lib/clipboard";
 
 const mockToast = vi.fn();
 vi.mock("@/components/ui/toast", () => ({
   useToast: () => mockToast,
+}));
+
+vi.mock("@/app/(app)/settings/agents/actions", () => ({
+  ensureDefaultAgentKeyAction: vi.fn(),
 }));
 
 afterEach(() => {
@@ -93,24 +97,65 @@ describe("AgentKeyCopyButton", () => {
     expect(screen.getByText("ziki_secr")).toBeDefined();
   });
 
-  it("copies only the site so the agent can request access", async () => {
+  it("copies setup for your agent from details popover button", async () => {
     vi.spyOn(clipboard, "copyText").mockResolvedValue(true);
+    const apiKey = "ziki_secret_full_value_not_shown";
     render(
       <AgentKeyCopyButton
         projectId="cly-test-project-123"
         projectName="Zedu Core"
-        apiKey="ziki_secret_full_value_not_shown"
+        apiKey={apiKey}
       />,
     );
     fireEvent.click(screen.getByRole("button", { name: /Agent Key:/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Copy site" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy setup for your agent" }));
 
     await waitFor(() => {
       expect(clipboard.copyText).toHaveBeenCalledWith(
-        agentAccessRequest({ origin: window.location.origin, projectName: "Zedu Core" }),
+        agentBootstrapMessage({ origin: window.location.origin, apiKey, projectName: "Zedu Core" }),
       );
-      expect(mockToast).toHaveBeenCalledWith("Site copied. The agent will open the approval page.");
+      expect(mockToast).toHaveBeenCalledWith("Agent setup copied. Paste it into your agent.");
     });
+  });
+
+  it("creates an agent and copies setup in one step if no key yet", async () => {
+    vi.spyOn(clipboard, "copyText").mockResolvedValue(true);
+    const mockEnsure = vi.fn().mockResolvedValue({
+      apiKey: "ziki_newly_created_key",
+      prefix: "ziki_new",
+    });
+    render(
+      <AgentKeyCopyButton
+        projectId="cly-test-project-123"
+        projectName="Zedu Core"
+        onEnsureKey={mockEnsure}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Agent Key:/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy setup for your agent" }));
+
+    await waitFor(() => {
+      expect(mockEnsure).toHaveBeenCalledWith("cly-test-project-123");
+      expect(clipboard.copyText).toHaveBeenCalledWith(
+        agentBootstrapMessage({
+          origin: window.location.origin,
+          apiKey: "ziki_newly_created_key",
+          projectName: "Zedu Core",
+        }),
+      );
+      expect(mockToast).toHaveBeenCalledWith("Agent setup copied. Paste it into your agent.");
+    });
+  });
+
+  it("does not offer a link to pair an agent via code", () => {
+    render(
+      <AgentKeyCopyButton
+        projectId="cly-test-project-123"
+        projectName="Zedu Core"
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Agent Key:/ }));
+    expect(screen.queryByText(/Pair an Agent via Code/i)).toBeNull();
   });
 
   it("copies the project id from the details, not the personal key", async () => {

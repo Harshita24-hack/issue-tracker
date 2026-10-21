@@ -15,9 +15,26 @@ import { POST } from "./route";
 describe("POST /api/v1/agents/pairing", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.unstubAllEnvs();
   });
 
-  it("returns a link the signed-in owner can approve", async () => {
+  it("returns 404 by default when agent pairing is disabled", async () => {
+    const response = await POST(
+      new NextRequest("https://ziki.dev/api/v1/agents/pairing", {
+        method: "POST",
+        body: JSON.stringify({ name: "Claude", model: "Claude" }),
+      }),
+    );
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "not_found",
+      message: expect.stringContaining("Agent pairing is disabled"),
+    });
+    expect(startPairing).not.toHaveBeenCalled();
+  });
+
+  it("returns a link the signed-in owner can approve when AGENT_PAIRING=true", async () => {
+    vi.stubEnv("AGENT_PAIRING", "true");
     startPairing.mockResolvedValue({
       ok: true,
       userCode: "KX7P-2MQD",

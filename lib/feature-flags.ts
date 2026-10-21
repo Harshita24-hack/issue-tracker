@@ -11,3 +11,13 @@ export function isAgentPlatformEnabled(): boolean {
 }
 
 export const AGENT_PLATFORM_FLAG = "AGENT_PLATFORM";
+
+export function isAgentPairingEnabled(): boolean {
+  const publicFlag = process.env.NEXT_PUBLIC_AGENT_PAIRING;
+  const serverFlag = process.env.AGENT_PAIRING;
+  if (typeof publicFlag === "string") return publicFlag.toLowerCase() === "true";
+  if (typeof serverFlag === "string") return serverFlag.toLowerCase() === "true";
+  return false;
+}
+
+export const AGENT_PAIRING_FLAG = "AGENT_PAIRING";

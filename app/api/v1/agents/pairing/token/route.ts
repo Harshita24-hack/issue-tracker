@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { clientRateLimitKey, RATE_LIMIT_MESSAGE } from "@/lib/rate-limit";
 import { consumePairingLimit } from "@/lib/agents/rate-limit";
 import { collectPairing } from "@/lib/agents/pairing";
-import { isAgentPlatformEnabled } from "@/lib/feature-flags";
+import { isAgentPairingEnabled, isAgentPlatformEnabled } from "@/lib/feature-flags";
 import { agentPlatformDisabledResponse } from "@/lib/agents/platform-gate";
 
 const NO_STORE = { "Cache-Control": "no-store" };
@@ -13,6 +13,18 @@ const NO_STORE = { "Cache-Control": "no-store" };
  * answer is `authorization_pending`; after, the key comes back exactly once.
  */
 export async function POST(req: NextRequest) {
+  // #505: switched off means switched off, not just hidden in Settings.
+  if (!isAgentPlatformEnabled()) return agentPlatformDisabledResponse();
+  if (!isAgentPairingEnabled()) {
+    return NextResponse.json(
+      {
+        error: "not_found",
+        message: "Agent pairing is disabled. Create an agent in settings or the header and paste its key.",
+      },
+      { status: 404, headers: NO_STORE },
+    );
+  }
+
   const retryAfter = await consumePairingLimit("collect", clientRateLimitKey(req));
   if (retryAfter) {
     return NextResponse.json(
@@ -20,9 +32,6 @@ export async function POST(req: NextRequest) {
       { status: 429, headers: { "Retry-After": String(retryAfter), ...NO_STORE } },
     );
   }
-
-  // #505: switched off means switched off, not just hidden in Settings.
-  if (!isAgentPlatformEnabled()) return agentPlatformDisabledResponse();
   const body = (await req.json().catch(() => null)) as { device_code?: unknown } | null;
   const result = await collectPairing(body?.device_code);
   switch (result.status) {

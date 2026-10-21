@@ -3,7 +3,7 @@ import { clientRateLimitKey, RATE_LIMIT_MESSAGE } from "@/lib/rate-limit";
 import { absoluteUrl } from "@/lib/site-url";
 import { consumePairingLimit } from "@/lib/agents/rate-limit";
 import { PAIRING_POLL_INTERVAL, pairingApprovalPath, startPairing } from "@/lib/agents/pairing";
-import { isAgentPlatformEnabled } from "@/lib/feature-flags";
+import { isAgentPairingEnabled, isAgentPlatformEnabled } from "@/lib/feature-flags";
 import { agentPlatformDisabledResponse } from "@/lib/agents/platform-gate";
 
 /**
@@ -13,6 +13,18 @@ import { agentPlatformDisabledResponse } from "@/lib/agents/platform-gate";
  * poll `/api/v1/agents/pairing/token` with `device_code` every `interval` seconds.
  */
 export async function POST(req: NextRequest) {
+  // #505: switched off means switched off, not just hidden in Settings.
+  if (!isAgentPlatformEnabled()) return agentPlatformDisabledResponse();
+  if (!isAgentPairingEnabled()) {
+    return NextResponse.json(
+      {
+        error: "not_found",
+        message: "Agent pairing is disabled. Create an agent in settings or the header and paste its key.",
+      },
+      { status: 404 },
+    );
+  }
+
   const retryAfter = await consumePairingLimit("start", clientRateLimitKey(req));
   if (retryAfter) {
     return NextResponse.json(
@@ -20,9 +32,6 @@ export async function POST(req: NextRequest) {
       { status: 429, headers: { "Retry-After": String(retryAfter) } },
     );
   }
-
-  // #505: switched off means switched off, not just hidden in Settings.
-  if (!isAgentPlatformEnabled()) return agentPlatformDisabledResponse();
   const body = (await req.json().catch(() => null)) as { name?: unknown; model?: unknown } | null;
   const result = await startPairing({ name: body?.name, model: body?.model });
   if (!result.ok) {
