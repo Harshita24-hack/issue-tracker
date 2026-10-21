@@ -644,7 +644,7 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
   };
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto w-full max-w-3xl space-y-6">
       {bug.isDeleted ? (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 sm:p-5">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">

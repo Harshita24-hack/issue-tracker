@@ -167,6 +167,16 @@ describe("BugDetailPage conditional user query (#349)", () => {
     expect(pageSourceFresh).toContain("Conversation ({comments.visibleCount})");
   });
 
+  it("keeps content in a narrow centred column (#1064)", () => {
+    const pageSourceFresh = readFileSync(
+      path.resolve(__dirname, "page.tsx"),
+      "utf8",
+    );
+    expect(pageSourceFresh).toContain(
+      '<div className="mx-auto w-full max-w-3xl space-y-6">',
+    );
+  });
+
   describe("runtime execution", () => {
     beforeEach(() => {
       vi.clearAllMocks();
