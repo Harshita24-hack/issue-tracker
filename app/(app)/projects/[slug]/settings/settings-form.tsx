@@ -18,7 +18,13 @@ type Project = {
   rewardConfig?: unknown;
 };
 
-export function ProjectSettingsForm({ project }: { project: Project }) {
+export function ProjectSettingsForm({
+  project,
+  showRewards = true,
+}: {
+  project: Project;
+  showRewards?: boolean;
+}) {
   const [result, action, pending] = useActionState<ProjectActionResult | undefined, FormData>(updateProjectAction, undefined);
   return (
     <form action={action} className="space-y-4">
@@ -41,10 +47,12 @@ export function ProjectSettingsForm({ project }: { project: Project }) {
         {result?.field === "stagingUrl" ? <span className="text-xs text-red-700">{result.fieldErrors?.stagingUrl ?? result.error}</span> : null}
       </label>
 
-      <ProjectRewardRulesSection
-        initialConfig={project.rewardConfig as ProjectRewardConfig | null}
-        disabled={pending}
-      />
+      {showRewards ? (
+        <ProjectRewardRulesSection
+          initialConfig={project.rewardConfig as ProjectRewardConfig | null}
+          disabled={pending}
+        />
+      ) : null}
 
       <Button type="submit" disabled={pending}>{pending ? "Saving…" : "Save settings"}</Button>
       {result && !result.error ? <span role="status" className="ml-3 text-sm text-emerald-800">Settings saved.</span> : null}

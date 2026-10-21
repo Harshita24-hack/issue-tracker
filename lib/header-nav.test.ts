@@ -22,41 +22,32 @@ describe("SWITCH_TENANT_LINK (#444)", () => {
   });
 });
 
-describe("headerNavItems (#761)", () => {
-  it("shows Issues, Team, Manage Project, Escalations, and Redesigns to normal users by default", () => {
+describe("headerNavItems (#1052)", () => {
+  it("shows exactly Issues, Escalations, and Designs to users by default", () => {
     const items = headerNavItems("user");
     expect(items.map((i) => i.label)).toEqual([
       "Issues",
-      "Team",
-      "Manage Project",
       "Escalations",
-      "Redesigns",
-      "API Docs",
+      "Designs",
     ]);
-    const manageProject = items.find((i) => i.label === "Manage Project");
-    expect(manageProject?.children?.map((c) => c.label)).toEqual([
-      "Projects",
-      "Milestones",
+    expect(items.map((i) => i.href)).toEqual([
+      "/issues",
+      "/escalations",
+      "/redesigns",
     ]);
   });
 
-  it("shows only Issues and Manage Project when agent platform is explicitly disabled", () => {
+  it("shows only Issues when agent platform is explicitly disabled", () => {
     expect(headerNavItems("user", { agentPlatform: false }).map((i) => i.label)).toEqual([
       "Issues",
-      "Team",
-      "Manage Project",
-      "API Docs",
     ]);
   });
 
-  it("includes Escalations and Redesigns when agent platform is enabled (#627)", () => {
+  it("includes Escalations and Designs when agent platform is enabled", () => {
     expect(headerNavItems("user", { agentPlatform: true }).map((i) => i.label)).toEqual([
       "Issues",
-      "Team",
-      "Manage Project",
       "Escalations",
-      "Redesigns",
-      "API Docs",
+      "Designs",
     ]);
   });
 
@@ -69,44 +60,16 @@ describe("headerNavItems (#761)", () => {
     expect(zeroItems.find((i) => i.href === "/escalations")?.badge).toBeUndefined();
   });
 
-  it("adds Platforms and Types under Manage Project for admins (#761)", () => {
-    const items = headerNavItems("admin");
-    expect(items.map((i) => i.label)).toEqual([
+  it("keeps top bar strictly to Issues, Escalations, Designs regardless of admin role (#1052)", () => {
+    expect(headerNavItems("admin").map((i) => i.label)).toEqual([
       "Issues",
-      "Team",
-      "Manage Project",
       "Escalations",
-      "Redesigns",
-      "API Docs",
+      "Designs",
     ]);
-    const manageProject = items.find((i) => i.label === "Manage Project");
-    expect(manageProject?.children?.map((c) => c.label)).toEqual([
-      "Projects",
-      "Milestones",
-      "Platforms",
-      "Types",
-    ]);
-  });
-
-  it("shows Platforms under Manage Project to an organization owner who is not a site admin (#761)", () => {
-    const items = headerNavItems("user", { managePlatforms: true });
-    const manageProject = items.find((i) => i.label === "Manage Project");
-    expect(manageProject?.children?.map((c) => c.label)).toEqual([
-      "Projects",
-      "Milestones",
-      "Platforms",
-    ]);
-  });
-
-  it("adds Admins for super admins (#761)", () => {
     expect(headerNavItems("super_admin").map((i) => i.label)).toEqual([
       "Issues",
-      "Team",
-      "Manage Project",
       "Escalations",
-      "Redesigns",
-      "API Docs",
-      "Admins",
+      "Designs",
     ]);
   });
 });

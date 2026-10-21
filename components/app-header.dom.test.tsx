@@ -82,28 +82,40 @@ describe("account menu role switch", () => {
     expect(screen.getByLabelText("5 pending")).toBeTruthy();
   });
 
-  it("renders Manage Project dropdown and displays grouped links (#761)", async () => {
+  it("renders Settings gear link and Manage project in account menu (#1052)", async () => {
     const user = userEvent.setup();
     renderHeader();
 
-    const manageBtn = screen.getByRole("button", { name: /manage project/i });
-    expect(manageBtn).toBeTruthy();
+    const gearLink = screen.getByRole("link", { name: /project settings/i });
+    expect(gearLink).toBeTruthy();
+    expect(gearLink.getAttribute("href")).toBe("/projects/ziki/settings");
 
-    await user.click(manageBtn);
+    await user.click(screen.getByRole("button", { name: /account menu/i }));
 
-    expect(screen.getByRole("menuitem", { name: /projects/i })).toBeTruthy();
-    expect(screen.getByRole("menuitem", { name: /milestones/i })).toBeTruthy();
-    expect(screen.getByRole("menuitem", { name: /platforms/i })).toBeTruthy();
-    expect(screen.getByRole("menuitem", { name: /types/i })).toBeTruthy();
+    const manageLink = screen.getByRole("link", { name: /manage project/i });
+    expect(manageLink).toBeTruthy();
+    expect(manageLink.getAttribute("href")).toBe("/projects/ziki/settings");
+
+    const teamLink = screen.getByRole("link", { name: /^team$/i });
+    expect(teamLink).toBeTruthy();
+    expect(teamLink.getAttribute("href")).toBe("/team");
+
+    const docsLink = screen.getByRole("link", { name: /api docs/i });
+    expect(docsLink).toBeTruthy();
+    expect(docsLink.getAttribute("href")).toBe("/docs");
+
+    const adminsLink = screen.getByRole("link", { name: /^admins$/i });
+    expect(adminsLink).toBeTruthy();
+    expect(adminsLink.getAttribute("href")).toBe("/admin/users");
   });
 
-  it("renders Docs & /llms.txt link in the account menu (#625)", async () => {
+  it("renders API Docs link in the account menu (#625, #1052)", async () => {
     const user = userEvent.setup();
     renderHeader();
 
     await user.click(screen.getByRole("button", { name: /account menu/i }));
 
-    const docsLink = screen.getByRole("link", { name: /docs & \/llms\.txt/i });
+    const docsLink = screen.getByRole("link", { name: /api docs/i });
     expect(docsLink).toBeTruthy();
     expect(docsLink.getAttribute("href")).toBe("/docs");
   });
