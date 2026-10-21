@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore, useState, useMemo, useCallback, useRef } from "react";
+import { useSyncExternalStore, useState, useMemo, useCallback, useRef, useEffect } from "react";
 import {
   deserializeDraft,
   saveDraftToStorage,
@@ -26,6 +26,16 @@ export function useFormDraft<T extends Record<string, unknown>>(
   const [isDiscarded, setIsDiscarded] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const overridesRef = useRef<Partial<T>>({});
+
+  // Clean up any pending debounced save when unmounting or when key/enabled changes (#1169)
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [key, enabled]);
 
   // useSyncExternalStore safely reads localStorage on the client without SSR hydration mismatches
   const rawDraft = useSyncExternalStore(
