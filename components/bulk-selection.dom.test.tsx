@@ -18,6 +18,7 @@ const mockTypes = [{ id: "t1", name: "Bug" }, { id: "t2", name: "Feature" }];
 const mockPlatforms = [{ id: "p1", name: "Web" }, { id: "p2", name: "Mobile" }];
 const mockUsers = [{ id: "u1", name: "Alice" }, { id: "u2", name: "Bob" }];
 
+/** Helper to render BulkSelectionProvider and select specified issues for testing. */
 function renderWithSelection(selectedIds: string[] = ["bug-1", "bug-2"]) {
   const result = render(
     <BulkSelectionProvider

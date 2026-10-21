@@ -42,6 +42,10 @@ const NULLABLE: ReadonlySet<BulkField> = new Set([
   "assigneeId",
 ]);
 
+/**
+ * Validates requested bulk issue IDs and field changes before updating.
+ * Ensures issue count is within limits and maps nullable empty/sentinel fields to null.
+ */
 export function validateBulk(
   rawIds: unknown,
   rawChange: unknown,

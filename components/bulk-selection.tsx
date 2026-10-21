@@ -24,12 +24,16 @@ type Selection = {
 
 const SelectionContext = createContext<Selection | null>(null);
 
+/** Access the current bulk selection state and actions from the nearest provider. */
 function useSelection(): Selection | null {
   return useContext(SelectionContext);
 }
 
 type Option = { id: string; name: string };
 
+/**
+ * Context provider managing multi-issue selection and rendering the bulk triage bar.
+ */
 export function BulkSelectionProvider({
   pageIds,
   types,
@@ -93,6 +97,9 @@ export function BulkCheckbox({ id, title }: { id: string; title: string }) {
 const selectClass =
   "rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-900 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500";
 
+/**
+ * Bottom action bar displaying the count of selected issues and triage dropdowns.
+ */
 function BulkBar({
   selected,
   setSelected,
@@ -117,6 +124,9 @@ function BulkBar({
   const allOnPage = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
   const overLimit = count > MAX_BULK_IDS;
 
+  /**
+   * Dispatches a bulk update for the chosen field, mapping CLEAR_VALUE to empty string.
+   */
   function apply(field: string, value: string) {
     if (!value || count === 0) return;
     const finalValue = value === CLEAR_VALUE ? "" : value;
@@ -263,6 +273,7 @@ function BulkBar({
   );
 }
 
+/** Displays a list of issues skipped during bulk update with the failure reason. */
 function Failures({ items }: { items: { id: string; reason: string }[] }) {
   if (items.length === 0) return null;
   return (
@@ -276,6 +287,9 @@ function Failures({ items }: { items: { id: string; reason: string }[] }) {
   );
 }
 
+/**
+ * A labelled select control that resets to placeholder after selection and ignores empty choices.
+ */
 function Field({
   label,
   children,
