@@ -51,7 +51,7 @@ export function WebhookManagement() {
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    load();
+    load().catch(() => setListError("Couldn't load webhooks. Refresh to try again."));
   }, []);
 
   const [agentId, setAgentId] = useState("");
@@ -80,9 +80,13 @@ export function WebhookManagement() {
   const createError = createResult && !createResult.ok ? createResult : null;
 
   const createFieldErrors = useFieldErrors("create-webhook-form", createFormRef);
-  if (createError) {
-    createFieldErrors.show(createError);
-  }
+  const showCreateFieldErrors = createFieldErrors.show;
+  // #1021: never call `show()` during render. It commits state on every call,
+  // so an unconditional call re-renders forever ("Too many re-renders"). An
+  // effect keyed on the rejected result runs it once per failure instead.
+  useEffect(() => {
+    if (createError) showCreateFieldErrors(createError);
+  }, [createError, showCreateFieldErrors]);
 
   async function copyCreatedSecret() {
     const ok = await copyText(createdSecret);

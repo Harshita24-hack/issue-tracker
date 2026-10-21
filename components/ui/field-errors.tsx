@@ -34,9 +34,18 @@ export function useFieldErrors(formId: string, formRef: RefObject<HTMLFormElemen
   useEffect(() => {
     if (!focusField) return;
     const form = formRef.current;
+    if (!form) return;
+    // #1021: `CSS.escape` is not available in every environment (jsdom, older
+    // browsers), and the field name is an attribute name, not necessarily an
+    // element id. Try id, then `name`, then the raw field as an id.
+    const escaped =
+      typeof CSS !== "undefined" && typeof CSS.escape === "function"
+        ? CSS.escape(focusField)
+        : focusField;
     const target =
-      form?.querySelector<HTMLElement>(`#${CSS.escape(focusField)}`) ??
-      (form?.elements.namedItem(focusField) as HTMLElement | null);
+      form.querySelector<HTMLElement>(`#${escaped}`) ??
+      (form.elements.namedItem(focusField) as HTMLElement | null) ??
+      form.querySelector<HTMLElement>(`[name="${escaped}"]`);
     target?.focus();
   }, [focusField, formRef]);
 
