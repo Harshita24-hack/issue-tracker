@@ -33,14 +33,19 @@ export function NotificationSettings({
     setPrefs((current) => ({ ...current, [field]: next }));
     setMessage(null);
     startTransition(async () => {
-      const result = await setNotificationKindAction(kind, next);
-      if (result.error) {
+      try {
+        const result = await setNotificationKindAction(kind, next);
+        if (result.error) {
+          setPrefs((current) => ({ ...current, [field]: !next }));
+          setMessage(result.error);
+        } else {
+          setMessage(
+            `${notificationLabels[kind]} ${next ? "turned on" : "turned off"}.`,
+          );
+        }
+      } catch {
         setPrefs((current) => ({ ...current, [field]: !next }));
-        setMessage(result.error);
-      } else {
-        setMessage(
-          `${notificationLabels[kind]} ${next ? "turned on" : "turned off"}.`,
-        );
+        setMessage("Couldn't save notification setting. Please try again.");
       }
     });
   }
@@ -61,16 +66,21 @@ export function NotificationSettings({
             setEnabled(next);
             setMessage(null);
             startTransition(async () => {
-              const result = await setEmailNotificationsAction(next);
-              if (result.error) {
+              try {
+                const result = await setEmailNotificationsAction(next);
+                if (result.error) {
+                  setEnabled(!next);
+                  setMessage(result.error);
+                } else {
+                  setMessage(
+                    next
+                      ? "Email notifications are on."
+                      : "Email notifications are off.",
+                  );
+                }
+              } catch {
                 setEnabled(!next);
-                setMessage(result.error);
-              } else {
-                setMessage(
-                  next
-                    ? "Email notifications are on."
-                    : "Email notifications are off.",
-                );
+                setMessage("Couldn't save email notification setting. Please try again.");
               }
             });
           }}
@@ -90,7 +100,7 @@ export function NotificationSettings({
       >
         <legend className="sr-only">Which emails to send</legend>
         {NOTIFICATION_KINDS.map((kind) => {
-          const id = `notify-${kind}`;
+          const id = "notify-" + kind;
           return (
             <div key={kind} className="flex items-start gap-3">
               <input
@@ -113,7 +123,11 @@ export function NotificationSettings({
         })}
       </fieldset>
 
-      <p className="text-sm text-slate-600 empty:hidden" role="status" aria-live="polite">
+      <p
+        className="text-sm text-slate-600 empty:hidden"
+        role={message?.startsWith("Couldn't save") ? "alert" : "status"}
+        aria-live={message?.startsWith("Couldn't save") ? "assertive" : "polite"}
+      >
         {message}
       </p>
     </div>
