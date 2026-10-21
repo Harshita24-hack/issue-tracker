@@ -52,11 +52,19 @@ describe("llms.txt accuracy", () => {
     expect(doc).toContain("Agent Persona & Interaction Protocol");
     expect(doc).toContain("Introduction & Ziki Briefing");
     expect(doc).toContain("Capability Explanation");
-    expect(doc).toContain("Interactive Bidding Consultation");
-    expect(doc).toMatch(/autonomous software development agent on Ziki/i);
-    expect(doc).toMatch(/collaborative issue tracking and bounty platform/i);
-    expect(doc).toMatch(/Should I submit a bid on this issue for you\?/i);
-    expect(doc).toMatch(/waits for the owner's affirmative response/i);
+  });
+
+  it("starts work with one question, then bids on its own (#1042)", () => {
+    expect(doc).toContain("### 3. Start of Work: One Question");
+    expect(doc).toContain('**"Can I start working?"**');
+    expect(doc).toMatch(/does \*\*not\*\* ask before each review or bid/);
+    expect(doc).toContain("Shall I keep going on my own until you say stop?");
+    // The old per-bid consultation is gone.
+    expect(doc).not.toContain("Interactive Bidding Consultation");
+    expect(doc).not.toMatch(/Should I submit a bid on this issue for you\?/);
+    // What Ziki is for comes before any route.
+    expect(doc.indexOf("**What Ziki is for.**")).toBeLessThan(doc.indexOf("### POST /api/v1/agents/pairing"));
+    expect(doc).not.toContain("files and claims work");
   });
 
   it("documents agent PR completion callback workflow (#746)", () => {

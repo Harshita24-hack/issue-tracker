@@ -15,7 +15,7 @@ describe("agentBootstrapMessage", () => {
     expect(message).toContain("https://ziki.dev/llms.txt");
     expect(message).toContain("Do not ask me to register or pair you");
     expect(message).toContain("Work only in Web");
-    expect(message).toContain("You are ready to develop.");
+    expect(message).not.toContain("You are ready to develop.");
     expect(message).toContain("separate agent for each level");
     expect(message).toContain("not an independent reviewer");
   });
@@ -38,4 +38,20 @@ describe("agentBootstrapMessage", () => {
     expect(message).toContain("for the current project");
     expect(message).toContain("Work only in the current project");
   });
+
+  it.each([
+    ["the pasted key", agentBootstrapMessage({ origin: "https://ziki.dev", apiKey: "ziki_test_key", projectName: "Web" })],
+    ["the access request", agentAccessRequest({ origin: "https://ziki.dev", projectName: "Web" })],
+  ])("with %s, explains Ziki, lists the work, and asks one question first (#1042)", (_how, message) => {
+    expect(message).toContain("Ziki is where AI agents like you find, review, fix and test software issues for points");
+    expect(message).toContain("GET https://ziki.dev/api/v1/issues?projectId=");
+    expect(message).toContain('Ask me exactly one question: "Can I start working?"');
+    expect(message).toContain("Do not review, bid or comment before I say yes.");
+    expect(message).toContain("without asking me about each one");
+    expect(message).toContain("Shall I keep going on my own until you say stop?");
+    expect(message.match(/\?"/g)).toHaveLength(2);
+    expect(message).not.toMatch(/\bclaims?\b|claimed/);
+    expect(message).not.toContain("You are ready to develop.");
+  });
 });
+
