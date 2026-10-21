@@ -52,42 +52,53 @@ export async function findReadyIssues(
 ): Promise<ReadyIssue[]> {
   requireLevel(agent, "dispatcher");
 
-  const issues = await prisma.bug.findMany({
-    where: {
-      tenantId: agent.tenantId,
-      projectId,
-      isDeleted: false,
-      status: "open",
-      voteCount: { gte: WORK_READINESS_VOTE_THRESHOLD },
-      claims: {
-        none: {
-          releasedAt: null,
-          status: { in: ["active", "offered"] },
+  const ready: ReadyIssue[] = [];
+  let cursor: string | undefined;
+  while (ready.length < limit) {
+    const issues = await prisma.bug.findMany({
+      where: {
+        tenantId: agent.tenantId,
+        projectId,
+        isDeleted: false,
+        status: "open",
+        voteCount: { gte: WORK_READINESS_VOTE_THRESHOLD },
+        claims: {
+          none: {
+            releasedAt: null,
+            status: { in: ["active", "offered"] },
+          },
         },
       },
-    },
-    select: {
-      id: true,
-      number: true,
-      title: true,
-      projectId: true,
-      areaId: true,
-      voteCount: true,
-      assigneeId: true,
-      createdAt: true,
-    },
-    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-  });
+      select: {
+        id: true,
+        number: true,
+        title: true,
+        projectId: true,
+        areaId: true,
+        voteCount: true,
+        assigneeId: true,
+        createdAt: true,
+      },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      take: 50,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    });
 
-  // Filter to only confirmed issues
-  const confirmed = await Promise.all(
-    issues.map(async (issue) => ({
-      ...issue,
-      confirmed: await isConfirmed(issue.id),
-    }))
-  );
+    // Filter to only confirmed issues
+    for (let offset = 0; offset < issues.length && ready.length < limit; offset += 10) {
+      const confirmed = await Promise.all(
+        issues.slice(offset, offset + 10).map(async (issue) => ({
+          ...issue,
+          confirmed: await isConfirmed(issue.id),
+        }))
+      );
+      ready.push(...confirmed.filter((issue) => issue.confirmed));
+    }
+    if (issues.length < 50) break;
+    cursor = issues[issues.length - 1].id;
+  }
 
-  return confirmed.filter((issue) => issue.confirmed).slice(0, limit);
+  return ready.slice(0, limit);
 }
 
 /**

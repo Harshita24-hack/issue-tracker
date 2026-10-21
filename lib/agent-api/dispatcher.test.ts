@@ -63,14 +63,35 @@ describe("findReadyIssues", () => {
   });
 
   it("applies the limit after confirmation so older unconfirmed issues cannot starve dispatch", async () => {
-    const rows = Array.from({ length: 12 }, (_, index) => ({ ...readyBug, id: `bug-${index}` }));
-    db.bug.findMany.mockImplementation(async (args) => rows.slice(0, args.take ?? rows.length));
-    isConfirmed.mockImplementation(async (id) => id === "bug-11");
+    const rows = Array.from({ length: 60 }, (_, index) => ({ ...readyBug, id: `bug-${index}` }));
+    db.bug.findMany.mockImplementation(async (args) => {
+      const start = args.cursor ? rows.findIndex((row) => row.id === args.cursor.id) + args.skip : 0;
+      return rows.slice(start, start + args.take);
+    });
+    isConfirmed.mockImplementation(async (id) => id === "bug-59");
 
     expect(await findReadyIssues(dispatcher, "project-1", 10)).toEqual([
-      { ...rows[11], confirmed: true },
+      { ...rows[59], confirmed: true },
     ]);
     expect(await dispatchReadyIssues(dispatcher, "project-1")).toMatchObject({ offered: 1 });
+  });
+
+  it("bounds confirmation concurrency and stops after enough ready issues", async () => {
+    db.bug.findMany.mockResolvedValue(Array.from({ length: 50 }, (_, index) => ({ ...readyBug, id: `bug-${index}` })));
+    let active = 0;
+    let peak = 0;
+    isConfirmed.mockImplementation(async () => {
+      active++;
+      peak = Math.max(peak, active);
+      await Promise.resolve();
+      active--;
+      return true;
+    });
+
+    expect(await findReadyIssues(dispatcher, "project-1", 1)).toHaveLength(1);
+    expect(peak).toBeLessThanOrEqual(10);
+    expect(isConfirmed).toHaveBeenCalledTimes(10);
+    expect(db.bug.findMany).toHaveBeenCalledOnce();
   });
 
   it("still limits the number of confirmed issues returned", async () => {
@@ -83,7 +104,10 @@ describe("findReadyIssues", () => {
 
   it("uses confirmed readiness for metrics without the list page limit", async () => {
     const rows = Array.from({ length: 60 }, (_, index) => ({ ...readyBug, id: `bug-${index}` }));
-    db.bug.findMany.mockImplementation(async (args) => rows.slice(0, args.take ?? rows.length));
+    db.bug.findMany.mockImplementation(async (args) => {
+      const start = args.cursor ? rows.findIndex((row) => row.id === args.cursor.id) + args.skip : 0;
+      return rows.slice(start, start + args.take);
+    });
     db.bug.count.mockResolvedValue(60);
     db.issueClaim.count.mockResolvedValue(0);
     db.issueBid.count.mockResolvedValue(0);
@@ -92,6 +116,10 @@ describe("findReadyIssues", () => {
     expect(await getDispatcherMetrics(dispatcher, "project-1")).toEqual({
       readyIssues: 59, activeClaims: 0, pendingOffers: 0, openBids: 0,
     });
+    expect(db.bug.findMany).toHaveBeenCalledTimes(2);
+    expect(db.bug.findMany).toHaveBeenLastCalledWith(expect.objectContaining({
+      take: 50, cursor: { id: "bug-49" }, skip: 1,
+    }));
   });
 
   it("returns only confirmed issues at the upvote threshold", async () => {
