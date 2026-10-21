@@ -303,7 +303,14 @@ export async function sweepStaleClaims(limit = 50): Promise<ClaimSweepResult> {
     if (outcome.released) released++;
     if (outcome.offered) offered++;
   }
-  const fallbackCutoff = heartbeatCutoff(now, DEFAULT_PROJECT_WORKFLOW.heartbeatMinutes);
-  const waits = await sweepOwnerWaits(now, fallbackCutoff, {}, { limit });
+  // `cutoff` is scoped to the per-window loop above; the owner-wait release
+  // path uses reason owner_unresponsive and does not consult it, so the
+  // default window's cutoff is correct here (#1039).
+  const waits = await sweepOwnerWaits(
+    now,
+    heartbeatCutoff(now, DEFAULT_PROJECT_WORKFLOW.heartbeatMinutes),
+    {},
+    { limit },
+  );
   return { released: released + waits.released, offered: offered + waits.offered };
 }
