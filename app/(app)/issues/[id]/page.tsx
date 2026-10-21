@@ -356,10 +356,6 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
     ),
   ]) : [[], null] as const;
   const canChooseRedesign = isTenantAdminRole(membership?.role, user.role);
-  // #1049: resolving and closing are a coordinator's call.
-  const canFinish = await loadOptional("coordinator", false, () =>
-    isProjectCoordinator(prisma, { tenantId: bug.tenantId, projectId: bug.projectId, userId }),
-  );
   const openBids = await loadOptional("bids", [], () =>
     prisma.issueBid.findMany({
       where: { bugId: bug.id, withdrawnAt: null, awardedAt: null },
@@ -380,6 +376,11 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
   const hasAreaMatch = (bid: { agent: { areaPreferences: unknown[] } }) =>
     Boolean(bug.areaId && bid.agent.areaPreferences.length);
   const canAwardBid = bug.status === "open" && !bug.isDeleted && (bug.reporterId === user.id || canChooseRedesign);
+
+  // #1049: resolving and closing are a coordinator's call.
+  const canFinish = await loadOptional("coordinator", false, () =>
+    isProjectCoordinator(prisma, { tenantId: bug.tenantId, projectId: bug.projectId, userId }),
+  );
 
   // #1046: what this issue can still pay, in one line under its details.
   const rewardsPromise: Promise<IssueRewards | null> = loadOptional("rewards", null, async () => {
