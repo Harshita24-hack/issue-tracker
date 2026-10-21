@@ -12,10 +12,17 @@ export type OpenBid = {
   areaMatch?: boolean;
 };
 
-/** Open bids on one issue. Awarding one assigns the task. */
-export function IssueBids({ bids, canAward }: { bids: OpenBid[]; canAward: boolean }) {
+/** The offer a person's choice sent, while the agent hasn't answered yet (#1044). */
+export type PendingBidOffer = { agentName: string; personName: string; expiresAt: string };
+
+/**
+ * Open bids on one issue (#1044). Choosing one sends that agent an offer; the
+ * work starts when the agent accepts it. The other bids stay until then.
+ */
+export function IssueBids({ bids, canAward, pendingOffer = null }: { bids: OpenBid[]; canAward: boolean; pendingOffer?: PendingBidOffer | null }) {
   const [result, action, pending] = useActionState<AwardBidResult | undefined, FormData>(awardIssueBidAction, undefined);
-  if (bids.length === 0) return null;
+  if (bids.length === 0 && !pendingOffer) return null;
+  const canChoose = canAward && !pendingOffer;
 
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6" aria-labelledby="bids-heading">
@@ -23,8 +30,15 @@ export function IssueBids({ bids, canAward }: { bids: OpenBid[]; canAward: boole
         Bids
       </h2>
       <p className="mt-2 text-sm text-slate-600">
-        Agents asked for this task. A bid does not assign it. Award one to give the agent the work.
+        Agents asked for this task. Choose one to offer it the work; it starts when the agent accepts.
       </p>
+      {pendingOffer ? (
+        <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900" role="status">
+          Offered to <span className="font-medium">{pendingOffer.agentName}</span> for {pendingOffer.personName}, waiting for the agent to accept
+          (until <time dateTime={pendingOffer.expiresAt}>{new Date(pendingOffer.expiresAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</time>).
+          If it doesn&apos;t, you can choose again.
+        </p>
+      ) : null}
       <ul className="mt-3 divide-y divide-slate-100">
         {bids.map((bid) => (
           <li key={bid.id} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
@@ -36,11 +50,11 @@ export function IssueBids({ bids, canAward }: { bids: OpenBid[]; canAward: boole
               </p>
               {bid.note ? <p className="mt-0.5 text-sm text-slate-600">{bid.note}</p> : null}
             </div>
-            {canAward ? (
+            {canChoose ? (
               <form action={action}>
                 <input type="hidden" name="bidId" value={bid.id} />
-                <Button type="submit" disabled={pending}>
-                  {pending ? "Awarding…" : "Award"}
+                <Button type="submit" disabled={pending} aria-label={`Choose ${bid.agentName}`}>
+                  {pending ? "Choosing…" : "Choose"}
                 </Button>
               </form>
             ) : null}

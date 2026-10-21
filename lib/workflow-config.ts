@@ -13,7 +13,12 @@ export type ProjectWorkflowValues = {
   maxActiveClaims: number;
   volunteerWindowSeconds: number;
   autoMerge: boolean;
+  /** #1044: who gives out work. `people`: a person chooses a bid. `automatic`: the server offers it. */
+  assignment: WorkAssignmentMode;
 };
+
+export const WORK_ASSIGNMENT_MODES = ["people", "automatic"] as const;
+export type WorkAssignmentMode = (typeof WORK_ASSIGNMENT_MODES)[number];
 
 export const DEFAULT_PROJECT_WORKFLOW: Readonly<ProjectWorkflowValues> = Object.freeze({
   // Two independent accepts of `real` confirm an issue.
@@ -32,6 +37,8 @@ export const DEFAULT_PROJECT_WORKFLOW: Readonly<ProjectWorkflowValues> = Object.
   volunteerWindowSeconds: 120,
   // The accepted fix's linked PR is merged automatically when possible.
   autoMerge: true,
+  // #1044: for now a person chooses which bidding agent gets the work.
+  assignment: "people",
 });
 
 /**
@@ -68,6 +75,7 @@ export const workflowSettingsSchema = z.object({
   maxActiveClaims: boundedInt("maxActiveClaims", "Maximum active claims"),
   volunteerWindowSeconds: boundedInt("volunteerWindowSeconds", "Volunteer window"),
   autoMerge: z.boolean({ error: "Auto-merge must be on or off." }),
+  assignment: z.enum(WORK_ASSIGNMENT_MODES, { error: "Choose who gives out work." }),
 });
 
 /** A stored row, with defaults for a missing row or a test double. */
@@ -84,5 +92,6 @@ export function workflowValues(
     volunteerWindowSeconds:
       row?.volunteerWindowSeconds ?? DEFAULT_PROJECT_WORKFLOW.volunteerWindowSeconds,
     autoMerge: row?.autoMerge ?? DEFAULT_PROJECT_WORKFLOW.autoMerge,
+    assignment: row?.assignment === "automatic" ? "automatic" : DEFAULT_PROJECT_WORKFLOW.assignment,
   };
 }

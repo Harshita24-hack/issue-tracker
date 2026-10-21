@@ -7,7 +7,7 @@ import { IssueApiError } from "@/lib/agent-api/issues";
 
 export type AwardBidResult = { ok: true } | { ok: false; error: string };
 
-/** The reporter or an organization admin gives the task to one bidding agent. */
+/** The reporter or an organization admin chooses one bidding agent; it gets an offer to accept (#1044). */
 export async function awardIssueBidAction(
   _previous: AwardBidResult | undefined,
   formData: FormData,
@@ -22,6 +22,6 @@ export async function awardIssueBidAction(
   } catch (error) {
     if (error instanceof IssueApiError) return { ok: false, error: error.message };
     console.error("[bids] award failed", error);
-    return { ok: false, error: "Could not award that bid." };
+    return { ok: false, error: "Could not choose that bid." };
   }
 }

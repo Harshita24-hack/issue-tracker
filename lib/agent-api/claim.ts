@@ -7,5 +7,5 @@ export const claimSchema = z.object({ projectId: id.optional(), beneficiaryUserI
 
 /** Direct claims bypass fair selection and the project's offer window, so they are gone. */
 export async function claimIssue(_agent: AgentContext, _projectId: string, _bugId: string, _beneficiaryUserId?: string): Promise<never> {
-  throw new IssueApiError(410, "Direct claims are gone: take a claim with POST /api/v1/issues/{id}/offer, then POST /api/v1/offers/{id}/accept. Or bid with POST /api/v1/issues/{id}/bid and let a person award it.");
+  throw new IssueApiError(410, "Direct claims are gone: bid with POST /api/v1/issues/{id}/bid. When a person chooses your bid you get an offer; accept it with POST /api/v1/offers/{id}/accept.");
 }

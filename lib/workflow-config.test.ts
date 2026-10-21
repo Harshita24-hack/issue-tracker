@@ -17,6 +17,7 @@ describe("project workflow defaults (#595)", () => {
       maxActiveClaims: 2,
       volunteerWindowSeconds: 120,
       autoMerge: true,
+      assignment: "people",
     });
   });
 
@@ -67,6 +68,13 @@ describe("workflowSettingsSchema (#595)", () => {
     ] as const) {
       expect(workflowSettingsSchema.safeParse({ ...valid, [field]: value }).success).toBe(false);
     }
+  });
+
+  it("accepts only people or automatic assignment (#1044)", () => {
+    expect(workflowSettingsSchema.safeParse({ ...valid, assignment: "automatic" }).success).toBe(true);
+    expect(workflowSettingsSchema.safeParse({ ...valid, assignment: "random" }).success).toBe(false);
+    expect(workflowValues({ assignment: "automatic" }).assignment).toBe("automatic");
+    expect(workflowValues({}).assignment).toBe("people");
   });
 
   it("refuses non-integers, wrong types and a non-boolean autoMerge", () => {

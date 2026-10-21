@@ -17,6 +17,7 @@ const row = {
   maxActiveClaims: 3,
   volunteerWindowSeconds: 300,
   autoMerge: false,
+  assignment: "automatic" as const,
 };
 
 describe("workflowFor (#595)", () => {

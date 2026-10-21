@@ -114,6 +114,18 @@ describe("updateProjectWorkflowAction (#595)", () => {
     expect(invalidateWorkflow).not.toHaveBeenCalled();
   });
 
+  it("switches who gives out work, and audits it (#1044)", async () => {
+    findFirst.mockResolvedValue({ id: "project-1", slug: "web", workflow: { ...DEFAULT_PROJECT_WORKFLOW, confirmationsNeeded: 3 } });
+    await expect(updateProjectWorkflowAction(undefined, form({ assignment: "automatic" }))).resolves.toEqual({ ok: true });
+    expect(upsert).toHaveBeenCalledWith(expect.objectContaining({ update: expect.objectContaining({ assignment: "automatic" }) }));
+    expect(auditCreate.mock.calls[0][0].data.changes).toEqual({ assignment: { from: "people", to: "automatic" } });
+
+    await expect(updateProjectWorkflowAction(undefined, form({ assignment: "lottery" }))).resolves.toMatchObject({
+      ok: false,
+      fieldErrors: { assignment: expect.any(String) },
+    });
+  });
+
   it("does not report success when persistence fails", async () => {
     transaction.mockRejectedValueOnce(new Error("database down"));
     await expect(updateProjectWorkflowAction(undefined, form())).resolves.toMatchObject({ ok: false });

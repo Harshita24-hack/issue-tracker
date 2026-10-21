@@ -55,14 +55,15 @@ beforeEach(() => {
   db.webhookSubscription.findMany.mockResolvedValue([]);
   mocks.admin.mockResolvedValue({ id: "admin" });
   mocks.budget.mockResolvedValue({ allowed: true });
-  mocks.workflow.mockResolvedValue(DEFAULT_PROJECT_WORKFLOW);
+  // These tests cover the automatic offers (#1044: a project opts in).
+  mocks.workflow.mockResolvedValue({ ...DEFAULT_PROJECT_WORKFLOW, assignment: "automatic" });
   mocks.demote.mockResolvedValue({ ok: true, changed: false, releases: 1 });
 });
 afterEach(() => vi.useRealTimers());
 
 describe("project heartbeat window (#595)", () => {
   it("uses the project's one-minute silence window", async () => {
-    mocks.workflow.mockResolvedValue({ ...DEFAULT_PROJECT_WORKFLOW, heartbeatMinutes: 1 });
+    mocks.workflow.mockResolvedValue({ ...DEFAULT_PROJECT_WORKFLOW, assignment: "automatic", heartbeatMinutes: 1 });
     const minuteCutoff = new Date(now.getTime() - 60_000);
 
     await releaseStaleClaims("project");

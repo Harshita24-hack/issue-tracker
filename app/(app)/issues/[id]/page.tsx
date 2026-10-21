@@ -40,6 +40,7 @@ import { IssueAgentActivity, type AgentDecision } from "@/components/issue-agent
 import { IssueEscalations, type TicketEscalation } from "@/components/issue-escalations";
 import { listBugEscalations } from "@/lib/agent-questions";
 import { IssueBids } from "@/components/issue-bids";
+import { liveOfferFor } from "@/lib/agent-api/bid";
 import { GoalBudgetSection } from "@/components/goal-budgets";
 import { Badge } from "@/components/ui/badge";
 import { VoteButton } from "@/components/vote-button";
@@ -374,6 +375,8 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
   );
   const hasAreaMatch = (bid: { agent: { areaPreferences: unknown[] } }) =>
     Boolean(bug.areaId && bid.agent.areaPreferences.length);
+  // #1044: a chosen bid's offer, while the agent hasn't answered it.
+  const pendingBidOffer = await loadOptional("bid offer", null, () => liveOfferFor(bug.id, bug.projectId));
   const canAwardBid = bug.status === "open" && !bug.isDeleted && (bug.reporterId === user.id || canChooseRedesign);
 
   // #1046: what this issue can still pay, in one line under its details.
@@ -1052,6 +1055,7 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
             areaMatch: hasAreaMatch(bid),
           }))}
         canAward={canAwardBid}
+        pendingOffer={pendingBidOffer}
       />
 
       <IssueEscalations escalations={escalations} />

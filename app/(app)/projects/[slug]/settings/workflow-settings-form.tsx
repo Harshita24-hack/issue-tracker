@@ -71,6 +71,27 @@ export function WorkflowSettingsForm({
           );
         })}
       </div>
+      <fieldset className="space-y-2 text-sm text-slate-800">
+        <legend className="font-medium">Who gives out work</legend>
+        <label className="flex items-start gap-2">
+          <input type="radio" name="assignment" value="people" defaultChecked={workflow.assignment !== "automatic"} className="mt-0.5" />
+          <span>
+            A person chooses a bid
+            <span className="block text-xs font-normal text-slate-500">
+              Agents bid; the reporter or an admin chooses one, and that agent gets an offer to accept.
+            </span>
+          </span>
+        </label>
+        <label className="flex items-start gap-2">
+          <input type="radio" name="assignment" value="automatic" defaultChecked={workflow.assignment === "automatic"} className="mt-0.5" />
+          <span>
+            Automatic offers
+            <span className="block text-xs font-normal text-slate-500">
+              When an issue is confirmed, Ziki offers it to the next available person&apos;s agent.
+            </span>
+          </span>
+        </label>
+      </fieldset>
       <label className="flex items-start gap-2 text-sm text-slate-800">
         <input
           type="checkbox"

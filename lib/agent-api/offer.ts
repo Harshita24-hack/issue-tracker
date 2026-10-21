@@ -62,6 +62,10 @@ export async function offerNext(db: Db, caller: { agentId?: string; tenantId: st
   // Lock the Bug row first to serialize offer creation on this issue across concurrent calls (#680).
   await db.$queryRaw`SELECT "id" FROM "Bug" WHERE "id" = ${bug.id} FOR NO KEY UPDATE`;
   const workflow = await workflowFor(bug.projectId, db);
+  // #1044: in a project where people give out work, the server never picks
+  // someone. Confirmation, an expired or declined offer, a release and the
+  // silence sweep all come through here, so this one check covers them.
+  if (workflow.assignment !== "automatic") return null;
   const offerWindowMs = workflow.offerWindowSeconds * 1000;
 
   const existingOffer = await db.issueClaim.findFirst({
@@ -149,6 +153,14 @@ export async function offerNext(db: Db, caller: { agentId?: string; tenantId: st
   }
 }
 
+/** #1044: the project gives out work by a person choosing a bid. */
+export const ASSIGNMENT_BY_PEOPLE_MESSAGE =
+  "In this project a person gives out work: bid on the issue (POST /api/v1/issues/{id}/bid), and if you're chosen you'll get an offer to accept.";
+
+function assignmentByPeople() {
+  return new IssueApiError(409, "assignment_by_people", { message: ASSIGNMENT_BY_PEOPLE_MESSAGE });
+}
+
 export async function offerIssue(agent: AgentContext, projectId: string, bugId: string) {
   try {
     const result = await prisma.$transaction(async (tx) => {
@@ -156,6 +168,7 @@ export async function offerIssue(agent: AgentContext, projectId: string, bugId: 
       if (!locked.length) throw new IssueApiError(404, "Issue not found in this project.");
       const bug = await tx.bug.findFirst({ where: { id: bugId, tenantId: agent.tenantId, projectId, isDeleted: false }, select: { id: true, title: true, projectId: true, status: true, assigneeId: true, areaId: true, voteCount: true } });
       if (!bug) throw new IssueApiError(404, "Issue not found in this project.");
+      if ((await workflowFor(projectId, tx)).assignment !== "automatic") throw assignmentByPeople();
       if (bug.status !== "open") throw new IssueApiError(409, "Only open issues can be offered.");
       if (bug.voteCount < WORK_READINESS_VOTE_THRESHOLD) throw new IssueApiError(409, `The issue must reach at least ${WORK_READINESS_VOTE_THRESHOLD} upvotes before it can be offered.`);
       if (!await isConfirmed(bugId, tx)) throw new IssueApiError(409, "The issue must be confirmed before it can be offered.");
@@ -298,6 +311,12 @@ export async function acceptOffer(agent: AgentContext, claimId: string) {
         { bugId: fresh.bugId, actorId: fresh.beneficiaryUserId, type: "status_changed", summary: statusChangedSummary("open", "in_progress"), metadata: { field: "status", from: "open", to: "in_progress" } },
       ] });
       await ensureWatching(tx, fresh.bugId, [fresh.beneficiaryUserId]);
+      // #1044: once the chosen agent accepts, the other bids are done with.
+      // Until then they stay open, so a person can choose again if this offer lapses.
+      await tx.issueBid.updateMany({
+        where: { bugId: fresh.bugId, withdrawnAt: null, awardedAt: null, agentId: { not: fresh.agentId } },
+        data: { withdrawnAt: now },
+      });
       await publish(tx, { tenantId: agent.tenantId, type: "claim.accepted", actorAgentId: agent.agentId, bugId: fresh.bugId,
         payload: { claimId: fresh.id, issueId: fresh.bugId, projectId: fresh.bug.projectId, beneficiaryUserId: fresh.beneficiaryUserId } });
       return { expired: false as const, claim: { ...fresh, status: "active", claimedAt: now, deliverBy }, issue };

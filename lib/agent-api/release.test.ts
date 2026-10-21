@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { DEFAULT_PROJECT_WORKFLOW } from "@/lib/workflow-config";
 
 const db = vi.hoisted(() => ({
   $queryRaw: vi.fn(),
@@ -17,6 +18,9 @@ vi.mock("@/lib/prisma", () => ({ prisma: db }));
 vi.mock("@/lib/agent-api/validation", () => ({ isConfirmed }));
 vi.mock("@/lib/agent-notifications", () => ({ notifyClaimOffered }));
 vi.mock("@/lib/redesigns", () => ({ assertRedesignOpen: vi.fn() }));
+const workflowFor = vi.hoisted(() => vi.fn());
+// These tests cover a project with automatic offers; #1044 made that opt-in.
+vi.mock("@/lib/workflow", async (original) => ({ ...await original<typeof import("@/lib/workflow")>(), workflowFor }));
 
 import { releaseClaim } from "./offer";
 
@@ -27,6 +31,7 @@ function claim(status: "offered" | "active") {
 }
 
 beforeEach(() => {
+  workflowFor.mockResolvedValue({ ...DEFAULT_PROJECT_WORKFLOW, assignment: "automatic" });
   vi.useFakeTimers();
   vi.clearAllMocks();
   db.$transaction.mockImplementation((fn: (tx: unknown) => unknown) => fn(db));

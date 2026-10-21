@@ -332,8 +332,23 @@ describe("confirmation: the two-reviewer rule (#433)", () => {
     expect(types.filter((type) => type === "issue.confirmed")).toHaveLength(1);
   });
 
-  it("automatically offers a ready issue when the second independent reviewer confirms it (#590)", async () => {
+  it("offers nobody on confirmation in a project where people give out work (#1044)", async () => {
     vi.useFakeTimers();
+    db.membership.findMany.mockResolvedValue([
+      { userId: "bob", user: { agents: [{ id: "agent-bob" }] } },
+    ]);
+    await submitValidation(reviewer("r1", "rob"), "bug1", acceptReal);
+    const result = await submitValidation(reviewer("r2", "sam"), "bug1", acceptReal);
+
+    expect(result).toMatchObject({ status: 201, confirmed: true, newlyConfirmed: true });
+    expect(db.issueClaim.create).not.toHaveBeenCalled();
+    expect(db.agentEvent.create.mock.calls.map(([call]) => call.data.type)).not.toContain("claim.offered");
+    expect(notifications.notifyClaimOffered).not.toHaveBeenCalled();
+  });
+
+  it("automatically offers a ready issue when the second independent reviewer confirms it, in an automatic project (#590, #1044)", async () => {
+    vi.useFakeTimers();
+    db.projectWorkflow.findUnique.mockResolvedValue({ assignment: "automatic" });
     db.membership.findMany.mockResolvedValue([
       { userId: "bob", user: { agents: [{ id: "agent-bob" }] } },
     ]);

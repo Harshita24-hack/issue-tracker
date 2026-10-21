@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { DEFAULT_PROJECT_WORKFLOW } from "@/lib/workflow-config";
 import { IssueApiError } from "@/lib/agent-api/issues";
 
 const db = vi.hoisted(() => ({
@@ -14,6 +15,9 @@ vi.mock("@/lib/prisma", () => ({ prisma: db }));
 vi.mock("@/lib/agent-api/validation", () => ({ isConfirmed }));
 vi.mock("@/lib/agent-notifications", () => ({ notifyClaimOffered }));
 vi.mock("@/lib/redesigns", () => ({ assertRedesignOpen: vi.fn() }));
+const workflowFor = vi.hoisted(() => vi.fn());
+// These tests cover a project with automatic offers; #1044 made that opt-in.
+vi.mock("@/lib/workflow", async (original) => ({ ...await original<typeof import("@/lib/workflow")>(), workflowFor }));
 
 import { offerIssue } from "./offer";
 
@@ -38,6 +42,7 @@ const pendingOffer = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  workflowFor.mockResolvedValue({ ...DEFAULT_PROJECT_WORKFLOW, assignment: "automatic" });
   db.$queryRaw.mockResolvedValue([{ id: "bug-1" }]);
   db.$transaction.mockImplementation((run: (tx: unknown) => unknown) => run(db));
   db.bug.findFirst.mockResolvedValue({
@@ -52,6 +57,18 @@ beforeEach(() => {
   isConfirmed.mockResolvedValue(true);
 });
 
+describe("people give out work (#1044)", () => {
+  it("refuses an agent's offer request with 409 assignment_by_people, before touching claims", async () => {
+    workflowFor.mockResolvedValue({ ...DEFAULT_PROJECT_WORKFLOW });
+    const error = await offerIssue(agent, "project-1", "bug-1").catch((caught) => caught);
+    expect(error).toBeInstanceOf(IssueApiError);
+    expect(error).toMatchObject({ status: 409, message: "assignment_by_people" });
+    expect(error.body.message).toContain("/bid");
+    expect(db.issueClaim.findFirst).not.toHaveBeenCalled();
+    expect(db.issueClaim.create).not.toHaveBeenCalled();
+  });
+});
+
 describe("manual issue offers (#590)", () => {
   it("returns an existing pending offer instead of creating another one", async () => {
     const result = await offerIssue(agent, "project-1", "bug-1");
@@ -60,7 +77,8 @@ describe("manual issue offers (#590)", () => {
     expect(db.issueClaim.create).not.toHaveBeenCalled();
     expect(db.issueClaim.update).not.toHaveBeenCalled();
     expect(notifyClaimOffered).not.toHaveBeenCalled();
-  });  it("blocks with 409 waiting_for_human when human approval is required before offer (#598)", async () => {
+  });
+  it("blocks with 409 waiting_for_human when human approval is required before offer (#598)", async () => {
     (db as Record<string, unknown>).approvalRule = {
       findMany: vi.fn(async () => [
         { id: "rule-1", stage: "before_offer", issueTypeId: null, severity: null, fileGlob: null },

@@ -170,7 +170,7 @@ describe("agent issue API authentication", () => {
     const response = await claim(request("POST", { projectId: "project-a" }), context);
     expect(response.status).toBe(410);
     const body = (await response.json()) as { error: string };
-    expect(body.error).toContain("/api/v1/issues/{id}/offer");
+    expect(body.error).toContain("/api/v1/issues/{id}/bid");
     expect(budget).not.toHaveBeenCalled();
   });
 });

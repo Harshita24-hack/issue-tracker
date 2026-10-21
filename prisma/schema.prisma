@@ -671,9 +671,17 @@ model ProjectWorkflow {
   maxActiveClaims        Int      @default(2)
   volunteerWindowSeconds Int      @default(120)
   autoMerge              Boolean  @default(true)
+  /// Who gives out work (#1044): a person choosing a bid, or the server's automatic offers.
+  assignment             WorkAssignment @default(people)
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
   project                Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+/// #1044: `people` — only a person choosing a bid offers work. `automatic` — the server offers it on confirmation.
+enum WorkAssignment {
+  people
+  automatic
 }
 
 /// A project-owned work area, such as frontend or backend (#609).
