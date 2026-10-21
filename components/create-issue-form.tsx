@@ -110,7 +110,7 @@ export function CreateIssueForm({
     },
   );
   const [attachmentIds, setAttachmentIds] = useState<string[]>([]);
-  const [mode, setMode] = useState<"report" | "detailed">("detailed");
+  const [mode, setMode] = useState<"report" | "detailed">("report");
   const [editorUploading, setEditorUploading] = useState(false);
   const [pickerUploading, setPickerUploading] = useState(false);
   const isUploading = editorUploading || pickerUploading;

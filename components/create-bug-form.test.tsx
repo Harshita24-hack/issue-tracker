@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 "use client";
 
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi, beforeEach } from "vitest";
 import { createBugAction } from "@/app/actions/issues";
@@ -37,7 +37,9 @@ const defaultProps = {
 let capturedFormData: FormData | null = null;
 
 function renderForm(props: Parameters<typeof CreateBugForm>[0] = defaultProps) {
-  return render(<CreateBugForm {...props} />);
+  const result = render(<CreateBugForm {...props} />);
+  fireEvent.click(screen.getByRole("button", { name: "Detailed issue" }));
+  return result;
 }
 
 function titleInput() {
@@ -260,21 +262,34 @@ describe("CreateBugForm optimistic submission", () => {
     }
   });
 
-  it("supports simplified human report intake mode without technical fields (#764)", async () => {
+  it("defaults to simplified reporting and preserves values when switching modes", async () => {
     mockedCreateBug.mockImplementationOnce((formData) => {
       capturedFormData = formData;
       return Promise.resolve({ ok: true });
     });
 
-    renderForm();
+    render(<CreateBugForm {...defaultProps} />);
+
+    expect(screen.queryByLabelText("Platform")).toBeNull();
+    expect(screen.queryByLabelText("Type")).toBeNull();
+    expect(screen.queryByLabelText("GitHub PR")).toBeNull();
+    expect(titleInput().required).toBe(false);
+    expect(descriptionTextarea().required).toBe(true);
+
+    await user.type(titleInput(), "Profile settings fail");
+    await user.click(screen.getByRole("button", { name: "Detailed issue" }));
 
     // Technical fields are visible in detailed mode
     expect(screen.getByLabelText("Platform")).toBeDefined();
     expect(screen.getByLabelText("Type")).toBeDefined();
     expect(screen.getByLabelText("GitHub PR")).toBeDefined();
+    expect(titleInput().required).toBe(true);
+    expect(titleInput().value).toBe("Profile settings fail");
 
     // Switch to Quick report mode
     await user.click(screen.getByRole("button", { name: "Quick report" }));
+    expect(titleInput().value).toBe("Profile settings fail");
+    await user.clear(titleInput());
 
     // Technical fields should now be omitted from view
     expect(screen.queryByLabelText("Platform")).toBeNull();
