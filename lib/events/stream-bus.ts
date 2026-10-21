@@ -65,21 +65,20 @@ class EventStreamBus extends EventEmitter {
       // Enforce tenant scoping
       if (sub.agent.tenantId !== event.tenantId) continue;
 
-      // Enforce project scoping if key is project-scoped
-      if (sub.agent.projectId && event.projectId && sub.agent.projectId !== event.projectId) {
+      // Enforce project scoping if key is project-scoped (#742 / #1031).
+      // Fail closed: an event with no project is not shown to a scoped key.
+      if (sub.agent.projectId && sub.agent.projectId !== event.projectId) {
         continue;
-      }
-      if (sub.agent.projectId && !event.projectId) {
-        // If agent is project-scoped but event has no project, be restrictive
-        // but allow if filters don't require specific project
       }
 
       // Apply filters
       const filters = sub.filters;
-      if (filters.projectId && event.projectId && filters.projectId !== event.projectId) {
+      // A project filter must also fail closed: an event with no project does
+      // not match a request for a specific project.
+      if (filters.projectId && filters.projectId !== event.projectId) {
         continue;
       }
-      if (filters.bugId && event.bugId && filters.bugId !== event.bugId) {
+      if (filters.bugId && filters.bugId !== event.bugId) {
         continue;
       }
       if (filters.types?.length || filters.typePrefixes?.length) {

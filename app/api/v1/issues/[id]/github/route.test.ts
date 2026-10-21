@@ -124,7 +124,7 @@ describe("POST /api/v1/issues/[id]/github (#452)", () => {
         actorAgentId: agent.agentId,
         bugId: "bug1",
       },
-      select: { id: true },
+      select: { id: true, projectId: true },
     });
     expect(mocks.merge).toHaveBeenCalledWith(agent, "bug1");
     expect(mocks.budget).toHaveBeenCalledWith({ id: "c1", burst: false, burstUntil: null }, "write");

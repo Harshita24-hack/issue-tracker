@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { parseEventFilters, parseEventCursor } from "@/lib/agent-api/events";
 import { eventStreamBus, type StreamEvent } from "@/lib/events/stream-bus";
-import { agentErrorResponse, requireAgent, type AgentContext } from "@/lib/agents/require-agent";
+import { agentErrorResponse, assertKeyProject, requireAgent, type AgentContext } from "@/lib/agents/require-agent";
 import { requireLevel } from "@/lib/agents/levels";
 import { consumeAgentBudget, agentBudgetExceededResponse } from "@/lib/agents/rate-budget";
 import { withAgentBudgetHeaders } from "@/lib/agents/rate-budget-headers";
@@ -58,6 +58,18 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(filters, { status: 400 });
   }
 
+  // #1031: a key scoped to one project may not stream another's events, and a
+  // `?projectId=` demand on a different project is refused the same way the
+  // feed route does it (feed/route.ts:39). The bus also filters per event, but
+  // checking here fails fast with a clear 403.
+  if (filters.projectId) {
+    try {
+      assertKeyProject(agent, filters.projectId);
+    } catch (error) {
+      return agentErrorResponse(error);
+    }
+  }
+
   const cursorResult = parseEventCursor(params);
   if (cursorResult === "invalid") {
     return NextResponse.json({ error: "Invalid cursor." }, { status: 400 });
@@ -94,6 +106,7 @@ export async function GET(request: NextRequest) {
                 payload: event.payload,
                 actorAgentId: event.actorAgentId,
                 bugId: event.bugId,
+                projectId: event.projectId,
                 tenantId: agent.tenantId,
                 createdAt: event.createdAt,
               });

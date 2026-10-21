@@ -39,7 +39,7 @@ describe("publishWebEvent (#600)", () => {
           actor: { type: "user", id: "alice", name: "Alice Mentor" },
         },
       },
-      select: { id: true },
+      select: { id: true, projectId: true },
     });
   });
 

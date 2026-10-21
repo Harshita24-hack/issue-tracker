@@ -23,6 +23,7 @@ import {
   AGENT_EVENT_TYPES,
   type EventCursor,
 } from "./events";
+import { eventStreamBus } from "@/lib/events/stream-bus";
 
 // ---------------------------------------------------------------------------
 // Cursor encode / decode
@@ -314,6 +315,38 @@ describe("publish", () => {
           }),
         }),
       );
+  });
+
+  it("broadcasts the projectId the trigger filled in, so SSE filters work (#1031)", async () => {
+    // The BEFORE INSERT trigger fills projectId from bugId; publish() selects
+    // it back and must forward it, or the SSE project filter is dead.
+    const fakeDb = {
+      agentEvent: { create: vi.fn().mockResolvedValue({ id: "new-event", projectId: "proj-1" }) },
+      webhookSubscription: { findMany: vi.fn().mockResolvedValue([]) },
+      webhookDelivery: { createMany: vi.fn() },
+    } as unknown as Parameters<typeof publish>[0];
+
+    const seen: Array<{ projectId?: string | null }> = [];
+    const agent = {
+      agentId: "agent-x", tenantId: "tenant-a", level: "observer",
+    } as unknown as Parameters<typeof eventStreamBus.subscribe>[0];
+    const subId = eventStreamBus.subscribe(agent, {}, (event) => seen.push(event));
+    try {
+      await publish(fakeDb, {
+        tenantId: "tenant-a",
+        type: "issue.created",
+        payload: { issueId: "bug-1" },
+        bugId: "bug-1",
+      });
+    } finally {
+      eventStreamBus.unsubscribe(subId);
+    }
+
+    expect(fakeDb.agentEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({ select: { id: true, projectId: true } }),
+    );
+    expect(seen).toHaveLength(1);
+    expect(seen[0]!.projectId).toBe("proj-1");
   });
 });
 

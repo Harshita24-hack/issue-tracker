@@ -109,7 +109,7 @@ export async function publish(
       actorAgentId: params.actorAgentId ?? null,
       bugId: params.bugId ?? null,
     },
-    select: { id: true },
+    select: { id: true, projectId: true },
   });
   const subscriptions = await db.webhookSubscription.findMany({
     where: { enabled: true, agent: { tenantId: params.tenantId, revokedAt: null,
@@ -131,6 +131,10 @@ export async function publish(
       payload: params.payload as unknown,
       actorAgentId: params.actorAgentId ?? null,
       bugId: params.bugId ?? null,
+      // #1031: the DB trigger fills projectId from bugId, so read it back off
+      // the created row. Without it the SSE project filter and the
+      // project-scoped-key check are both dead (they require this to be set).
+      projectId: event.projectId,
       tenantId: params.tenantId,
       createdAt: new Date(),
     });
@@ -296,6 +300,7 @@ const eventSelect = {
   payload: true,
   actorAgentId: true,
   bugId: true,
+  projectId: true,
   createdAt: true,
   txid: true,
 } satisfies Prisma.AgentEventSelect;
@@ -306,6 +311,7 @@ export type AgentEventRow = {
   payload: Prisma.JsonValue;
   actorAgentId: string | null;
   bugId: string | null;
+  projectId: string | null;
   createdAt: Date;
   txid: bigint;
 };

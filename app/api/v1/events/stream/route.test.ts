@@ -213,6 +213,89 @@ describe("events/stream SSE endpoint", () => {
     reader!.cancel();
   });
 
+  it("refuses a project filter that the key is not scoped to (#1031)", async () => {
+    db.agentApiKey.findUnique.mockResolvedValueOnce({
+      ...key(),
+      projectId: "proj-A",
+      project: { slug: "alpha" },
+    });
+
+    const res = await GET(request("/events/stream?projectId=proj-B"));
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error).toBe("project_forbidden");
+    expect(body.message).toContain("alpha");
+  });
+
+  it("does not deliver another project's event to a project-filtered subscriber (#1031)", async () => {
+    const res = await GET(request("/events/stream?projectId=proj-A"));
+    expect(res.status).toBe(200);
+    const reader = res.body?.getReader();
+    await reader!.read(); // connected
+
+    // A different project's event must be filtered out.
+    eventStreamBus.broadcast({
+      id: "evt-other",
+      type: "issue.created",
+      payload: {},
+      actorAgentId: null,
+      bugId: "issue-2",
+      projectId: "proj-B",
+      tenantId: "tenant-a",
+      createdAt: new Date(),
+    });
+    // The matching project's event must arrive.
+    eventStreamBus.broadcast({
+      id: "evt-mine",
+      type: "issue.created",
+      payload: {},
+      actorAgentId: null,
+      bugId: "issue-1",
+      projectId: "proj-A",
+      tenantId: "tenant-a",
+      createdAt: new Date(),
+    });
+
+    const { value } = await reader!.read();
+    const text = new TextDecoder().decode(value);
+    expect(text).toContain("evt-mine");
+    expect(text).not.toContain("evt-other");
+
+    reader!.cancel();
+  });
+
+  it("does not deliver a projectless event to a project-scoped key (#1031)", async () => {
+    db.agentApiKey.findUnique.mockResolvedValueOnce({
+      ...key(),
+      projectId: "proj-A",
+      project: { slug: "alpha" },
+    });
+
+    const res = await GET(request("/events/stream"));
+    expect(res.status).toBe(200);
+    const reader = res.body?.getReader();
+    await reader!.read(); // connected
+
+    eventStreamBus.broadcast({
+      id: "evt-noproject",
+      type: "issue.created",
+      payload: {},
+      actorAgentId: null,
+      bugId: null,
+      tenantId: "tenant-a",
+      createdAt: new Date(),
+    });
+
+    const readPromise = reader!.read();
+    const result = await Promise.race([
+      readPromise.then(() => ({ timeout: false as const })),
+      new Promise<{ timeout: true }>((resolve) => setTimeout(() => resolve({ timeout: true }), 100)),
+    ]);
+    expect(result.timeout).toBe(true);
+
+    reader!.cancel();
+  });
+
   it("cleans up subscription on client abort", async () => {
     const controller = new AbortController();
     const req = new NextRequest(`http://localhost/api/v1/events/stream`, {
