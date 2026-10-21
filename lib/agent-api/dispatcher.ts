@@ -76,8 +76,7 @@ export async function findReadyIssues(
       assigneeId: true,
       createdAt: true,
     },
-    orderBy: { createdAt: "asc" },
-    take: limit,
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
   });
 
   // Filter to only confirmed issues
@@ -88,7 +87,7 @@ export async function findReadyIssues(
     }))
   );
 
-  return confirmed.filter((issue) => issue.confirmed);
+  return confirmed.filter((issue) => issue.confirmed).slice(0, limit);
 }
 
 /**
@@ -166,8 +165,8 @@ export async function dispatchReadyIssues(
           }
         } else {
           // No bids: offer to the top-ranked candidate.
-          await offerIssue(agent, issue);
-          result.offered++;
+          if (await offerIssue(agent, issue)) result.offered++;
+          else result.skipped++;
         }
       }
     } catch (error) {
@@ -187,7 +186,7 @@ export async function dispatchReadyIssues(
 async function offerIssue(
   agent: AgentContext,
   issue: ReadyIssue
-): Promise<void> {
+): Promise<boolean> {
   const offerResult = await offerNext(prisma, agent, {
     id: issue.id,
     projectId: issue.projectId,
@@ -206,6 +205,7 @@ async function offerIssue(
 
     scheduleOfferExpiry(offerResult.claim.id);
   }
+  return Boolean(offerResult);
 }
 
 /**
@@ -274,21 +274,7 @@ export async function getDispatcherMetrics(
   requireLevel(agent, "dispatcher");
 
   const [readyCount, activeClaims, pendingOffers, openBids] = await Promise.all([
-    prisma.bug.count({
-      where: {
-        tenantId: agent.tenantId,
-        projectId,
-        isDeleted: false,
-        status: "open",
-        voteCount: { gte: WORK_READINESS_VOTE_THRESHOLD },
-        claims: {
-          none: {
-            releasedAt: null,
-            status: { in: ["active", "offered"] },
-          },
-        },
-      },
-    }),
+    findReadyIssues(agent, projectId, Number.POSITIVE_INFINITY).then((issues) => issues.length),
     prisma.issueClaim.count({
       where: {
         bug: { tenantId: agent.tenantId, projectId },

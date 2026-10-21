@@ -20,7 +20,7 @@ vi.mock("@/lib/agent-api/bid", () => ({ awardBid }));
 vi.mock("@/lib/agent-api/events", () => ({ publish }));
 vi.mock("@/lib/agent-notifications", () => ({ notifyClaimOffered }));
 
-import { dispatchReadyIssues, findReadyIssues } from "./dispatcher";
+import { dispatchReadyIssues, findReadyIssues, getDispatcherMetrics } from "./dispatcher";
 
 const dispatcher = {
   agentId: "agent-disp",
@@ -62,6 +62,38 @@ describe("findReadyIssues", () => {
     await expect(findReadyIssues(contributor, "project-1")).rejects.toBeInstanceOf(AgentLevelError);
   });
 
+  it("applies the limit after confirmation so older unconfirmed issues cannot starve dispatch", async () => {
+    const rows = Array.from({ length: 12 }, (_, index) => ({ ...readyBug, id: `bug-${index}` }));
+    db.bug.findMany.mockImplementation(async (args) => rows.slice(0, args.take ?? rows.length));
+    isConfirmed.mockImplementation(async (id) => id === "bug-11");
+
+    expect(await findReadyIssues(dispatcher, "project-1", 10)).toEqual([
+      { ...rows[11], confirmed: true },
+    ]);
+    expect(await dispatchReadyIssues(dispatcher, "project-1")).toMatchObject({ offered: 1 });
+  });
+
+  it("still limits the number of confirmed issues returned", async () => {
+    db.bug.findMany.mockResolvedValue([readyBug, { ...readyBug, id: "bug-2" }]);
+
+    expect(await findReadyIssues(dispatcher, "project-1", 1)).toEqual([
+      { ...readyBug, confirmed: true },
+    ]);
+  });
+
+  it("uses confirmed readiness for metrics without the list page limit", async () => {
+    const rows = Array.from({ length: 60 }, (_, index) => ({ ...readyBug, id: `bug-${index}` }));
+    db.bug.findMany.mockImplementation(async (args) => rows.slice(0, args.take ?? rows.length));
+    db.bug.count.mockResolvedValue(60);
+    db.issueClaim.count.mockResolvedValue(0);
+    db.issueBid.count.mockResolvedValue(0);
+    isConfirmed.mockImplementation(async (id) => id !== "bug-0");
+
+    expect(await getDispatcherMetrics(dispatcher, "project-1")).toEqual({
+      readyIssues: 59, activeClaims: 0, pendingOffers: 0, openBids: 0,
+    });
+  });
+
   it("returns only confirmed issues at the upvote threshold", async () => {
     isConfirmed.mockResolvedValueOnce(false);
     expect(await findReadyIssues(dispatcher, "project-1")).toEqual([]);
@@ -79,6 +111,16 @@ describe("dispatchReadyIssues", () => {
     expect(result).toMatchObject({ offered: 1, awarded: 0, skipped: 0, errors: [] });
     expect(offerNext).toHaveBeenCalledOnce();
     expect(notifyClaimOffered).toHaveBeenCalledWith(expect.objectContaining({ bugId: "bug-1" }));
+  });
+
+  it("does not report an offer when no eligible candidate is available", async () => {
+    offerNext.mockResolvedValue(null);
+
+    expect(await dispatchReadyIssues(dispatcher, "project-1")).toMatchObject({
+      offered: 0, awarded: 0, skipped: 1, errors: [],
+    });
+    expect(notifyClaimOffered).not.toHaveBeenCalled();
+    expect(scheduleOfferExpiry).not.toHaveBeenCalled();
   });
 
   it("skips issues with pending bids in offer_only mode", async () => {
