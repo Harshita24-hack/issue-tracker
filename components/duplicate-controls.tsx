@@ -30,7 +30,10 @@ export function MarkDuplicateButton({
   const toast = useToast();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<DuplicateCandidate[]>([]);
+  const [results, setResults] = useState<{ query: string; items: DuplicateCandidate[] }>({
+    query: "",
+    items: [],
+  });
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -43,9 +46,11 @@ export function MarkDuplicateButton({
     const timer = setTimeout(async () => {
       try {
         const found = await findDuplicateCandidatesAction(bugId, query);
-        if (!cancelled) setResults(found);
+        // #1023: remember which query these rows answer, so a result that
+        // lands after the user has typed on is never shown as a match.
+        if (!cancelled) setResults({ query, items: found });
       } catch {
-        if (!cancelled) setResults([]);
+        if (!cancelled) setResults({ query, items: [] });
       }
     }, 200);
     return () => {
@@ -57,7 +62,7 @@ export function MarkDuplicateButton({
   const close = () => {
     setOpen(false);
     setQuery("");
-    setResults([]);
+    setResults({ query: "", items: [] });
     setError(null);
     wrapperRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
   };
@@ -76,7 +81,11 @@ export function MarkDuplicateButton({
     });
   };
 
-  const shown = query.trim() ? results : [];
+  // #1023: only show rows that answer the query as it is *now*. A result set
+  // that belongs to an earlier query is treated as no results, so the 200ms
+  // debounce window can never expose a stale candidate and Enter cannot mark
+  // the wrong issue as the duplicate.
+  const shown = results.query === query ? results.items : [];
 
   return (
     <div className="relative" ref={wrapperRef}>
