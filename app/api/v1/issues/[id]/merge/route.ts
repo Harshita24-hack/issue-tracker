@@ -5,7 +5,7 @@ import { withAgentBudgetHeaders } from "@/lib/agents/rate-budget-headers";
 import { acceptFix } from "@/lib/agent-api/merge";
 
 /**
- * POST /api/v1/issues/{id}/merge — a merger agent accepts a fix (#434). It
+ * POST /api/v1/issues/{id}/merge — a project coordinator's agent accepts a fix (#434, #1049). It
  * needs the issue confirmed and two good-to-merge test verdicts from
  * independent reviewers. 200 sets the issue to `resolved` and awards points.
  *

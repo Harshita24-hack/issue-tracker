@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // #600: these tests are about the actions themselves; the event is checked separately.
 const publishWebEvent = vi.hoisted(() => vi.fn(async () => undefined));
+const coordinators = vi.hoisted(() => ({ isProjectCoordinator: vi.fn(async () => true) }));
+vi.mock("@/lib/coordinators", async (original) => ({ ...await original<typeof import("@/lib/coordinators")>(), isProjectCoordinator: coordinators.isProjectCoordinator }));
 vi.mock("@/lib/agent-api/web-events", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/agent-api/web-events")>()),
   publishWebEvent,
@@ -119,6 +121,7 @@ async function run(who: Who, assigneeId: string | null, values: Record<string, s
 
 beforeEach(() => {
   vi.clearAllMocks();
+  coordinators.isProjectCoordinator.mockResolvedValue(true);
   written = null;
   activities = [];
   awarded = [];
@@ -510,5 +513,38 @@ describe("agents hear about triage in the web app (#600, #656)", () => {
         payload: expect.objectContaining({ values: expect.objectContaining({ assigneeId: SOMEONE }) }),
       }),
     );
+  });
+});
+
+describe("only coordinators resolve or close (#1049)", () => {
+  it("refuses an admin who isn't a coordinator, and pays nothing", async () => {
+    coordinators.isProjectCoordinator.mockResolvedValue(false);
+    const result = await run("admin", OTHER, { status: "resolved" });
+    expect(result).toMatchObject({ error: expect.stringContaining("coordinator") });
+    expect(written).toBeNull();
+    expect(awarded).toEqual([]);
+    expect(coordinators.isProjectCoordinator).toHaveBeenCalledWith(expect.anything(), {
+      tenantId: "tenant-zedu",
+      projectId: "project-zedu",
+      userId: ME,
+    });
+  });
+
+  it("refuses the assignee closing their own issue unless they coordinate the project", async () => {
+    coordinators.isProjectCoordinator.mockResolvedValue(false);
+    expect(await run("user", ME, { status: "closed" })).toMatchObject({ error: expect.stringContaining("coordinator") });
+    expect(written).toBeNull();
+  });
+
+  it("still lets a non-coordinator move work along short of resolving", async () => {
+    coordinators.isProjectCoordinator.mockResolvedValue(false);
+    expect(await run("admin", OTHER, { status: "in_progress" })).toEqual({ ok: true });
+    expect(coordinators.isProjectCoordinator).not.toHaveBeenCalled();
+  });
+
+  it("lets a coordinator resolve", async () => {
+    coordinators.isProjectCoordinator.mockResolvedValue(true);
+    expect(await run("admin", OTHER, { status: "resolved" })).toEqual({ ok: true });
+    expect(written).toMatchObject({ status: "resolved" });
   });
 });

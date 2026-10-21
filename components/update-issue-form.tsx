@@ -50,6 +50,7 @@ export function UpdateIssueForm({
   types = [],
   milestones = [],
   canEditTriage = true,
+  canFinish = true,
 }: {
   bugId: string;
   status: Status;
@@ -68,6 +69,8 @@ export function UpdateIssueForm({
   milestones?: MilestoneOption[];
   /** Admins can edit severity/type/category/assignee; assignees only change status. */
   canEditTriage?: boolean;
+  /** #1049: only a project coordinator resolves or closes an issue. */
+  canFinish?: boolean;
 }) {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -180,13 +183,19 @@ export function UpdateIssueForm({
             value={draft.status}
             onChange={(event) => set("status", event.target.value)}
             className={selectClass}
+            aria-describedby={canFinish ? undefined : "status-coordinator-hint"}
           >
             {statuses.map((value) => (
-              <option key={value} value={value}>
+              <option key={value} value={value} disabled={!canFinish && value !== status && isFinishedStatus(value)}>
                 {statusLabel[value]}
               </option>
             ))}
           </select>
+          {canFinish ? null : (
+            <p id="status-coordinator-hint" className="mt-1 text-xs text-slate-500">
+              Only a project coordinator can resolve or close it.
+            </p>
+          )}
         </div>
         {canEditTriage ? (
           <>

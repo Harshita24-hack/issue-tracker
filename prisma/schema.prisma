@@ -258,6 +258,8 @@ model User {
   jobReviews            JobReview[]           @relation("JobReviewBeneficiary")
   jobReviewOffers       JobReviewOffer[]      @relation("JobReviewOfferBeneficiary")
   approvalsDecided      IssueApproval[]      @relation("ApprovalDecider")
+  coordinatorships      ProjectCoordinator[] @relation("ProjectCoordinatorUser")
+  coordinatorsGranted   ProjectCoordinator[] @relation("ProjectCoordinatorGrantedBy")
 }
 
 /// Single-use password reset tokens (~30 min TTL). Store only the SHA-256 hash.
@@ -659,8 +661,27 @@ model Project {
   approvalRules        ApprovalRule[]
   goals                Goal[]
   workflow             ProjectWorkflow?
+  coordinators         ProjectCoordinator[]
 
   @@unique([tenantId, slug])
+}
+
+/// #1049: someone the project trusts with the final call — merging, resolving
+/// or closing an issue, and so the points that pays. The tenant's owners are
+/// always coordinators; they delegate it to others here. Not the same as being
+/// a tenant admin.
+model ProjectCoordinator {
+  id          String   @id @default(cuid())
+  projectId   String
+  userId      String
+  grantedById String?
+  grantedAt   DateTime @default(now())
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user        User     @relation("ProjectCoordinatorUser", fields: [userId], references: [id], onDelete: Cascade)
+  grantedBy   User?    @relation("ProjectCoordinatorGrantedBy", fields: [grantedById], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, userId])
+  @@index([userId])
 }
 
 /// The per-project workflow dials (#595). One row per project; a missing row

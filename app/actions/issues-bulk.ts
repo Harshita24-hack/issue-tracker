@@ -1,5 +1,6 @@
 "use server";
 
+import { isProjectCoordinator } from "@/lib/coordinators";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -93,6 +94,7 @@ export async function bulkUpdateBugsAction(
     select: {
       id: true,
       tenantId: true,
+      projectId: true,
       title: true,
       reporterId: true,
       isDeleted: true,
@@ -108,6 +110,17 @@ export async function bulkUpdateBugsAction(
   });
 
   const byId = new Map(found.map((bug) => [bug.id, bug]));
+  // #1049: resolving or closing is a coordinator's call, project by project.
+  const finishing = change.status === "resolved" || change.status === "closed";
+  const coordinatesProject = new Map<string, boolean>();
+  if (finishing) {
+    for (const bug of found) {
+      const key = `${bug.tenantId}:${bug.projectId ?? ""}`;
+      if (!coordinatesProject.has(key)) {
+        coordinatesProject.set(key, await isProjectCoordinator(prisma, { tenantId: bug.tenantId, projectId: bug.projectId, userId: user.id }));
+      }
+    }
+  }
   const skipped: { id: string; reason: string }[] = [];
   const target: string[] = [];
   type Found = (typeof found)[number];
@@ -120,6 +133,8 @@ export async function bulkUpdateBugsAction(
       skipped.push({ id, reason: "No longer exists" });
     } else if (bug.isDeleted) {
       skipped.push({ id, reason: "Deleted — restore it first" });
+    } else if (finishing && bug.status !== change.status && !coordinatesProject.get(`${bug.tenantId}:${bug.projectId ?? ""}`)) {
+      skipped.push({ id, reason: "Only a project coordinator can resolve or close it" });
     } else {
       target.push(id);
       changing.push(bug);

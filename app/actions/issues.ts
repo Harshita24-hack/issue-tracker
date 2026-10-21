@@ -1,5 +1,6 @@
 "use server";
 
+import { isProjectCoordinator, NOT_COORDINATOR_MESSAGE } from "@/lib/coordinators";
 import { revalidatePath } from "next/cache";
 import { fieldError, fromZodError } from "@/lib/form-errors";
 import { redirect } from "next/navigation";
@@ -598,6 +599,16 @@ export async function updateBugAction(
   });
   if ("error" in parsedNote) return { error: parsedNote.error, field: "resolutionNote" };
   const resolutionNote = parsedNote.note;
+
+  // #1049: resolving or closing is the final call, and resolving pays the
+  // solver. Only the project's coordinators make it, not every admin or assignee.
+  if (
+    (parsed.data.status === "resolved" || parsed.data.status === "closed") &&
+    parsed.data.status !== existing.status &&
+    !(await isProjectCoordinator(prisma, { tenantId: existing.tenantId, projectId: existing.projectId, userId }))
+  ) {
+    return { error: NOT_COORDINATOR_MESSAGE };
+  }
 
   const data: {
     status?: typeof parsed.data.status;

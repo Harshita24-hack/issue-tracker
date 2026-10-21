@@ -10,6 +10,8 @@ import { ProjectAreasManager } from "./areas-manager";
 import { ProjectApprovalRulesSection } from "./approval-rules";
 import { WorkflowSettingsForm } from "./workflow-settings-form";
 import { workflowValues } from "@/lib/workflow-config";
+import { canManageCoordinators, listCoordinators } from "@/lib/coordinators";
+import { CoordinatorsSection } from "./coordinators-section";
 
 export const metadata = { title: "Project settings" };
 
@@ -56,6 +58,16 @@ export default async function ProjectSettingsPage({
       orderBy: { createdAt: "desc" },
     }),
   ]);
+  const [coordinators, members, canManage] = await Promise.all([
+    listCoordinators(prisma, { tenantId, projectId: project.id }),
+    prisma.membership.findMany({
+      where: { tenantId },
+      orderBy: { createdAt: "asc" },
+      select: { userId: true, user: { select: { name: true, email: true } } },
+    }),
+    canManageCoordinators(prisma, user, tenantId),
+  ]);
+  const personLabel = (person: { name: string | null; email: string | null }) => person.name ?? person.email ?? "A member";
   const { github } = await searchParams;
 
   return (
@@ -87,6 +99,12 @@ export default async function ProjectSettingsPage({
         </div>
         <WorkflowSettingsForm slug={project.slug} workflow={workflow} />
       </section>
+      <CoordinatorsSection
+        slug={project.slug}
+        coordinators={coordinators.map((row) => ({ userId: row.userId, label: personLabel(row), owner: row.owner }))}
+        members={members.map((member) => ({ userId: member.userId, label: personLabel(member.user) }))}
+        canManage={canManage}
+      />
       <section className="space-y-5 rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
         <ProjectApprovalRulesSection
           projectId={project.id}

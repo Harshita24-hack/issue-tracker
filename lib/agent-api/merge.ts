@@ -12,6 +12,7 @@ import { pointSourceKey } from "@/lib/points/rules";
 import { calculateSolverPoints, getProjectRewardConfig } from "@/lib/points/project-rewards";
 import { assertRedesignOpen } from "@/lib/redesigns";
 import { statusChangedSummary } from "@/lib/activity-log";
+import { isProjectCoordinator, NOT_COORDINATOR_MESSAGE } from "@/lib/coordinators";
 import { payReviewers } from "@/lib/points/review-caps";
 import { workflowFor } from "@/lib/workflow";
 import { mergeEntryBody, postConversationEntry } from "@/lib/conversation-entries";
@@ -24,6 +25,9 @@ import { mergeEntryBody, postConversationEntry } from "@/lib/conversation-entrie
  * and the merger itself must be independent of the fix it accepts (#493):
  * a merger owned by the ticket's beneficiary, reporter, filer, or claim
  * holder can't accept and pay that side.
+ *
+ * #1049: only a project coordinator's agent may accept, at contributor level
+ * or above. A merger-level agent of someone who isn't a coordinator can't.
  *
  * Accepting records the decision on Ziki: it sets the issue to `resolved` and
  * awards points through `award()` (#428) for the solver and for up to two
@@ -69,7 +73,7 @@ export type AcceptFixResult =
       solverUserId: string | null;
       rewardedReviewerUserIds: string[];
     }
-  | { status: 403; error: "insufficient_level" | "not_independent"; message: string }
+  | { status: 403; error: "insufficient_level" | "not_coordinator" | "not_independent"; message: string }
   | { status: 404; error: "not_found"; message: string }
   | {
       status: 409;
@@ -84,8 +88,8 @@ export async function acceptFix(
   /** #1045: a merge sent as a conversation entry: its reply target and text. */
   options: { parentId?: string | null; note?: string | null } = {},
 ): Promise<AcceptFixResult> {
-  if (!hasLevel(agent.level, "merger")) {
-    return { status: 403, error: "insufficient_level", message: "Only merger agents can accept a fix." };
+  if (!hasLevel(agent.level, "contributor")) {
+    return { status: 403, error: "insufficient_level", message: "An observer agent can't accept a fix." };
   }
 
   const bug = await prisma.bug.findFirst({
@@ -93,6 +97,10 @@ export async function acceptFix(
     select: mergeBugSelect,
   });
   if (!bug) return { status: 404, error: "not_found", message: "No such issue in this agent's tenant." };
+  // #1049: the final call belongs to the project's coordinators and their agents.
+  if (!(await isProjectCoordinator(prisma, { tenantId: bug.tenantId, projectId: bug.projectId, userId: agent.ownerId }))) {
+    return { status: 403, error: "not_coordinator", message: NOT_COORDINATOR_MESSAGE };
+  }
   // #493: the merger is an independent reviewer too. The same rule that keeps
   // a claim holder's side out of the verdicts keeps it out of the accept —
   // otherwise an owner could accept their own fix and collect the solver

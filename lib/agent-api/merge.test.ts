@@ -31,6 +31,8 @@ const db = vi.hoisted(() => ({
   $transaction: vi.fn(),
 }));
 vi.mock("@/lib/prisma", () => ({ prisma: db }));
+const coordinators = vi.hoisted(() => ({ isProjectCoordinator: vi.fn(async () => true) }));
+vi.mock("@/lib/coordinators", async (original) => ({ ...await original<typeof import("@/lib/coordinators")>(), isProjectCoordinator: coordinators.isProjectCoordinator }));
 
 const redesign = vi.hoisted(() => ({ assertRedesignOpen: vi.fn() }));
 vi.mock("@/lib/redesigns", () => ({ assertRedesignOpen: redesign.assertRedesignOpen }));
@@ -120,16 +122,23 @@ beforeEach(() => {
 });
 
 describe("acceptFix: who may merge (#434)", () => {
-  it("rejects a contributor and a reviewer before touching the issue", async () => {
-    expect(await acceptFix(merger("c1", "cara", "contributor"), "bug1")).toMatchObject({
-      status: 403,
-      error: "insufficient_level",
-    });
-    expect(await acceptFix(merger("r1", "rob", "reviewer"), "bug1")).toMatchObject({
+  it("rejects an observer before touching the issue (#1049)", async () => {
+    expect(await acceptFix(merger("o1", "oli", "observer"), "bug1")).toMatchObject({
       status: 403,
       error: "insufficient_level",
     });
     expect(db.bug.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("refuses a merger-level agent whose owner isn't a coordinator of the project, before writing anything (#1049)", async () => {
+    coordinators.isProjectCoordinator.mockResolvedValueOnce(false);
+    expect(await acceptFix(merger("m1", "mo", "merger"), "bug1")).toMatchObject({
+      status: 403,
+      error: "not_coordinator",
+      message: expect.stringContaining("coordinator"),
+    });
+    expect(coordinators.isProjectCoordinator).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ userId: "mo" }));
+    expect(db.$transaction).not.toHaveBeenCalled();
   });
 
   it("is 404 for an issue outside the agent's tenant", async () => {
@@ -187,6 +196,13 @@ describe("acceptFix: the merger must be independent too (#493)", () => {
     verdict("r1", "rob");
     verdict("r2", "sam");
     expect(await acceptFix(merger("m1", "mo", "merger"), "bug1")).toMatchObject({ status: 200, accepted: true });
+  });
+
+  it("lets a coordinator's contributor-level agent accept once the review gate passes (#1049)", async () => {
+    confirmWith("rob", "sam");
+    verdict("r1", "rob");
+    verdict("r2", "sam");
+    expect(await acceptFix(merger("c1", "cara", "contributor"), "bug1")).toMatchObject({ status: 200, accepted: true });
   });
 
   it("requires the project's third verdict when configured (#595)", async () => {

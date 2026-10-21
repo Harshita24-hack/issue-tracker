@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
+const coordinators = vi.hoisted(() => ({ isProjectCoordinator: vi.fn(async () => true) }));
+vi.mock("@/lib/coordinators", async (original) => ({ ...await original<typeof import("@/lib/coordinators")>(), isProjectCoordinator: coordinators.isProjectCoordinator }));
 vi.mock("@/lib/prisma", () => ({ prisma: mocks.db }));
 vi.mock("@/lib/auth-helpers", () => ({ requireUser: mocks.requireUser }));
 vi.mock("@/lib/tenant-access", () => ({ currentTenantAccess: mocks.access }));
@@ -112,6 +114,18 @@ describe("bulk notification and watch parity (#717)", () => {
     expect(mocks.tx.issueClaim.updateMany).toHaveBeenCalled();
     expect(mocks.awardSolver).toHaveBeenCalledWith(mocks.tx, expect.objectContaining({ id: "b1", assigneeId: "new-assignee" }));
     expect(order).toEqual(["commit", "notify"]);
+  });
+
+  it("skips issues in projects the person doesn't coordinate when resolving, and pays nothing (#1049)", async () => {
+    rows = [bug("b1"), bug("b2")];
+    coordinators.isProjectCoordinator.mockResolvedValueOnce(false);
+    const result = await bulkUpdateBugsAction(["b1", "b2"], { status: "resolved" });
+    expect(result).toMatchObject({ error: expect.any(String), skipped: [
+      { id: "b1", reason: expect.stringContaining("coordinator") },
+      { id: "b2", reason: expect.stringContaining("coordinator") },
+    ] });
+    expect(mocks.tx.bug.updateMany).not.toHaveBeenCalled();
+    expect(mocks.awardSolver).not.toHaveBeenCalled();
   });
 
   it("keeps the assignee's durable watch after a later unassignment", async () => {

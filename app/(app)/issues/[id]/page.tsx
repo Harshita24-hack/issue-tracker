@@ -46,6 +46,7 @@ import { VoteButton } from "@/components/vote-button";
 import { WatchButton } from "@/components/watch-button";
 import { isWatchingIssue } from "@/lib/watch";
 import { UpdateIssueForm } from "@/components/update-issue-form";
+import { isProjectCoordinator } from "@/lib/coordinators";
 import { CommentThread } from "@/components/comment-thread";
 import { AttachmentList, type AttachmentView } from "@/components/attachment-list";
 import { ChooseRedesignButton } from "@/components/choose-redesign-button";
@@ -355,6 +356,10 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
     ),
   ]) : [[], null] as const;
   const canChooseRedesign = isTenantAdminRole(membership?.role, user.role);
+  // #1049: resolving and closing are a coordinator's call.
+  const canFinish = await loadOptional("coordinator", false, () =>
+    isProjectCoordinator(prisma, { tenantId: bug.tenantId, projectId: bug.projectId, userId }),
+  );
   const openBids = await loadOptional("bids", [], () =>
     prisma.issueBid.findMany({
       where: { bugId: bug.id, withdrawnAt: null, awardedAt: null },
@@ -1033,6 +1038,7 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
               : milestoneOptions
           }
           canEditTriage={canTriage}
+          canFinish={canFinish}
         />
       ) : null}
 
