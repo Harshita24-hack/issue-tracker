@@ -1,3 +1,4 @@
+import { postConversationEntry } from "@/lib/conversation-entries";
 import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -94,6 +95,17 @@ export async function askAgentQuestion(agent: AgentContext, input: AskAgentQuest
       });
     }
 
+    if (created.bugId) {
+      // #1045: an escalation about an issue is also an entry in its conversation.
+      await postConversationEntry(tx, {
+        bugId: created.bugId,
+        authorId: agent.ownerId,
+        agentId: agent.agentId,
+        type: "escalation",
+        body: input.body,
+        metadata: { questionId: created.id, type: typeSlug },
+      });
+    }
     await audit(agent, "question.asked", created.id, { bugId: created.bugId, type: typeSlug }, { db: tx, bugId: created.bugId });
     await publish(tx, {
       tenantId: agent.tenantId,

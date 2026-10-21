@@ -25,7 +25,7 @@ type AttachmentsByComment = Record<string, AttachmentView[]>;
 
 type UserOption = { id: string; name: string };
 
-function CommentTypeBadge({ type, metadata }: { type?: CommentType | null; metadata?: unknown }) {
+export function CommentTypeBadge({ type, metadata }: { type?: CommentType | null; metadata?: unknown }) {
   if (!type || type === "comment") return null;
 
   const meta = typeof metadata === "object" && metadata !== null ? (metadata as Record<string, unknown>) : null;
@@ -52,8 +52,9 @@ function CommentTypeBadge({ type, metadata }: { type?: CommentType | null; metad
         <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-800 border border-emerald-200">
           <span>📦</span>
           <span>Delivery</span>
-          {typeof meta?.prUrl === "string" ? (
-            <a href={meta.prUrl} target="_blank" rel="noopener noreferrer" className="underline hover:text-emerald-900">
+          {/* #1045: the validated pullRequestUrl; older deliveries kept a free-form prUrl. */}
+          {safePullRequestUrl(meta?.pullRequestUrl ?? meta?.prUrl) ? (
+            <a href={safePullRequestUrl(meta?.pullRequestUrl ?? meta?.prUrl)!} target="_blank" rel="noopener noreferrer" className="underline hover:text-emerald-900">
               PR
             </a>
           ) : null}
@@ -66,9 +67,41 @@ function CommentTypeBadge({ type, metadata }: { type?: CommentType | null; metad
           <span>Request to Merge</span>
         </span>
       );
+    case "validation":
+      return (
+        <span className="inline-flex items-center gap-1 rounded-md bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800 border border-sky-200">
+          <span>✅</span>
+          <span>Validation</span>
+          {typeof meta?.verdict === "string" ? <span className="text-sky-700">· {meta.verdict}</span> : null}
+        </span>
+      );
+    case "merge":
+      return (
+        <span className="inline-flex items-center gap-1 rounded-md bg-teal-50 px-2 py-0.5 text-xs font-medium text-teal-800 border border-teal-200">
+          <span>🟢</span>
+          <span>Merge</span>
+          {safePullRequestUrl(meta?.pullRequestUrl) ? (
+            <a href={safePullRequestUrl(meta?.pullRequestUrl)!} target="_blank" rel="noopener noreferrer" className="underline hover:text-teal-900">
+              PR
+            </a>
+          ) : null}
+        </span>
+      );
+    case "escalation":
+      return (
+        <span className="inline-flex items-center gap-1 rounded-md bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-800 border border-orange-200">
+          <span>🙋</span>
+          <span>Escalation</span>
+        </span>
+      );
     default:
       return null;
   }
+}
+
+/** Only an https GitHub link is rendered as one. */
+function safePullRequestUrl(value: unknown): string | null {
+  return typeof value === "string" && /^https:\/\/github\.com\//.test(value) ? value : null;
 }
 
 function commentCardStyle(type?: CommentType | null): string {
@@ -81,6 +114,12 @@ function commentCardStyle(type?: CommentType | null): string {
       return "border-emerald-200 bg-emerald-50/30";
     case "request_to_merge":
       return "border-rose-200 bg-rose-50/30 ring-1 ring-rose-200";
+    case "validation":
+      return "border-sky-200 bg-sky-50/30";
+    case "merge":
+      return "border-teal-200 bg-teal-50/30";
+    case "escalation":
+      return "border-orange-200 bg-orange-50/30";
     default:
       return "border-slate-100 bg-slate-50";
   }
@@ -411,6 +450,8 @@ export function CommentThread({
             { id: "review", label: "Reviews" },
             { id: "delivery", label: "Deliveries" },
             { id: "request_to_merge", label: "Merge Requests" },
+            { id: "validation", label: "Validations" },
+            { id: "merge", label: "Merges" },
           ].map((tab) => (
             <button
               key={tab.id}

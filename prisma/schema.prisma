@@ -154,6 +154,10 @@ enum CommentType {
   review
   delivery
   request_to_merge
+  /// #1045: entries the steps themselves post (and that act when an agent posts them).
+  validation
+  merge
+  escalation
 }
 
 /// A goal's lifecycle (#616). Only `active` goals accept new splits.

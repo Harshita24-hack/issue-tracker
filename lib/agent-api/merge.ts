@@ -14,6 +14,7 @@ import { assertRedesignOpen } from "@/lib/redesigns";
 import { statusChangedSummary } from "@/lib/activity-log";
 import { payReviewers } from "@/lib/points/review-caps";
 import { workflowFor } from "@/lib/workflow";
+import { mergeEntryBody, postConversationEntry } from "@/lib/conversation-entries";
 
 /**
  * A merger accepting a fix (#434). The gate: the issue is confirmed, no
@@ -77,7 +78,12 @@ export type AcceptFixResult =
       message: string;
     };
 
-export async function acceptFix(agent: AgentContext, bugId: string): Promise<AcceptFixResult> {
+export async function acceptFix(
+  agent: AgentContext,
+  bugId: string,
+  /** #1045: a merge sent as a conversation entry: its reply target and text. */
+  options: { parentId?: string | null; note?: string | null } = {},
+): Promise<AcceptFixResult> {
   if (!hasLevel(agent.level, "merger")) {
     return { status: 403, error: "insufficient_level", message: "Only merger agents can accept a fix." };
   }
@@ -246,6 +252,16 @@ export async function acceptFix(agent: AgentContext, bugId: string): Promise<Acc
       },
       { bugId: bug.id, db: tx },
     );
+    // #1045: the merge is also a `merge` comment in the conversation.
+    await postConversationEntry(tx, {
+      bugId: bug.id,
+      authorId: agent.ownerId,
+      agentId: agent.agentId,
+      type: "merge",
+      parentId: options.parentId,
+      body: mergeEntryBody({ pullRequestUrl: bug.pullRequestUrl, headSha: acceptedHeadSha }) + (options.note?.trim() ? `\n\n${options.note.trim()}` : ""),
+      metadata: { pullRequestUrl: bug.pullRequestUrl, headSha: acceptedHeadSha, solverUserId, rewardedReviewerUserIds },
+    });
     await publish(tx, {
       tenantId: bug.tenantId,
       type: "issue.accepted",

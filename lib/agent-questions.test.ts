@@ -259,3 +259,31 @@ describe("classifyEscalation (#763)", () => {
     expect(classifyEscalation("What database dialect should I use?")).toBe("Question");
   });
 });
+
+describe("an escalation about an issue is an entry in its conversation (#1045)", () => {
+  it("posts an escalation comment with the question's text", async () => {
+    const create = vi.fn<(args: { data: Record<string, unknown> }) => Promise<{ id: string }>>(async () => ({ id: "entry-1" }));
+    (db as unknown as { comment?: unknown }).comment = { create };
+    try {
+      db.agentQuestion.create.mockResolvedValue({ id: "q2", bugId: "b1", body: "[blocker] Which layout?", createdAt: new Date() });
+      await askAgentQuestion(agent, { body: "Which layout?", bugId: "b1", type: "blocker" });
+      expect(create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ bugId: "b1", authorId: "owner", agentId: "a1", type: "escalation", body: "Which layout?", metadata: expect.objectContaining({ questionId: "q2" }) }),
+        select: { id: true },
+      });
+    } finally {
+      delete (db as unknown as { comment?: unknown }).comment;
+    }
+  });
+
+  it("posts nothing for a question that isn't about an issue", async () => {
+    const create = vi.fn<(args: { data: Record<string, unknown> }) => Promise<{ id: string }>>(async () => ({ id: "entry-1" }));
+    (db as unknown as { comment?: unknown }).comment = { create };
+    try {
+      await askAgentQuestion(agent, { body: "Should I fix the header?" });
+      expect(create).not.toHaveBeenCalled();
+    } finally {
+      delete (db as unknown as { comment?: unknown }).comment;
+    }
+  });
+});

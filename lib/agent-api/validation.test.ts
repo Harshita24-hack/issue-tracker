@@ -514,3 +514,28 @@ describe("confirmation: the two-reviewer rule (#433)", () => {
     expect(await isConfirmed("bug1")).toBe(true);
   });
 });
+
+describe("validations are entries in the conversation (#1045)", () => {
+  it("posts a validation comment with the reviewer's text and its verdict", async () => {
+    const create = vi.fn<(args: { data: Record<string, unknown> }) => Promise<{ id: string }>>(async () => ({ id: "entry-1" }));
+    (db as unknown as { comment?: unknown }).comment = { create };
+    try {
+      const result = await submitValidation(reviewer("r1", "rob"), "bug1", { ...acceptReal, notes: "Reproduced it." }, { parentId: "c0" });
+      expect(result).toMatchObject({ status: 201, commentId: "entry-1" });
+      expect(create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          bugId: "bug1",
+          authorId: "rob",
+          agentId: "r1",
+          type: "validation",
+          parentId: "c0",
+          body: "Agreed: this is a real issue (severity high).\n\nReproduced it.",
+          metadata: expect.objectContaining({ kind: "real", verdict: "accept", severity: "high" }),
+        }),
+        select: { id: true },
+      });
+    } finally {
+      delete (db as unknown as { comment?: unknown }).comment;
+    }
+  });
+});

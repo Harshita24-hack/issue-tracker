@@ -1,3 +1,4 @@
+import { postConversationEntry, validationEntryBody } from "@/lib/conversation-entries";
 import { Prisma, type PrismaClient, type Severity, type ValidationKind } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
@@ -237,6 +238,8 @@ export type SubmitValidationResult =
       confirmed: boolean;
       /** True when this validation is the one that confirmed the issue. */
       newlyConfirmed: boolean;
+      /** #1045: the `validation` entry it posted in the issue's conversation. */
+      commentId?: string;
     }
   | { status: 400; error: "invalid_request"; message: string; field?: string }
   | { status: 403; error: "insufficient_level" | "creator_cannot_validate" | "not_independent"; message: string }
@@ -251,6 +254,8 @@ export async function submitValidation(
   agent: AgentContext,
   bugId: string,
   rawBody: unknown,
+  /** #1045: a validation sent as a conversation reply keeps its place in the thread. */
+  options: { parentId?: string | null } = {},
 ): Promise<SubmitValidationResult> {
   if (!hasLevel(agent.level, "reviewer")) {
     return {
@@ -373,6 +378,23 @@ export async function submitValidation(
       if (escalatesSeverity) {
         await tx.bug.update({ where: { id: bug.id }, data: { severity: setsSeverity! } });
       }
+      // #1045: the validation is also a `validation` comment in the conversation.
+      const entry = await postConversationEntry(tx, {
+        bugId: bug.id,
+        authorId: agent.ownerId,
+        agentId: agent.agentId,
+        type: "validation",
+        parentId: options.parentId,
+        body: validationEntryBody({ kind: body.kind, verdict: body.verdict, severity: setsSeverity, notes: body.notes }),
+        metadata: {
+          validationId: validation.id,
+          kind: body.kind,
+          verdict: body.verdict,
+          onBehalfOfUserId,
+          ...(setsSeverity ? { severity: setsSeverity } : {}),
+          ...(body.duplicateOfId ? { duplicateOfId: body.duplicateOfId } : {}),
+        },
+      });
 
       const confirmed = (await countedConfirmations(tx, bug)) >= confirmationsNeeded;
       const newlyConfirmed = confirmed && !wasConfirmed;
@@ -485,7 +507,7 @@ export async function submitValidation(
       }
 
       return {
-        submission: { status: 201 as const, validation, confirmed, newlyConfirmed },
+        submission: { status: 201 as const, validation, confirmed, newlyConfirmed, ...(entry ? { commentId: entry.id } : {}) },
         automaticOffer,
       };
     });

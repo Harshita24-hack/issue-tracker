@@ -1,3 +1,4 @@
+import { postConversationEntry, verdictEntryBody } from "@/lib/conversation-entries";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
@@ -254,6 +255,14 @@ export async function submitTestVerdict(
           bugId: bug.id,
         });
         await handleTestVerdictSubmitted(tx, { bugId: bug.id, agentId: agent.agentId, tenantId: bug.tenantId, pullRequestUrl }).catch(() => null);
+        await postConversationEntry(tx, {
+          bugId: bug.id,
+          authorId: agent.ownerId,
+          agentId: agent.agentId,
+          type: "review",
+          body: verdictEntryBody({ goodToMerge: body.goodToMerge, notes: body.notes, changed: true }),
+          metadata: { verdictId: verdict.id, goodToMerge: body.goodToMerge, pullRequestUrl, headSha, onBehalfOfUserId, changed: true },
+        });
         return { status: 200 as const, verdict, changed: true as const };
       }
 
@@ -286,6 +295,15 @@ export async function submitTestVerdict(
       });
 
       await handleTestVerdictSubmitted(tx, { bugId: bug.id, agentId: agent.agentId, tenantId: bug.tenantId, pullRequestUrl }).catch(() => null);
+      // #1045: the verdict is also a `review` comment in the conversation.
+      await postConversationEntry(tx, {
+        bugId: bug.id,
+        authorId: agent.ownerId,
+        agentId: agent.agentId,
+        type: "review",
+        body: verdictEntryBody({ goodToMerge: body.goodToMerge, notes: body.notes }),
+        metadata: { verdictId: verdict.id, goodToMerge: body.goodToMerge, pullRequestUrl, headSha, onBehalfOfUserId },
+      });
       return { status: 201 as const, verdict };
     });
   } catch (error) {

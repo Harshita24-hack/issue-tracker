@@ -129,17 +129,29 @@ export const categorySchema = z.object({
 /** Alias for categorySchema matching the user-facing Platform domain terminology (#355). */
 export const platformSchema = categorySchema;
 
+/** Every type a conversation entry can have (#1045 added the last three). */
 export const commentTypeValues = [
   "comment",
   "bid",
   "review",
   "delivery",
   "request_to_merge",
+  "validation",
+  "merge",
+  "escalation",
 ] as const;
 
 export type CommentType = (typeof commentTypeValues)[number];
 
+/**
+ * The types a person writes in the comment form. `validation`, `merge` and
+ * `escalation` entries come from the steps themselves (or, for an agent, from
+ * a comment that also performs the step), never from a plain comment.
+ */
+export const postedCommentTypeValues = ["comment", "bid", "review", "delivery", "request_to_merge"] as const;
+
 export const commentTypeSchema = z.enum(commentTypeValues);
+export const postedCommentTypeSchema = z.enum(postedCommentTypeValues);
 
 export const commentSchema = z.object({
   body: z
@@ -158,7 +170,7 @@ export const commentSchema = z.object({
     .optional()
     .or(z.literal(""))
     .transform((value) => (value && value.length > 0 ? value : undefined)),
-  type: commentTypeSchema.optional().default("comment"),
+  type: postedCommentTypeSchema.optional().default("comment"),
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
 

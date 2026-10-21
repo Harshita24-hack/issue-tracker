@@ -297,3 +297,26 @@ describe("submitTestVerdict: the head commit it tested (#489)", () => {
     expect(db.testVerdict.create).not.toHaveBeenCalled();
   });
 });
+
+describe("verdicts are review entries in the conversation (#1045)", () => {
+  it("posts a review comment with the verdict and the reviewer's notes", async () => {
+    const create = vi.fn<(args: { data: Record<string, unknown> }) => Promise<{ id: string }>>(async () => ({ id: "entry-1" }));
+    (db as unknown as { comment?: unknown }).comment = { create };
+    try {
+      await submitTestVerdict(reviewer("r1", "rob"), "bug1", { ...good, notes: "Checks pass at 375px." });
+      expect(create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          bugId: "bug1",
+          authorId: "rob",
+          agentId: "r1",
+          type: "review",
+          body: "Good to merge.\n\nChecks pass at 375px.",
+          metadata: expect.objectContaining({ goodToMerge: true }),
+        }),
+        select: { id: true },
+      });
+    } finally {
+      delete (db as unknown as { comment?: unknown }).comment;
+    }
+  });
+});

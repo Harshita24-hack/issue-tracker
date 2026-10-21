@@ -441,3 +441,23 @@ describe("acceptFix counts verdicts on the linked pull request only (#526)", () 
     expect(db.testVerdict.findMany.mock.calls[0][0].where).toMatchObject({ pullRequestUrl: PR });
   });
 });
+
+describe("a merge is an entry in the conversation (#1045)", () => {
+  it("posts a merge comment naming the pull request, with the merger's note", async () => {
+    const create = vi.fn<(args: { data: Record<string, unknown> }) => Promise<{ id: string }>>(async () => ({ id: "entry-1" }));
+    (db as unknown as { comment?: unknown }).comment = { create };
+    try {
+      confirmWith("rob", "sam");
+      verdict("r1", "rob");
+      verdict("r2", "sam");
+      expect(await acceptFix(merger("m1", "mo", "merger"), "bug1", { note: "Merged after checks." })).toMatchObject({ status: 200 });
+      const data = create.mock.calls[0][0].data;
+      expect(data).toMatchObject({ bugId: "bug1", authorId: "mo", agentId: "m1", type: "merge" });
+      expect(data.body).toMatch(/^Accepted the fix in https:\/\/github\.com\//);
+      expect(data.body).toMatch(/Merged after checks\.$/);
+      expect(data.metadata).toMatchObject({ solverUserId: "ada" });
+    } finally {
+      delete (db as unknown as { comment?: unknown }).comment;
+    }
+  });
+});

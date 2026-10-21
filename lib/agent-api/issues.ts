@@ -7,7 +7,7 @@ import { requireLevel } from "@/lib/agents/levels";
 import { audit } from "@/lib/agents/audit";
 import { consumeAgentBudget, agentBudgetExceededResponse } from "@/lib/agents/rate-budget";
 import { withAgentBudgetHeaders, type AgentBudgetQuota } from "@/lib/agents/rate-budget-headers";
-import { createBugSchema, commentSchema, statusSchema, severitySchema } from "@/lib/validations/issue";
+import { createBugSchema, commentSchema, commentTypeSchema, commentTypeValues, statusSchema, severitySchema } from "@/lib/validations/issue";
 import { parsePlatformFilter, platformFilterWhere } from "@/lib/platform-filter";
 import { parseProjectAreaFilter, projectAreaFilterWhere } from "@/lib/project-area-filter";
 import { openIssueStages, type IssueStage } from "@/lib/issue-stage";
@@ -45,7 +45,21 @@ export const createSchema = createBugSchema.pick({ title: true, description: tru
     // #1047: where the work happens; defaults to the project's repository.
     repositoryUrl: repositoryUrlSchema.optional(),
   }).strict();
-const agentCommentSchema = commentSchema.extend({ projectId: idSchema.optional(), attachmentIds: attachmentIdsSchema }).strict();
+const agentCommentSchema = commentSchema.extend({
+  projectId: idSchema.optional(),
+  attachmentIds: attachmentIdsSchema,
+  // #1045: an agent may also post the entries that act. The step checks its own fields.
+  type: commentTypeSchema.optional().default("comment"),
+  kind: z.string().trim().max(32).optional(),
+  verdict: z.string().trim().max(32).optional(),
+  severity: z.string().trim().max(32).optional(),
+  duplicateOfId: idSchema.optional(),
+  onBehalfOfUserId: idSchema.optional(),
+  /** A delivery's pull request: a GitHub PR on the issue's repository. Linking it is what /github does. */
+  pullRequestUrl: z.string().trim().min(1).max(2048).optional(),
+}).strict();
+
+const VALIDATION_FIELDS = ["kind", "verdict", "severity", "duplicateOfId", "onBehalfOfUserId"] as const;
 
 /** Authenticate before parsing input, charge the shared budget, and audit outcomes including denials. */
 export async function agentIssueRequest(
@@ -266,7 +280,7 @@ export async function listAgentIssueComments(scope: Scope, id: string, params: U
   if (cursorRaw !== null && !cursor) throw new IssueApiError(400, "Invalid cursor.");
   const limit = pageSize(params.get("limit"));
   const typeParam = params.get("type");
-  const validTypes = ["comment", "bid", "review", "delivery", "request_to_merge"];
+  const validTypes: readonly string[] = commentTypeValues;
   const filterType = typeParam && validTypes.includes(typeParam) ? (typeParam as Prisma.EnumCommentTypeFilter["equals"]) : undefined;
 
   const issue = await prisma.bug.findFirst({ where: { ...scope, id, isDeleted: false }, select: { id: true } });
@@ -390,6 +404,9 @@ export async function createAgentIssue(agent: AgentContext, request: NextRequest
 export async function commentOnAgentIssue(agent: AgentContext, request: NextRequest, bugId: string) {
   const input = agentCommentSchema.parse(await issueJson(request));
   const scope = await issueProject(agent, request.nextUrl.searchParams, input.projectId);
+  const acting = await actingComment(agent, scope, bugId, input);
+  if (acting && "response" in acting) return acting.response;
+  const linked = acting?.linked ?? null;
   let bug: { id: string; title: string; reporterId: string; assigneeId: string | null } | null = null;
   let parentAuthorId: string | null = null;
   const comment = await prisma.$transaction(async (tx) => {
@@ -416,7 +433,9 @@ export async function commentOnAgentIssue(agent: AgentContext, request: NextRequ
         body,
         parentId: input.parentId ?? null,
         type: input.type ?? "comment",
-        metadata: input.metadata ? (input.metadata as Prisma.InputJsonValue) : undefined,
+        metadata: input.metadata || input.pullRequestUrl
+          ? ({ ...(input.metadata ?? {}), ...(input.pullRequestUrl ? { pullRequestUrl: input.pullRequestUrl } : {}) } as Prisma.InputJsonValue)
+          : undefined,
       },
       select: {
         id: true,
@@ -449,7 +468,87 @@ export async function commentOnAgentIssue(agent: AgentContext, request: NextRequ
     return created;
   });
   notifyAgentComment(agent, bug, comment, parentAuthorId);
-  return NextResponse.json({ comment }, { status: 201 });
+  return NextResponse.json(linked ? { comment, link: linked } : { comment }, { status: 201 });
+}
+
+type AgentCommentInput = z.infer<typeof agentCommentSchema>;
+
+/**
+ * #1045: the comment types that act. A `validation` comment validates and a
+ * `merge` comment accepts the fix, through the same gates as their own routes,
+ * which post the entry. A `delivery` comment with a `pullRequestUrl` links the
+ * pull request first (returned as `link`). Returns the response for the
+ * cases answered here, the link for a delivery, or null for an ordinary comment.
+ */
+async function actingComment(
+  agent: AgentContext,
+  scope: Scope,
+  bugId: string,
+  input: AgentCommentInput,
+): Promise<{ response: Response } | { linked: Record<string, unknown> } | null> {
+  const type = input.type ?? "comment";
+  const sentValidationFields = VALIDATION_FIELDS.filter((field) => input[field] !== undefined);
+  if (type !== "validation" && sentValidationFields.length) {
+    throw new IssueApiError(422, `${sentValidationFields.join(", ")} only go with a validation comment.`);
+  }
+  if (type !== "delivery" && input.pullRequestUrl) {
+    throw new IssueApiError(422, "pullRequestUrl goes with a delivery comment.");
+  }
+  if (type === "escalation") {
+    throw new IssueApiError(422, "Escalate with POST /api/v1/escalations; it posts the escalation entry on the issue.");
+  }
+  if (type !== "validation" && type !== "merge" && type !== "delivery") return null;
+
+  const bug = await prisma.bug.findFirst({
+    where: { ...scope, id: bugId, isDeleted: false },
+    select: { id: true, repositoryUrl: true, project: { select: { repoUrl: true } } },
+  });
+  if (!bug) throw new IssueApiError(404, "Issue not found.");
+  if (input.parentId) {
+    const parent = await prisma.comment.findFirst({ where: { id: input.parentId, bugId, deletedAt: null }, select: { id: true } });
+    if (!parent) throw new IssueApiError(422, "Parent comment not found on this issue.");
+  }
+
+  if (type === "delivery") {
+    if (!input.pullRequestUrl) return null;
+    // Imported here: link-pr reaches lib/github/merge-pr, which imports this module.
+    const { checkPullRequestUrl, linkPullRequest } = await import("@/lib/agent-api/link-pr");
+    const invalid = checkPullRequestUrl(input.pullRequestUrl, bug.repositoryUrl ?? bug.project?.repoUrl);
+    if (invalid) throw new IssueApiError(422, invalid, { field: "pullRequestUrl" });
+    const linked = await linkPullRequest(agent, bugId, input.pullRequestUrl);
+    // Nothing is posted when the link is refused (no active claim, a different accepted PR…).
+    if (linked.status >= 400 && linked.body.linked !== true) {
+      return { response: NextResponse.json(linked.body, { status: linked.status }) };
+    }
+    return { linked: linked.body };
+  }
+
+  if (type === "validation") {
+    const { submitValidation } = await import("@/lib/agent-api/validation");
+    const result = await submitValidation(agent, bugId, {
+      kind: input.kind,
+      verdict: input.verdict,
+      notes: input.body,
+      ...(input.severity !== undefined ? { severity: input.severity } : {}),
+      ...(input.duplicateOfId !== undefined ? { duplicateOfId: input.duplicateOfId } : {}),
+      ...(input.onBehalfOfUserId !== undefined ? { onBehalfOfUserId: input.onBehalfOfUserId } : {}),
+    }, { parentId: input.parentId ?? null });
+    const { status, ...rest } = result;
+    if (status !== 201) return { response: NextResponse.json(rest, { status }) };
+    const comment = result.commentId ? await prisma.comment.findUnique({ where: { id: result.commentId }, select: commentSelect }) : null;
+    return { response: NextResponse.json({ comment, validation: result.validation, confirmed: result.confirmed, newlyConfirmed: result.newlyConfirmed }, { status: 201 }) };
+  }
+
+  const { acceptFix } = await import("@/lib/agent-api/merge");
+  const result = await acceptFix(agent, bugId, { parentId: input.parentId ?? null, note: input.body });
+  const { status, ...rest } = result;
+  if (status !== 200) return { response: NextResponse.json(rest, { status }) };
+  const comment = await prisma.comment.findFirst({
+    where: { bugId, type: "merge", agentId: agent.agentId, deletedAt: null },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    select: commentSelect,
+  });
+  return { response: NextResponse.json({ comment, ...rest }, { status: 201 }) };
 }
 
 /**
