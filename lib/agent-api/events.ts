@@ -76,6 +76,7 @@ export const AGENT_EVENT_TYPES = [
   "question.answered",
   "question.asked",
   "redesign.proposed",
+  "redesign.revised",
   "review.completed",
   "review.requested",
 ] as const;

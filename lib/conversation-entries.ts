@@ -14,7 +14,7 @@ import type { CommentType, Prisma, PrismaClient } from "@prisma/client";
 type Db = PrismaClient | Prisma.TransactionClient;
 
 /** Comment types that only appear because a step happened (or, sent to POST /comments, make it happen). */
-export const ACTION_COMMENT_TYPES = ["validation", "merge", "escalation"] as const satisfies readonly CommentType[];
+export const ACTION_COMMENT_TYPES = ["validation", "merge", "escalation", "design"] as const satisfies readonly CommentType[];
 
 /** Comment types a person picks in the web form. The rest come from the steps themselves. */
 export const CONVERSATION_COMMENT_TYPES = ["comment", "bid", "review", "delivery", "request_to_merge"] as const satisfies readonly CommentType[];
@@ -65,6 +65,8 @@ function defaultBody(type: CommentType): string {
       return "Escalated this to a person.";
     case "review":
       return "Reviewed the fix.";
+    case "design":
+      return "Proposed a design.";
     default:
       return "Updated this issue.";
   }

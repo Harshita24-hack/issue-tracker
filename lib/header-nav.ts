@@ -62,7 +62,7 @@ export function headerNavItems(
           ? { badge: options.pendingEscalations }
           : {}),
       },
-      { href: "/redesigns", label: "Redesigns" },
+      { href: "/redesigns", label: "Designs" },
     );
   }
 

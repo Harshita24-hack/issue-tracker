@@ -129,7 +129,7 @@ export const categorySchema = z.object({
 /** Alias for categorySchema matching the user-facing Platform domain terminology (#355). */
 export const platformSchema = categorySchema;
 
-/** Every type a conversation entry can have (#1045 added the last three). */
+/** Every type a conversation entry can have (#1045 added validation, merge and escalation; #1048 design). */
 export const commentTypeValues = [
   "comment",
   "bid",
@@ -139,6 +139,7 @@ export const commentTypeValues = [
   "validation",
   "merge",
   "escalation",
+  "design",
 ] as const;
 
 export type CommentType = (typeof commentTypeValues)[number];

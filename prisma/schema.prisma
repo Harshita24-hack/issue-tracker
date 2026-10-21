@@ -158,6 +158,8 @@ enum CommentType {
   validation
   merge
   escalation
+  /// #1048: a design, a revision of it, or a person's decision on it.
+  design
 }
 
 /// A goal's lifecycle (#616). Only `active` goals accept new splits.
@@ -498,6 +500,8 @@ model Attachment {
   bugId       String?
   commentId   String?
   redesignProposalId String?
+  /// #1048: the design revision these mockups belong to (revision 1's are the proposal's own).
+  designRevisionId String?
   filename    String
   contentType String
   size        Int
@@ -507,8 +511,10 @@ model Attachment {
   bug         Bug?     @relation(fields: [bugId], references: [id], onDelete: Cascade)
   comment     Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
   redesignProposal RedesignProposal? @relation(fields: [redesignProposalId], references: [id], onDelete: Cascade)
+  designRevision   DesignRevision?   @relation(fields: [designRevisionId], references: [id], onDelete: Cascade)
 
   @@index([bugId])
+  @@index([designRevisionId])
   @@index([commentId])
   @@index([redesignProposalId])
   @@index([uploaderId, createdAt])
@@ -881,6 +887,7 @@ model Agent {
   testVerdicts         TestVerdict[]
   reviewOffers         ReviewOffer[]
   redesigns            RedesignProposal[]
+  designRevisions      DesignRevision[]
   questions            AgentQuestion[]
   messages             AgentMessage[]
   idempotencyKeys      IdempotencyKey[]
@@ -1301,6 +1308,23 @@ model GoalAllocation {
   @@index([targetAgentId])
 }
 
+/// #1048: one version of a design. Talking about it happens in the issue's
+/// conversation (a `design` entry and replies to it), not here.
+model DesignRevision {
+  id            String       @id @default(cuid())
+  proposalId    String
+  number        Int
+  body          String
+  previewUrl    String?
+  authorAgentId String
+  createdAt     DateTime     @default(now())
+  proposal      RedesignProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  authorAgent   Agent        @relation(fields: [authorAgentId], references: [id], onDelete: Cascade)
+  attachments   Attachment[]
+
+  @@unique([proposalId, number])
+}
+
 model RedesignProposal {
   id               String         @id @default(cuid())
   tenantId         String
@@ -1323,6 +1347,8 @@ model RedesignProposal {
   onBehalfOf       User           @relation("RedesignOnBehalfOf", fields: [onBehalfOfUserId], references: [id], onDelete: Cascade)
   approver         User?          @relation("RedesignApprover", fields: [approverId], references: [id], onDelete: SetNull)
   attachments      Attachment[]
+  /// #1048: every version of the design, oldest first. The proposal shows the latest.
+  revisions        DesignRevision[]
 
   @@index([tenantId, status])
   @@index([bugId])

@@ -23,14 +23,14 @@ describe("SWITCH_TENANT_LINK (#444)", () => {
 });
 
 describe("headerNavItems (#761)", () => {
-  it("shows Issues, Team, Manage Project, Escalations, and Redesigns to normal users by default", () => {
+  it("shows Issues, Team, Manage Project, Escalations, and Designs to normal users by default", () => {
     const items = headerNavItems("user");
     expect(items.map((i) => i.label)).toEqual([
       "Issues",
       "Team",
       "Manage Project",
       "Escalations",
-      "Redesigns",
+      "Designs",
       "API Docs",
     ]);
     const manageProject = items.find((i) => i.label === "Manage Project");
@@ -49,13 +49,13 @@ describe("headerNavItems (#761)", () => {
     ]);
   });
 
-  it("includes Escalations and Redesigns when agent platform is enabled (#627)", () => {
+  it("includes Escalations and Designs when agent platform is enabled (#627)", () => {
     expect(headerNavItems("user", { agentPlatform: true }).map((i) => i.label)).toEqual([
       "Issues",
       "Team",
       "Manage Project",
       "Escalations",
-      "Redesigns",
+      "Designs",
       "API Docs",
     ]);
   });
@@ -76,7 +76,7 @@ describe("headerNavItems (#761)", () => {
       "Team",
       "Manage Project",
       "Escalations",
-      "Redesigns",
+      "Designs",
       "API Docs",
     ]);
     const manageProject = items.find((i) => i.label === "Manage Project");
@@ -104,7 +104,7 @@ describe("headerNavItems (#761)", () => {
       "Team",
       "Manage Project",
       "Escalations",
-      "Redesigns",
+      "Designs",
       "API Docs",
       "Admins",
     ]);

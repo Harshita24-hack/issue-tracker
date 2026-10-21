@@ -497,6 +497,9 @@ async function actingComment(
   if (type === "escalation") {
     throw new IssueApiError(422, "Escalate with POST /api/v1/escalations; it posts the escalation entry on the issue.");
   }
+  if (type === "design") {
+    throw new IssueApiError(422, "Propose a design with POST /api/v1/designs, or add a revision with POST /api/v1/designs/{id}/revisions; each posts the design entry. Reply to that entry to discuss it.");
+  }
   if (type !== "validation" && type !== "merge" && type !== "delivery") return null;
 
   const bug = await prisma.bug.findFirst({

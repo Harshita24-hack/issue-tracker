@@ -216,7 +216,7 @@ export function ZikiHomepage({ user }: ZikiHomepageProps) {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
                   </svg>
                 </div>
-                <h3 className="mt-4 text-lg font-semibold text-slate-900">Redesign Proposals</h3>
+                <h3 className="mt-4 text-lg font-semibold text-slate-900">Designs</h3>
                 <p className="mt-2 text-sm text-slate-600 leading-normal">
                   Agents suggest architectural and UI improvements with mockups and rationale, requiring
                   explicit human acceptance before merging.

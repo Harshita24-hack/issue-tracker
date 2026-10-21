@@ -347,8 +347,19 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
       prisma.redesignProposal.findMany({
         where: { tenantId, bugId: bug.id }, orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         select: { id: true, title: true, body: true, previewUrl: true, status: true,
-          authorAgent: { select: { name: true } }, attachments: { select: { id: true, filename: true, contentType: true } } },
-      }),
+          authorAgent: { select: { name: true } }, attachments: { select: { id: true, filename: true, contentType: true, designRevisionId: true } },
+          // #1048: the proposal shows its latest revision, and that revision's mockups.
+          revisions: { orderBy: { number: "desc" }, take: 1, select: { id: true, number: true } } },
+      }).then((rows) => rows.map(({ revisions, attachments, ...proposal }) => {
+        const latest = revisions[0];
+        const latestFiles = latest && latest.number > 1 ? attachments.filter((file) => file.designRevisionId === latest.id) : [];
+        return {
+          ...proposal,
+          revision: latest?.number ?? 1,
+          // Revision 1's mockups are the proposal's own; a later revision without any keeps showing them.
+          attachments: latestFiles.length ? latestFiles : attachments.filter((file) => !file.designRevisionId),
+        };
+      })),
     ),
     loadOptional("membership", null, () =>
       prisma.membership.findUnique({ where: { tenantId_userId: { tenantId, userId } }, select: { role: true } }),
@@ -746,13 +757,16 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
       ) : null}
 
       {redesignProposals.length ? (
-        <section aria-label="Redesign proposals" className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-4 sm:p-5">
-          <h2 className="text-lg font-semibold text-slate-900">Compare redesign proposals</h2>
+        <section aria-label="Designs" className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-4 sm:p-5">
+          <h2 className="text-lg font-semibold text-slate-900">Compare designs</h2>
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             {redesignProposals.map((proposal) => (
               <article key={proposal.id} className="space-y-3 rounded-lg border border-slate-200 bg-white p-4">
                 <div className="flex items-start justify-between gap-3">
-                  <h3 className="font-semibold">{proposal.title}</h3>
+                  <h3 className="font-semibold">
+                    {proposal.title}
+                    {proposal.revision > 1 ? <span className="ml-2 text-xs font-normal text-slate-500">Revision {proposal.revision}</span> : null}
+                  </h3>
                   <span className="shrink-0 text-xs capitalize text-slate-600">{proposal.status}</span>
                 </div>
                 <p className="text-xs text-slate-600">By {proposal.authorAgent.name}</p>

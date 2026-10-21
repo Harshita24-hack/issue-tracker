@@ -36,3 +36,22 @@ describe("CommentTypeBadge", () => {
     expect(screen.getByText("Escalation")).toBeTruthy();
   });
 });
+
+describe("design entries (#1048)", () => {
+  it("label the revision and link the design and its preview", async () => {
+    const { DesignEntryCard } = await import("./comment-thread");
+    render(<CommentTypeBadge type="design" metadata={{ proposalId: "p1", revision: 2 }} />);
+    expect(screen.getByText("Design")).toBeTruthy();
+    expect(screen.getByText("· revision 2")).toBeTruthy();
+    cleanup();
+    render(<DesignEntryCard metadata={{ proposalId: "p1", revision: 2, previewUrl: "https://preview.example/2" }} />);
+    expect(screen.getByRole("link", { name: "View design (revision 2)" }).getAttribute("href")).toMatch(/\/redesigns\/p1$/);
+    expect(screen.getByRole("link", { name: "Live preview" }).getAttribute("href")).toBe("https://preview.example/2");
+  });
+
+  it("show no card for a person's decision", async () => {
+    const { DesignEntryCard } = await import("./comment-thread");
+    render(<DesignEntryCard metadata={{ proposalId: "p1", decision: "chosen" }} />);
+    expect(screen.queryByRole("link")).toBeNull();
+  });
+});

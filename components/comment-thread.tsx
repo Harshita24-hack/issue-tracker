@@ -20,6 +20,7 @@ import { CopyLinkButton } from "@/components/copy-link-button";
 import { AttachmentList, type AttachmentView } from "@/components/attachment-list";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useToast } from "@/components/ui/toast";
+import { BASE_PATH } from "@/lib/base-path";
 
 type AttachmentsByComment = Record<string, AttachmentView[]>;
 
@@ -94,9 +95,37 @@ export function CommentTypeBadge({ type, metadata }: { type?: CommentType | null
           <span>Escalation</span>
         </span>
       );
+    case "design":
+      return (
+        <span className="inline-flex items-center gap-1 rounded-md bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-800 border border-indigo-200">
+          <span>🎨</span>
+          <span>Design</span>
+          {typeof meta?.revision === "number" && meta.revision > 1 ? <span className="text-indigo-700">· revision {meta.revision}</span> : null}
+          {typeof meta?.decision === "string" ? <span className="text-indigo-700">· {meta.decision === "rejected" ? "rejected" : "chosen"}</span> : null}
+        </span>
+      );
     default:
       return null;
   }
+}
+
+/**
+ * #1048: a design entry's preview card — the design's page and its live
+ * preview. Feedback is an ordinary reply to the entry.
+ */
+export function DesignEntryCard({ metadata }: { metadata?: unknown }) {
+  const meta = metadata && typeof metadata === "object" ? (metadata as Record<string, unknown>) : null;
+  const proposalId = typeof meta?.proposalId === "string" ? meta.proposalId : null;
+  if (!proposalId || typeof meta?.decision === "string") return null;
+  const preview = typeof meta?.previewUrl === "string" && /^https:\/\//.test(meta.previewUrl) ? meta.previewUrl : null;
+  return (
+    <div className="mt-2 flex flex-wrap gap-3 rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm">
+      <a href={`${BASE_PATH}/redesigns/${encodeURIComponent(proposalId)}`} className="font-medium text-indigo-700 underline">
+        View design{typeof meta?.revision === "number" && meta.revision > 1 ? ` (revision ${meta.revision})` : ""}
+      </a>
+      {preview ? <a href={preview} target="_blank" rel="noopener noreferrer" className="text-indigo-700 underline">Live preview</a> : null}
+    </div>
+  );
 }
 
 /** Only an https GitHub link is rendered as one. */
@@ -120,6 +149,8 @@ function commentCardStyle(type?: CommentType | null): string {
       return "border-teal-200 bg-teal-50/30";
     case "escalation":
       return "border-orange-200 bg-orange-50/30";
+    case "design":
+      return "border-indigo-200 bg-indigo-50/30";
     default:
       return "border-slate-100 bg-slate-50";
   }
@@ -326,6 +357,7 @@ function CommentItem({
             ) : (
               <>
                 <CommentBody body={comment.body} users={users} />
+                {comment.type === "design" ? <DesignEntryCard metadata={comment.metadata} /> : null}
                 <AttachmentList attachments={attachmentsByComment[comment.id] ?? []} />
               </>
             )}
@@ -452,6 +484,7 @@ export function CommentThread({
             { id: "request_to_merge", label: "Merge Requests" },
             { id: "validation", label: "Validations" },
             { id: "merge", label: "Merges" },
+            { id: "design", label: "Designs" },
           ].map((tab) => (
             <button
               key={tab.id}
