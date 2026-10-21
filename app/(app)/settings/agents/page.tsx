@@ -20,6 +20,7 @@ import { openSecret } from "@/lib/secret-box";
 import { ensureDefaultProjectKey } from "@/lib/agents/default-key";
 import { materializeApprovedPairings } from "@/lib/agents/pairing";
 import { isAgentPlatformEnabled } from "@/lib/feature-flags";
+import { NEUTRAL_REPUTATION, type ReputationSummary } from "@/lib/agents/reputation";
 import { CreateAgentForm } from "./create-agent-form";
 import { AgentControls } from "./agent-controls";
 import { AgentRowKey } from "./agent-row-key";
@@ -31,6 +32,29 @@ function revealAgentKey(sealed: string | null): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * One-line reputation with its breakdown (#594). Agents without a snapshot
+ * have no recorded work yet; their neutral default is still shown, so a new
+ * agent is never displayed as failing.
+ */
+function ReputationLine({ reputation }: { reputation: ReputationSummary | null }) {
+  const score = reputation?.score ?? NEUTRAL_REPUTATION;
+  const failed = (reputation?.fixesFailed ?? 0) + (reputation?.validationsOverturned ?? 0);
+  const breaks = [
+    reputation && reputation.dataPoints > 0
+      ? `${reputation.fixesAccepted + reputation.validationsUpheld} upheld · ${failed} failed`
+      : "no recorded work yet",
+    reputation && reputation.silenceReleases + reputation.deadlineReleases > 0
+      ? `${reputation.silenceReleases} silence · ${reputation.deadlineReleases} deadline releases`
+      : null,
+  ].filter(Boolean) as string[];
+  return (
+    <p className="mt-0.5 text-xs text-slate-500">
+      Reputation {score.toFixed(2)} · {breaks.join(" · ")}
+    </p>
+  );
 }
 
 export const metadata = { title: "Agents" };
@@ -114,6 +138,13 @@ export default async function AgentsSettingsPage() {
               },
             },
             areaPreferences: { select: { projectAreaId: true, projectArea: { select: { projectId: true } } } },
+            reputation: {
+              select: {
+                score: true, dataPoints: true, fixesAccepted: true, fixesFailed: true,
+                validationsUpheld: true, validationsOverturned: true,
+                silenceReleases: true, deadlineReleases: true,
+              },
+            },
           },
         }),
         prisma.membership.findMany({
@@ -131,6 +162,13 @@ export default async function AgentsSettingsPage() {
                   select: {
                     id: true, name: true, model: true, level: true, burst: true, burstUntil: true,
                     areaPreferences: { select: { projectAreaId: true, projectArea: { select: { projectId: true } } } },
+                    reputation: {
+                      select: {
+                        score: true, dataPoints: true, fixesAccepted: true, fixesFailed: true,
+                        validationsUpheld: true, validationsOverturned: true,
+                        silenceReleases: true, deadlineReleases: true,
+                      },
+                    },
                   },
                 },
               },
@@ -277,6 +315,7 @@ export default async function AgentsSettingsPage() {
                       <Link href={`/settings/agents/${agent.id}/messages`} className="text-xs text-teal-700 hover:underline">
                         Messages and instructions
                       </Link>
+                      {agent.revokedAt ? null : <ReputationLine reputation={agent.reputation} />}
                       <p className="mt-0.5 text-xs text-slate-500">
                         {agent.revokedAt ? (
                           <>
@@ -356,18 +395,21 @@ export default async function AgentsSettingsPage() {
                     <ul className="mt-2 space-y-2">
                       {member.agents.map((agent) => (
                         <li key={agent.id} className="flex flex-col gap-2 pl-4 sm:flex-row sm:items-center sm:justify-between">
-                          <span className="text-sm text-slate-700">
-                            {agent.name}
-                            {agent.model ? <span className="text-slate-500"> · {agent.model}</span> : null}
-                            {isAdmin && member.id !== user.id ? (
-                              <>
-                                {" "}·{" "}
-                                <Link href={`/settings/agents/${agent.id}/messages`} className="text-xs text-teal-700 hover:underline">
-                                  Message
-                                </Link>
-                              </>
-                            ) : null}
-                          </span>
+                          <div className="min-w-0">
+                            <p className="text-sm font-normal text-slate-700">
+                              {agent.name}
+                              {agent.model ? <span className="text-slate-500"> · {agent.model}</span> : null}
+                              {isAdmin && member.id !== user.id ? (
+                                <>
+                                  {" "}·{" "}
+                                  <Link href={`/settings/agents/${agent.id}/messages`} className="text-xs text-teal-700 hover:underline">
+                                    Message
+                                  </Link>
+                                </>
+                              ) : null}
+                            </p>
+                            <ReputationLine reputation={agent.reputation} />
+                          </div>
                           {isAdmin && member.id !== user.id ? (
                             <AgentControls
                               agentId={agent.id}

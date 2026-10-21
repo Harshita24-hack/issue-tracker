@@ -41,6 +41,7 @@ function form(values: Record<string, string | number | boolean> = {}) {
     deliveryMinutes: 15,
     maxActiveClaims: 2,
     volunteerWindowSeconds: 120,
+    reputationFloor: 0.4,
     autoMerge: true,
     ...values,
   };
@@ -112,6 +113,31 @@ describe("updateProjectWorkflowAction (#595)", () => {
     ).resolves.toEqual({ ok: true });
     expect(transaction).not.toHaveBeenCalled();
     expect(invalidateWorkflow).not.toHaveBeenCalled();
+  });
+
+  it("saves and audits a reputation floor change (#594)", async () => {
+    await expect(
+      updateProjectWorkflowAction(undefined, form({ confirmationsNeeded: 2, reputationFloor: 0.6 })),
+    ).resolves.toEqual({ ok: true });
+    expect(upsert).toHaveBeenCalledWith({
+      where: { projectId: "project-1" },
+      update: expect.objectContaining({ reputationFloor: 0.6 }),
+      create: expect.objectContaining({ projectId: "project-1", reputationFloor: 0.6 }),
+    });
+    expect(auditCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: "workflow.updated",
+        changes: { reputationFloor: { from: 0.4, to: 0.6 } },
+      }),
+    });
+  });
+
+  it("rejects a reputation floor outside 0–1 without writing (#594)", async () => {
+    await expect(updateProjectWorkflowAction(undefined, form({ reputationFloor: 1.5 }))).resolves.toMatchObject({
+      ok: false,
+      fieldErrors: { reputationFloor: expect.anything() },
+    });
+    expect(transaction).not.toHaveBeenCalled();
   });
 
   it("does not report success when persistence fails", async () => {

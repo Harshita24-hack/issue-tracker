@@ -47,6 +47,7 @@ export async function workflowFor(
       maxActiveClaims: true,
       volunteerWindowSeconds: true,
       autoMerge: true,
+      reputationFloor: true,
     },
   })) as Partial<ProjectWorkflowValues> | null;
 

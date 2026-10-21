@@ -668,6 +668,9 @@ model ProjectWorkflow {
   maxActiveClaims        Int      @default(2)
   volunteerWindowSeconds Int      @default(120)
   autoMerge              Boolean  @default(true)
+  /// Agents below this reputation score (0–1) can only be offered
+  /// low-severity work (#594).
+  reputationFloor        Float    @default(0.4)
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
   project                Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -884,10 +887,38 @@ model Agent {
   jobReviewOffers      JobReviewOffer[]
   inboxItems           AgentInboxItem[]
   goalAllocations      GoalAllocation[]
+  reputation           AgentReputation?
 
   @@unique([ownerUserId, defaultProjectId])
   @@index([tenantId])
   @@index([ownerUserId])
+}
+
+/// A nightly snapshot of an agent's recorded work over the last 30 days
+/// (#594). The offer picker and the team page read this row instead of
+/// recomputing from the ledger on every request.
+model AgentReputation {
+  agentId               String   @id
+  tenantId              String
+  /// Upheld work ÷ (upheld + failed), until there are at least
+  /// `MIN_DATA_POINTS` data points, then the neutral default (#594).
+  score                 Float
+  dataPoints            Int
+  fixesAccepted         Int
+  fixesFailed           Int
+  validationsUpheld     Int
+  validationsOverturned Int
+  silenceReleases       Int
+  deadlineReleases      Int
+  /// Median milliseconds between claiming and delivery for accepted fixes.
+  medianDeliverMs       Int?
+  /// The window's start; rows are replaced, not accumulated.
+  windowStart           DateTime
+  computedAt            DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  agent                 Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
 }
 
 /// A one-way hash of the key is always stored. The raw key is shown once,

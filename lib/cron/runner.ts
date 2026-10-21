@@ -3,6 +3,7 @@ import { logger } from "@/lib/logger";
 import { sweepExpiredOffers } from "@/lib/agent-api/offer";
 import { sweepStaleClaims } from "@/lib/agent-api/availability";
 import { sweepLevelPromotions } from "@/lib/agents/promotion";
+import { snapshotReputations } from "@/lib/agents/reputation";
 import { dispatchDueDeliveries } from "@/lib/webhooks/deliver";
 import { pruneAgentRows, type AgentRetentionCounts } from "@/lib/agent-retention";
 import { sweepOrphanedAttachments } from "@/lib/attachment-retention";
@@ -44,6 +45,7 @@ export type PlatformSweepsResult = {
     claims: { status: "ok" | "error"; released?: number; offered?: number; error?: string };
     promotions: { status: "ok" | "error"; promoted?: number; demoted?: number; error?: string };
     deliveries: { status: "ok" | "error"; processed?: number; error?: string };
+    reputation: { status: "ok" | "error"; snapshotted?: number; error?: string };
     retention: {
       status: "ok" | "error";
       pruned?: RetentionPruneCounts;
@@ -61,6 +63,7 @@ let sweepInProgress = false;
  * - Level promotions and silence demotions
  * - Webhook dispatch (lease-guarded)
  * - Retention prunes (agent rows & orphaned attachments)
+ * - Reputation snapshots (#594)
  *
  * Each sweep is independent, idempotent, and lease-guarded so that a failure in one
  * does not abort the others and concurrent runs never double-process rows.
@@ -79,6 +82,7 @@ export async function runPlatformSweeps(): Promise<PlatformSweepsResult | { skip
         claims: { status: "ok" },
         promotions: { status: "ok" },
         deliveries: { status: "ok" },
+        reputation: { status: "ok" },
         retention: { status: "ok" },
       },
     };
@@ -123,7 +127,17 @@ export async function runPlatformSweeps(): Promise<PlatformSweepsResult | { skip
       result.sweeps.deliveries = { status: "error", error: err instanceof Error ? err.message : String(err) };
     }
 
-    // 5. Retention Prunes
+    // 5. Reputation snapshots (#594), read by the offer picker and team page.
+    try {
+      const res = await snapshotReputations();
+      recordSweepSuccess("reputation");
+      result.sweeps.reputation = { status: "ok", snapshotted: res.snapshotted };
+    } catch (err) {
+      recordSweepFailure("reputation", err);
+      result.sweeps.reputation = { status: "error", error: err instanceof Error ? err.message : String(err) };
+    }
+
+    // 6. Retention Prunes
     try {
       const agentPrune = await pruneAgentRows(prisma, { sweep: true });
       const attachmentPrune = await sweepOrphanedAttachments(prisma, { sweep: true });
@@ -146,6 +160,7 @@ export async function runPlatformSweeps(): Promise<PlatformSweepsResult | { skip
       claims: result.sweeps.claims,
       promotions: result.sweeps.promotions,
       deliveries: result.sweeps.deliveries,
+      reputation: result.sweeps.reputation,
       retention: result.sweeps.retention,
     });
 

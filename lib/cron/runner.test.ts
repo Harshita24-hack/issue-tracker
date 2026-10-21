@@ -6,6 +6,7 @@ const mockSweepPromotions = vi.hoisted(() => vi.fn());
 const mockDispatch = vi.hoisted(() => vi.fn());
 const mockPruneAgent = vi.hoisted(() => vi.fn());
 const mockSweepAttachments = vi.hoisted(() => vi.fn());
+const mockSnapshotReputations = vi.hoisted(() => vi.fn());
 const mockLogger = vi.hoisted(() => ({
   info: vi.fn(),
   error: vi.fn(),
@@ -20,6 +21,7 @@ vi.mock("@/lib/agents/promotion", () => ({ sweepLevelPromotions: mockSweepPromot
 vi.mock("@/lib/webhooks/deliver", () => ({ dispatchDueDeliveries: mockDispatch }));
 vi.mock("@/lib/agent-retention", () => ({ pruneAgentRows: mockPruneAgent }));
 vi.mock("@/lib/attachment-retention", () => ({ sweepOrphanedAttachments: mockSweepAttachments }));
+vi.mock("@/lib/agents/reputation", () => ({ snapshotReputations: mockSnapshotReputations }));
 
 import {
   runPlatformSweeps,
@@ -51,6 +53,7 @@ describe("runPlatformSweeps (#647)", () => {
       deletedParents: 7,
       total: 13,
     });
+    mockSnapshotReputations.mockResolvedValue({ snapshotted: 3 });
   });
 
   it("runs all sweeps, logs the counts, and returns structured result", async () => {
@@ -62,6 +65,7 @@ describe("runPlatformSweeps (#647)", () => {
       expect(result.sweeps.claims).toEqual({ status: "ok", released: 1, offered: 1 });
       expect(result.sweeps.promotions).toEqual({ status: "ok", promoted: 1, demoted: 0 });
       expect(result.sweeps.deliveries).toEqual({ status: "ok", processed: 4 });
+      expect(result.sweeps.reputation).toEqual({ status: "ok", snapshotted: 3 });
       expect(result.sweeps.retention).toEqual({
         status: "ok",
         pruned: {
@@ -97,6 +101,20 @@ describe("runPlatformSweeps (#647)", () => {
         status: "error",
         error: "Network timeout during webhooks",
       });
+      expect(result.sweeps.reputation.status).toBe("ok");
+      expect(result.sweeps.retention.status).toBe("ok");
+    }
+  });
+
+  it("isolates a failing reputation snapshot from the other sweeps (#594)", async () => {
+    mockSnapshotReputations.mockRejectedValueOnce(new Error("snapshot failed"));
+
+    const result = await runPlatformSweeps();
+
+    expect("skipped" in result).toBe(false);
+    if (!("skipped" in result)) {
+      expect(result.sweeps.reputation).toEqual({ status: "error", error: "snapshot failed" });
+      expect(result.sweeps.offers).toEqual({ status: "ok", expired: 2 });
       expect(result.sweeps.retention.status).toBe("ok");
     }
   });

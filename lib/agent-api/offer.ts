@@ -8,6 +8,7 @@ import { publish } from "@/lib/agent-api/events";
 import { notifyClaimOffered } from "@/lib/agent-notifications";
 import { workflowFor } from "@/lib/workflow";
 import { DEFAULT_PROJECT_WORKFLOW } from "@/lib/workflow-config";
+import { NEUTRAL_REPUTATION, readAgentReputationScores } from "@/lib/agents/reputation";
 import { canAssignTicket, WORK_READINESS_VOTE_THRESHOLD } from "@/lib/ticket-assignment";
 import { assigneeChangedSummary, statusChangedSummary } from "@/lib/activity-log";
 import { ensureWatching } from "@/lib/watch";
@@ -21,7 +22,7 @@ const id = z.string().trim().min(1).max(191);
 export const offerSchema = z.object({ projectId: id.optional() }).strict();
 
 type Db = typeof prisma | Prisma.TransactionClient;
-export type OfferCandidate = { beneficiaryUserId: string; agentId: string; activeClaims: number; lastOfferedAt: Date | null; pendingOffer?: boolean; volunteered?: boolean; areaMatch?: boolean };
+export type OfferCandidate = { beneficiaryUserId: string; agentId: string; activeClaims: number; lastOfferedAt: Date | null; pendingOffer?: boolean; volunteered?: boolean; areaMatch?: boolean; reputation?: number };
 
 export function isOfferExpired(
   offeredAt: Date | null,
@@ -37,6 +38,9 @@ export function rankOfferCandidates<T extends OfferCandidate>(candidates: T[]): 
     || a.activeClaims - b.activeClaims
     || Number(Boolean(b.areaMatch)) - Number(Boolean(a.areaMatch))
     || (a.lastOfferedAt?.getTime() ?? Number.NEGATIVE_INFINITY) - (b.lastOfferedAt?.getTime() ?? Number.NEGATIVE_INFINITY)
+    // A fairness tie goes to the higher reputation (#594). Unknown scores are
+    // neutral, so this never punishes an agent without a snapshot.
+    || (b.reputation ?? NEUTRAL_REPUTATION) - (a.reputation ?? NEUTRAL_REPUTATION)
     || a.beneficiaryUserId.localeCompare(b.beneficiaryUserId));
 }
 
@@ -45,6 +49,20 @@ export function availableOfferCandidates<T extends OfferCandidate>(
   maxActiveClaims = DEFAULT_PROJECT_WORKFLOW.maxActiveClaims,
 ): T[] {
   return rankOfferCandidates(candidates.filter((person) => person.activeClaims < maxActiveClaims && !person.pendingOffer));
+}
+
+/**
+ * Reputation floor for offers (#594): a project-set score under which an
+ * agent is only offered low-severity work. Unknown severity stays ungated.
+ */
+export function reputationFloorAllows(
+  workflow: { reputationFloor?: number },
+  bug: { severity?: string | null },
+  candidates: OfferCandidate[],
+): OfferCandidate[] {
+  if (!bug.severity || bug.severity === "low" || bug.severity === "medium") return candidates;
+  const floor = workflow.reputationFloor ?? DEFAULT_PROJECT_WORKFLOW.reputationFloor;
+  return candidates.filter((candidate) => (candidate.reputation ?? NEUTRAL_REPUTATION) >= floor);
 }
 
 /**
@@ -57,8 +75,9 @@ export function scheduleOfferExpiry(claimId?: string): void {
 }
 
 /** Picks by active workload, then by who has waited longest since their last offer.
+ * Equal fairness ties go to the higher reputation snapshot (#594).
  * Exported for the stale-claim sweep (#524), which re-offers a reopened issue with no agent caller. */
-export async function offerNext(db: Db, caller: { agentId?: string; tenantId: string }, bug: { id: string; projectId: string; title: string; assigneeId?: string | null; areaId?: string | null }, excludeUserIds: string[] = []) {
+export async function offerNext(db: Db, caller: { agentId?: string; tenantId: string }, bug: { id: string; projectId: string; title: string; assigneeId?: string | null; areaId?: string | null; severity?: string | null }, excludeUserIds: string[] = []) {
   // Lock the Bug row first to serialize offer creation on this issue across concurrent calls (#680).
   await db.$queryRaw`SELECT "id" FROM "Bug" WHERE "id" = ${bug.id} FOR NO KEY UPDATE`;
   const workflow = await workflowFor(bug.projectId, db);
@@ -129,7 +148,13 @@ export async function offerNext(db: Db, caller: { agentId?: string; tenantId: st
     areaMatch: p.areaMatch,
   }));
 
-  const next = availableOfferCandidates(candidates, workflow.maxActiveClaims)[0];
+  // Each candidate's latest reputation snapshot (#594); missing rows are
+  // neutral, so a new agent is neither favoured nor gated.
+  const scores = await readAgentReputationScores(caller.tenantId, [...new Set(people.map((p) => p.agentId))], db);
+  const scored = candidates.map((candidate) => ({ ...candidate, reputation: scores.get(candidate.agentId) }));
+  const eligible = reputationFloorAllows(workflow, bug, scored);
+
+  const next = availableOfferCandidates(eligible, workflow.maxActiveClaims)[0];
   if (!next) return null;
 
   // Lock only the chosen member (#544) instead of looping over every member.
@@ -154,7 +179,7 @@ export async function offerIssue(agent: AgentContext, projectId: string, bugId: 
     const result = await prisma.$transaction(async (tx) => {
       const locked = await tx.$queryRaw<{ id: string }[]>`SELECT "id" FROM "Bug" WHERE "id" = ${bugId} AND "tenantId" = ${agent.tenantId} AND "projectId" = ${projectId} AND "isDeleted" = false FOR UPDATE`;
       if (!locked.length) throw new IssueApiError(404, "Issue not found in this project.");
-      const bug = await tx.bug.findFirst({ where: { id: bugId, tenantId: agent.tenantId, projectId, isDeleted: false }, select: { id: true, title: true, projectId: true, status: true, assigneeId: true, areaId: true, voteCount: true } });
+      const bug = await tx.bug.findFirst({ where: { id: bugId, tenantId: agent.tenantId, projectId, isDeleted: false }, select: { id: true, title: true, projectId: true, status: true, assigneeId: true, areaId: true, voteCount: true, severity: true } });
       if (!bug) throw new IssueApiError(404, "Issue not found in this project.");
       if (bug.status !== "open") throw new IssueApiError(409, "Only open issues can be offered.");
       if (bug.voteCount < WORK_READINESS_VOTE_THRESHOLD) throw new IssueApiError(409, `The issue must reach at least ${WORK_READINESS_VOTE_THRESHOLD} upvotes before it can be offered.`);
@@ -191,13 +216,13 @@ export async function offerIssue(agent: AgentContext, projectId: string, bugId: 
 /** Durable expiry state is checked here and again on acceptance after restarts. Returns true if expired. */
 export async function expireOffer(claimId: string): Promise<boolean> {
   const result = await prisma.$transaction(async (tx) => {
-    const claim = await tx.issueClaim.findUnique({ where: { id: claimId }, select: { id: true, bugId: true, status: true, offeredAt: true, releasedAt: true, agentId: true, beneficiaryUserId: true, bug: { select: { tenantId: true, id: true, title: true, projectId: true, assigneeId: true, areaId: true } } } });
+    const claim = await tx.issueClaim.findUnique({ where: { id: claimId }, select: { id: true, bugId: true, status: true, offeredAt: true, releasedAt: true, agentId: true, beneficiaryUserId: true, bug: { select: { tenantId: true, id: true, title: true, projectId: true, assigneeId: true, areaId: true, severity: true } } } });
     if (!claim || claim.status !== "offered" || claim.releasedAt) return null;
     const { offerWindowSeconds } = await workflowFor(claim.bug.projectId, tx);
     const offerWindowMs = offerWindowSeconds * 1000;
     if (!isOfferExpired(claim.offeredAt, Date.now(), offerWindowMs)) return null;
     await tx.$queryRaw`SELECT "id" FROM "Bug" WHERE "id" = ${claim.bugId} FOR UPDATE`;
-    const fresh = await tx.issueClaim.findUnique({ where: { id: claimId }, select: { id: true, bugId: true, status: true, offeredAt: true, releasedAt: true, agentId: true, beneficiaryUserId: true, bug: { select: { tenantId: true, id: true, title: true, projectId: true, assigneeId: true, areaId: true } } } });
+    const fresh = await tx.issueClaim.findUnique({ where: { id: claimId }, select: { id: true, bugId: true, status: true, offeredAt: true, releasedAt: true, agentId: true, beneficiaryUserId: true, bug: { select: { tenantId: true, id: true, title: true, projectId: true, assigneeId: true, areaId: true, severity: true } } } });
     if (!fresh || fresh.status !== "offered" || fresh.releasedAt || !isOfferExpired(fresh.offeredAt, Date.now(), offerWindowMs)) return null;
     const now = new Date();
     await tx.issueClaim.update({ where: { id: claimId }, data: { status: "released", releasedAt: now, releaseReason: "expired" } });
@@ -360,7 +385,7 @@ export async function releaseClaim(agent: AgentContext, projectId: string, bugId
 
     const bug = await tx.bug.findFirstOrThrow({
       where: { id: bugId },
-      select: { id: true, title: true, status: true, assigneeId: true, projectId: true, areaId: true },
+      select: { id: true, title: true, status: true, assigneeId: true, projectId: true, areaId: true, severity: true },
     });
     let reopened = false;
     if (claim.status === "active") {

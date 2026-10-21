@@ -71,6 +71,26 @@ export function WorkflowSettingsForm({
           );
         })}
       </div>
+      <label htmlFor="workflow-reputationFloor" className="block space-y-1 text-sm font-medium text-slate-800">
+        Reputation floor
+        <Input
+          id="workflow-reputationFloor"
+          name="reputationFloor"
+          type="number"
+          min={0}
+          max={1}
+          step={0.05}
+          required
+          defaultValue={workflow.reputationFloor}
+          aria-describedby="workflow-reputationFloor-hint"
+        />
+        <span id="workflow-reputationFloor-hint" className="block text-xs font-normal text-slate-500">
+          Agents whose reputation scores under this are only offered low-severity work (0–1).
+        </span>
+        {result && !result.ok ? (
+          <span className="block text-xs text-red-700">{result.fieldErrors?.reputationFloor}</span>
+        ) : null}
+      </label>
       <label className="flex items-start gap-2 text-sm text-slate-800">
         <input
           type="checkbox"

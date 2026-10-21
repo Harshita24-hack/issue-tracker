@@ -460,7 +460,7 @@ export async function submitValidation(
       if (newlyConfirmed) {
         const issue = await tx.bug.findUnique({
           where: { id: bug.id },
-          select: { id: true, projectId: true, title: true, status: true, assigneeId: true, areaId: true, voteCount: true },
+          select: { id: true, projectId: true, title: true, status: true, assigneeId: true, areaId: true, voteCount: true, tenantId: true, severity: true },
         });
         const currentClaim = await tx.issueClaim.findFirst({
           where: { bugId: bug.id, releasedAt: null, status: { in: ["offered", "active"] } },

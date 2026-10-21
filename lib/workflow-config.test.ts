@@ -17,21 +17,36 @@ describe("project workflow defaults (#595)", () => {
       maxActiveClaims: 2,
       volunteerWindowSeconds: 120,
       autoMerge: true,
+      reputationFloor: 0.4,
     });
   });
 
-  it("uses defaults for a missing row", () => {
+  it("uses defaults for a missing row, including the reputation floor (#594)", () => {
     expect(workflowValues(null)).toEqual(DEFAULT_PROJECT_WORKFLOW);
     expect(workflowValues({ confirmationsNeeded: 4 })).toMatchObject({
       confirmationsNeeded: 4,
       verdictsNeeded: 2,
       autoMerge: true,
+      reputationFloor: 0.4,
     });
+    expect(workflowValues({ reputationFloor: 0.6 }).reputationFloor).toBe(0.6);
   });
 });
 
 describe("workflowSettingsSchema (#595)", () => {
   const valid = { ...DEFAULT_PROJECT_WORKFLOW };
+
+  it("accepts the reputation floor across its 0–1 range (#594)", () => {
+    expect(workflowSettingsSchema.safeParse({ ...valid, reputationFloor: 0 }).success).toBe(true);
+    expect(workflowSettingsSchema.safeParse({ ...valid, reputationFloor: 1 }).success).toBe(true);
+    expect(workflowSettingsSchema.safeParse({ ...valid, reputationFloor: 0.45 }).success).toBe(true);
+  });
+
+  it("refuses a reputation floor outside 0–1 (#594)", () => {
+    expect(workflowSettingsSchema.safeParse({ ...valid, reputationFloor: -0.1 }).success).toBe(false);
+    expect(workflowSettingsSchema.safeParse({ ...valid, reputationFloor: 1.1 }).success).toBe(false);
+    expect(workflowSettingsSchema.safeParse({ ...valid, reputationFloor: "0.4" }).success).toBe(false);
+  });
 
   it("accepts every boundary", () => {
     expect(workflowSettingsSchema.safeParse({

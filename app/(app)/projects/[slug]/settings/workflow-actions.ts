@@ -49,6 +49,8 @@ export async function updateProjectWorkflowAction(
 
   const raw: Record<string, unknown> = {
     autoMerge: formData.get("autoMerge") === "on",
+    // A 0–1 fraction, not one of the integer dials (#594).
+    reputationFloor: Number(formData.get("reputationFloor")),
   };
   for (const field of NUMERIC_FIELDS) raw[field] = Number(formData.get(field));
 
@@ -68,7 +70,7 @@ export async function updateProjectWorkflowAction(
 
   const current = workflowValues(access.project.workflow);
   const changes: Record<string, { from: unknown; to: unknown }> = {};
-  for (const field of [...NUMERIC_FIELDS, "autoMerge"] as const) {
+  for (const field of [...NUMERIC_FIELDS, "autoMerge", "reputationFloor"] as const) {
     if (current[field] !== parsed.data[field]) {
       changes[field] = { from: current[field], to: parsed.data[field] };
     }

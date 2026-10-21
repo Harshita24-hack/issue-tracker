@@ -321,6 +321,7 @@ export async function decideApproval(
             projectId: true,
             status: true,
             assigneeId: true,
+            severity: true,
             pullRequestUrl: true,
           },
         },

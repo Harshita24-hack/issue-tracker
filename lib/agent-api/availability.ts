@@ -134,7 +134,7 @@ async function releaseClaimIfStale(
     let offer: OfferNextResult | null = null;
     if (options.reOffer !== false && reopened) {
       const bug = await tx.bug.findFirst({ where: { id: fresh.bugId, tenantId, isDeleted: false },
-        select: { id: true, projectId: true, title: true, assigneeId: true, areaId: true, status: true } });
+        select: { id: true, projectId: true, title: true, assigneeId: true, areaId: true, status: true, severity: true } });
       if (bug && bug.status === "open") offer = await offerNext(tx, { tenantId }, bug);
     }
     return { released: true, opened: reopened, offered: offer !== null, offer };

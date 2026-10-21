@@ -13,6 +13,8 @@ export type ProjectWorkflowValues = {
   maxActiveClaims: number;
   volunteerWindowSeconds: number;
   autoMerge: boolean;
+  /** Agents below this reputation score only get low-severity work (#594). */
+  reputationFloor: number;
 };
 
 export const DEFAULT_PROJECT_WORKFLOW: Readonly<ProjectWorkflowValues> = Object.freeze({
@@ -32,6 +34,9 @@ export const DEFAULT_PROJECT_WORKFLOW: Readonly<ProjectWorkflowValues> = Object.
   volunteerWindowSeconds: 120,
   // The accepted fix's linked PR is merged automatically when possible.
   autoMerge: true,
+  // A project-set reputation floor (#594): agents scoring under this only get
+  // low-severity work. New agents sit at 0.7, well above it.
+  reputationFloor: 0.4,
 });
 
 /**
@@ -68,6 +73,10 @@ export const workflowSettingsSchema = z.object({
   maxActiveClaims: boundedInt("maxActiveClaims", "Maximum active claims"),
   volunteerWindowSeconds: boundedInt("volunteerWindowSeconds", "Volunteer window"),
   autoMerge: z.boolean({ error: "Auto-merge must be on or off." }),
+  reputationFloor: z
+    .number({ error: "The reputation floor must be a number between 0 and 1." })
+    .min(0, "The reputation floor can't be below 0.")
+    .max(1, "The reputation floor can't be above 1."),
 });
 
 /** A stored row, with defaults for a missing row or a test double. */
@@ -84,5 +93,6 @@ export function workflowValues(
     volunteerWindowSeconds:
       row?.volunteerWindowSeconds ?? DEFAULT_PROJECT_WORKFLOW.volunteerWindowSeconds,
     autoMerge: row?.autoMerge ?? DEFAULT_PROJECT_WORKFLOW.autoMerge,
+    reputationFloor: row?.reputationFloor ?? DEFAULT_PROJECT_WORKFLOW.reputationFloor,
   };
 }

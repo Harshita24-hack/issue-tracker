@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { availableOfferCandidates, isOfferExpired, OFFER_TTL_MS } from "@/lib/agent-api/offer";
+import {
+  availableOfferCandidates,
+  isOfferExpired,
+  OFFER_TTL_MS,
+  rankOfferCandidates,
+  reputationFloorAllows,
+} from "@/lib/agent-api/offer";
 
 describe("ticket offers", () => {
   it("expires an offer at 60 seconds, but not before", () => {
@@ -39,6 +45,68 @@ describe("ticket offers", () => {
       { beneficiaryUserId: "available", agentId: "b", activeClaims: 0, lastOfferedAt: null, areaMatch: false },
     ];
     expect(availableOfferCandidates(candidates).map((person) => person.beneficiaryUserId)).toEqual(["matching", "available"]);
+  });
+
+  it("breaks a full fairness tie with the higher reputation (#594)", () => {
+    const candidates = [
+      { beneficiaryUserId: "risky", agentId: "a", activeClaims: 0, lastOfferedAt: null, reputation: 0.2 },
+      { beneficiaryUserId: "steady", agentId: "b", activeClaims: 0, lastOfferedAt: null, reputation: 0.9 },
+    ];
+    expect(rankOfferCandidates(candidates).map((person) => person.beneficiaryUserId)).toEqual(["steady", "risky"]);
+    // Reputation never beats the primary fairness keys.
+    const workload = [
+      { beneficiaryUserId: "low-score-light", agentId: "a", activeClaims: 0, lastOfferedAt: null, reputation: 0.1 },
+      { beneficiaryUserId: "high-score-busy", agentId: "b", activeClaims: 1, lastOfferedAt: null, reputation: 1 },
+    ];
+    expect(rankOfferCandidates(workload).map((person) => person.beneficiaryUserId)).toEqual([
+      "low-score-light",
+      "high-score-busy",
+    ]);
+  });
+
+  it("treats an agent without a snapshot as neutral in a fairness tie (#594)", () => {
+    const candidates = [
+      { beneficiaryUserId: "unknown", agentId: "a", activeClaims: 0, lastOfferedAt: null },
+      { beneficiaryUserId: "rated", agentId: "b", activeClaims: 0, lastOfferedAt: null, reputation: 0.9 },
+      { beneficiaryUserId: "poor", agentId: "c", activeClaims: 0, lastOfferedAt: null, reputation: 0.3 },
+    ];
+    // The unrated agent keeps the neutral 0.7: ahead of a poor score, behind a
+    // proven one, but never penalised like a failure record.
+    expect(rankOfferCandidates(candidates).map((person) => person.beneficiaryUserId)).toEqual([
+      "rated",
+      "unknown",
+      "poor",
+    ]);
+  });
+
+  describe("reputationFloorAllows (#594)", () => {
+    const floor = { reputationFloor: 0.4 };
+    const under = { beneficiaryUserId: "under", agentId: "a", activeClaims: 0, lastOfferedAt: null, reputation: 0.2 };
+    const over = { beneficiaryUserId: "over", agentId: "b", activeClaims: 0, lastOfferedAt: null, reputation: 0.9 };
+
+    it("keeps agents at or above the floor for high-severity work", () => {
+      expect(reputationFloorAllows(floor, { severity: "high" }, [under, over]).map((c) => c.beneficiaryUserId)).toEqual(["over"]);
+      expect(reputationFloorAllows(floor, { severity: "critical" }, [under, over]).map((c) => c.beneficiaryUserId)).toEqual(["over"]);
+    });
+
+    it("lets sub-floor agents take low and medium severity work", () => {
+      expect(reputationFloorAllows(floor, { severity: "low" }, [under, over])).toEqual([under, over]);
+      expect(reputationFloorAllows(floor, { severity: "medium" }, [under, over])).toEqual([under, over]);
+    });
+
+    it("fails open when the severity is unknown", () => {
+      expect(reputationFloorAllows(floor, {}, [under, over])).toEqual([under, over]);
+      expect(reputationFloorAllows(floor, { severity: null }, [under, over])).toEqual([under, over]);
+    });
+
+    it("keeps a neutral newcomer eligible: 0.7 sits above the default floor", () => {
+      const newcomer = { beneficiaryUserId: "new", agentId: "c", activeClaims: 0, lastOfferedAt: null };
+      expect(reputationFloorAllows(floor, { severity: "high" }, [newcomer])).toEqual([newcomer]);
+    });
+
+    it("rejects sub-floor agents for a project with the default floor", () => {
+      expect(reputationFloorAllows({}, { severity: "high" }, [under, over]).map((c) => c.beneficiaryUserId)).toEqual(["over"]);
+    });
   });
 
   it("skips people at the active claim cap or with another pending offer", () => {
