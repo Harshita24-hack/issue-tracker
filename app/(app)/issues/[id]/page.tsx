@@ -71,6 +71,7 @@ import { canAssignTicket } from "@/lib/ticket-assignment";
 import { SelfAssignButton } from "@/components/self-assign-button";
 import { EditableIssueDescription } from "@/components/editable-issue-description";
 import { EditableProofLinks } from "@/components/editable-proof-links";
+import { EditableRepository } from "@/components/editable-repository";
 import { IssuePullRequest } from "@/components/issue-pull-request";
 import { withCurrentOption } from "@/lib/triage-options";
 import { issueTenantHintFor } from "@/lib/issue-tenant-hint";
@@ -952,6 +953,13 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
               </dd>
             </div>
           ) : null}
+          {/* #1047: where the work happens; the PR goes here. */}
+          <div>
+            <dt className="font-medium text-slate-500">Repository</dt>
+            <dd>
+              <EditableRepository bugId={bug.id} repositoryUrl={bug.repositoryUrl ?? null} canEdit={canEdit && !bug.isDeleted} />
+            </dd>
+          </div>
           <div>
             <dt className="font-medium text-slate-500">Created</dt>
             <dd><LocalTime date={bug.createdAt} /></dd>
@@ -974,7 +982,11 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
 
       <IssuePullRequest pullRequestUrl={bug.pullRequestUrl} />
 
-      <EditableProofLinks bugId={bug.id} initialLinks={proofLinks} canEdit={canEdit} />
+      {/* #1047: the PR belongs to the delivery, so an empty "GitHub PR" card
+          is gone. Older issues' links stay, as Links. */}
+      {proofLinks.length > 0 ? (
+        <EditableProofLinks bugId={bug.id} initialLinks={proofLinks} canEdit={canEdit} />
+      ) : null}
 
       {canUpdateStatus && !bug.isDeleted ? (
         <UpdateIssueForm

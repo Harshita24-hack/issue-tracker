@@ -33,6 +33,7 @@ import {
   normalizeMentions,
 } from "@/lib/mentions";
 import { resolveTenantMentions, tenantMemberWhere } from "@/lib/tenant-mentions";
+import { normalizeRepositoryUrl, repositoryUrlSchema } from "@/lib/issue-repository";
 import {
   commentSchema,
   createBugSchema,
@@ -265,6 +266,23 @@ export async function createBugAction(
     return { error: NO_TENANT_MESSAGE };
   }
 
+  // #1047: where the work happens. Given in the detailed form, otherwise the
+  // project's repository.
+  const repository = repositoryUrlSchema.safeParse(formData.get("repositoryUrl"));
+  if (!repository.success) {
+    return fieldError("repositoryUrl", repository.error.issues[0]?.message ?? "Check the repository.");
+  }
+  let repositoryUrl = repository.data ?? null;
+  if (!repositoryUrl) {
+    try {
+      const project = await prisma.project.findUnique({ where: { id: projectId }, select: { repoUrl: true } });
+      repositoryUrl = normalizeRepositoryUrl(project?.repoUrl);
+    } catch (error) {
+      // A missing repository never stops a report; it can be set later.
+      console.error("[issues] project repository lookup failed", error);
+    }
+  }
+
   if (assigneeId) {
     const assignee = await prisma.user.findFirst({
       where: { id: assigneeId, memberships: { some: { tenantId } } },
@@ -326,6 +344,7 @@ export async function createBugAction(
     voteCount: 0,
     typeId,
     proofLinks: parsed.data.proofLinks,
+    repositoryUrl,
     reporterId: userId,
     assigneeId,
     categoryId,
@@ -1212,6 +1231,67 @@ export async function editProofLinksAction(
   revalidatePath("/issues");
   revalidatePath(`/issues/${bugId}`);
   revalidatePath("/bugs");
+  revalidatePath(`/bugs/${bugId}`);
+  return { ok: true };
+}
+
+/**
+ * #1047: change the repository an issue's work happens in. The reporter or
+ * an admin may; blank puts it back to the project's repository.
+ */
+export async function editRepositoryAction(
+  bugId: string,
+  formData: FormData,
+): Promise<ActionResult> {
+  const user = await requireUser();
+  const userId = user.id;
+
+  const limit = checkRateLimit(`edit-bug:${userId}`, ACTION_RATE_LIMITS.editBug);
+  if (!limit.allowed) return { error: RATE_LIMIT_MESSAGE };
+
+  const existing = await prisma.bug.findUnique({
+    where: { id: bugId, ...bugInTenant(await currentTenantIdFor(userId)) },
+    select: { id: true, repositoryUrl: true, reporterId: true, isDeleted: true, project: { select: { repoUrl: true } } },
+  });
+  if (!existing || existing.isDeleted) return { error: TICKET_EDIT_ERRORS.notFound };
+  if (
+    !canEditTicket({
+      actorId: userId,
+      actorRole: user.role,
+      membershipRole: (await currentTenantAccess(userId, user.role)).membershipRole,
+      reporterId: existing.reporterId,
+    })
+  ) {
+    return { error: TICKET_EDIT_ERRORS.unauthorized };
+  }
+
+  const parsed = repositoryUrlSchema.safeParse(formData.get("repositoryUrl"));
+  if (!parsed.success) {
+    return fieldError("repositoryUrl", parsed.error.issues[0]?.message ?? "Check the repository.");
+  }
+  const repositoryUrl = parsed.data ?? normalizeRepositoryUrl(existing.project?.repoUrl);
+  if (repositoryUrl === existing.repositoryUrl) return { ok: true };
+
+  await prisma.$transaction(async (tx) => {
+    await tx.bug.update({ where: { id: bugId }, data: { repositoryUrl, updatedAt: new Date() } });
+    await publishWebEvent(tx, {
+      bugId,
+      type: "issue.updated",
+      actorUserId: userId,
+      payload: issueChangePayload({ repositoryUrl }),
+    });
+    await tx.bugActivity.create({
+      data: {
+        bugId,
+        actorId: userId,
+        type: "edited",
+        summary: repositoryUrl ? `changed the repository to ${repositoryUrl}` : "cleared the repository",
+        metadata: { fields: ["repositoryUrl"], from: existing.repositoryUrl, to: repositoryUrl },
+      },
+    });
+  });
+
+  revalidatePath(`/issues/${bugId}`);
   revalidatePath(`/bugs/${bugId}`);
   return { ok: true };
 }

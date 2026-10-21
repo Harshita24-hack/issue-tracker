@@ -31,6 +31,7 @@ vi.mock("@/lib/prisma", () => ({
     bug: { findUnique: vi.fn(), create: vi.fn() },
     projectArea: { findFirst: vi.fn() },
     user: { findUnique: vi.fn(), findFirst: vi.fn(), findMany: vi.fn().mockResolvedValue([]) },
+    project: { findUnique: vi.fn(async () => ({ repoUrl: "https://github.com/acme/web.git" })) },
     $transaction: vi.fn(),
     $executeRaw: vi.fn(),
   },
@@ -154,4 +155,24 @@ describe("issue actions are tenant-scoped (#425)", () => {
     });
     expect(db.bug.findUnique.mock.calls[0][0].where).toEqual({ id: "bug-in-acme", tenantId: "tenant-zedu" });
   });
+
+  it("starts the issue with the project's repository, or the one given (#1047)", async () => {
+    tenantOf.mockResolvedValue("tenant-zedu");
+    db.bug.create.mockRejectedValue(new Error("stop after create"));
+    await createBugAction(report).catch(() => undefined);
+    expect(db.bug.create.mock.calls[0][0].data.repositoryUrl).toBe("https://github.com/acme/web");
+
+    await createBugAction(form({ ...Object.fromEntries(report), repositoryUrl: "https://github.com/acme/api" } as Record<string, string>)).catch(() => undefined);
+    expect(db.bug.create.mock.calls[1][0].data.repositoryUrl).toBe("https://github.com/acme/api");
+  });
+
+  it("refuses a repository that isn't one, next to the field (#1047)", async () => {
+    tenantOf.mockResolvedValue("tenant-zedu");
+    const result = await createBugAction(
+      form({ ...Object.fromEntries(report), repositoryUrl: "https://github.com/acme/web/pull/3" } as Record<string, string>),
+    );
+    expect(result).toMatchObject({ field: "repositoryUrl" });
+    expect(db.bug.create).not.toHaveBeenCalled();
+  });
 });
+

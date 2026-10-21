@@ -109,7 +109,9 @@ describe("CreateBugForm optimistic submission", () => {
     // Default type is the first option ("Bug").
     expect(capturedFormData?.get("typeId")).toBe("t1");
     expect(capturedFormData?.get("categoryId")).toBe("");
-    expect(capturedFormData?.get("proofLinks")).toBe("");
+    // #1047: no GitHub PR field; the repository goes with the detailed form.
+    expect(capturedFormData?.get("proofLinks")).toBeNull();
+    expect(capturedFormData?.get("repositoryUrl")).toBe("");
 
     expect(submitButton().textContent).toBe("Create issue");
     expect(screen.queryByRole("alert")).toBeNull();
@@ -271,7 +273,8 @@ describe("CreateBugForm optimistic submission", () => {
     // Technical fields are visible in detailed mode
     expect(screen.getByLabelText("Platform")).toBeDefined();
     expect(screen.getByLabelText("Type")).toBeDefined();
-    expect(screen.getByLabelText("GitHub PR")).toBeDefined();
+    expect(screen.getByLabelText("Repository")).toBeDefined();
+    expect(screen.queryByLabelText("GitHub PR")).toBeNull();
 
     // Switch to Quick report mode
     await user.click(screen.getByRole("button", { name: "Quick report" }));
@@ -279,7 +282,7 @@ describe("CreateBugForm optimistic submission", () => {
     // Technical fields should now be omitted from view
     expect(screen.queryByLabelText("Platform")).toBeNull();
     expect(screen.queryByLabelText("Type")).toBeNull();
-    expect(screen.queryByLabelText("GitHub PR")).toBeNull();
+    expect(screen.queryByLabelText("Repository")).toBeNull();
 
     // Describe the issue in plain words
     await user.clear(descriptionTextarea());
@@ -297,7 +300,7 @@ describe("CreateBugForm optimistic submission", () => {
     );
     expect(capturedFormData?.get("typeId")).toBeFalsy();
     expect(capturedFormData?.get("categoryId")).toBeFalsy();
-    expect(capturedFormData?.get("proofLinks")).toBeFalsy();
+    expect(capturedFormData?.get("repositoryUrl")).toBeFalsy();
   });
 });
 
@@ -354,3 +357,31 @@ describe("CreateBugForm project-scoped drafts (#729)", () => {
   });
 });
 
+
+describe("CreateBugForm repository (#1047)", () => {
+  let user: ReturnType<typeof userEvent.setup>;
+
+  beforeEach(() => {
+    user = userEvent.setup();
+    localStorage.clear();
+    capturedFormData = null;
+    mockedCreateBug.mockReset();
+    mockedCreateBug.mockImplementation((formData: FormData) => {
+      capturedFormData = formData;
+      return Promise.resolve({ ok: true });
+    });
+  });
+
+  it("starts with the project's repository and sends a changed one", async () => {
+    renderForm({ ...defaultProps, defaultRepositoryUrl: "https://github.com/acme/web" });
+    const repository = screen.getByLabelText("Repository") as HTMLInputElement;
+    expect(repository.value).toBe("https://github.com/acme/web");
+
+    await fillValidForm(user);
+    await user.clear(repository);
+    await user.type(repository, "https://github.com/acme/api");
+    await user.click(submitButton());
+    await waitFor(() => expect(mockedCreateBug).toHaveBeenCalledTimes(1));
+    expect(capturedFormData?.get("repositoryUrl")).toBe("https://github.com/acme/api");
+  });
+});

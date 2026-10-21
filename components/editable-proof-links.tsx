@@ -32,7 +32,7 @@ function ExternalLinkIcon({ className = "h-4 w-4 shrink-0" }: { className?: stri
   );
 }
 
-/** The issue's proof links, which the reporter or an admin can change after filing (#737). */
+/** The issue's links (proof links), which the reporter or an admin can change after filing (#737, #1047). */
 export function EditableProofLinks({ bugId, initialLinks, canEdit }: EditableProofLinksProps) {
   const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
@@ -75,7 +75,7 @@ export function EditableProofLinks({ bugId, initialLinks, canEdit }: EditablePro
     <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-          GitHub PR
+          Links
         </h2>
         {canEdit && !isEditing ? (
           <Button
@@ -100,7 +100,7 @@ export function EditableProofLinks({ bugId, initialLinks, canEdit }: EditablePro
           ) : null}
 
           <label htmlFor="edit-proof-links" className="sr-only">
-            GitHub PR
+            Links
           </label>
           <Textarea
             id="edit-proof-links"
@@ -127,7 +127,7 @@ export function EditableProofLinks({ bugId, initialLinks, canEdit }: EditablePro
           </div>
         </form>
       ) : initialLinks.length === 0 ? (
-        <p className="mt-3 text-sm text-slate-500">No GitHub PR attached to this report.</p>
+        <p className="mt-3 text-sm text-slate-500">No links on this report.</p>
       ) : (
         <ul className="mt-3 space-y-2">
           {initialLinks.map((url, index) => (

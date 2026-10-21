@@ -162,6 +162,22 @@ describe("POST /api/v1/issues/[id]/github (#452)", () => {
     expect(db.bug.update).not.toHaveBeenCalled();
   });
 
+  it("checks the pull request against the issue's own repository when it has one (#1047)", async () => {
+    db.bug.findFirst.mockResolvedValue({
+      id: "bug1",
+      pullRequestUrl: null,
+      repositoryUrl: "https://github.com/zedu/api",
+      project: { repoUrl: "https://github.com/zedu/web", githubInstallationId: null },
+    });
+    // A PR in the project's repository is the wrong place for this issue…
+    const wrong = await POST(request({ pullRequestUrl: "https://github.com/zedu/web/pull/7" }), params);
+    expect(wrong.status).toBe(422);
+    expect(await wrong.json()).toEqual({ error: "That pull request is not in this issue's repository." });
+    // …and one in the issue's repository is accepted.
+    const right = await POST(request({ pullRequestUrl: "https://github.com/zedu/api/pull/7" }), params);
+    expect(right.status).toBe(200);
+  });
+
   it("refuses to swap in a different pull request after the fix was accepted (#489)", async () => {
     db.bug.findFirst.mockResolvedValue({
       id: "bug1",

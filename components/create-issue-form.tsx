@@ -11,7 +11,6 @@ import type { AppRole } from "@/lib/roles";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { CharacterCounter } from "@/components/ui/character-counter";
 import { AttachmentPicker } from "@/components/attachment-picker";
 import { SimilarIssues } from "@/components/similar-issues";
@@ -42,7 +41,7 @@ const FIELD_LABELS: Record<string, string> = {
   typeId: "Type",
   categoryId: "Platform",
   description: "Description",
-  proofLinks: "GitHub PR",
+  repositoryUrl: "Repository",
   severity: "Severity",
   assigneeId: "Assignee",
 };
@@ -55,6 +54,7 @@ export function CreateIssueForm({
   isAdmin,
   currentUserId,
   projectId,
+  defaultRepositoryUrl = null,
 }: {
   users: UserOption[];
   assigneeUsers?: UserOption[];
@@ -63,6 +63,8 @@ export function CreateIssueForm({
   isAdmin: boolean;
   currentUserId?: string;
   projectId?: string | null;
+  /** #1047: the project's repository, the detailed form's starting value. */
+  defaultRepositoryUrl?: string | null;
 }) {
   const defaultTypeId =
     types.find((t) => t.name.toLowerCase() === "fix")?.id ?? types[0]?.id ?? "";
@@ -103,7 +105,7 @@ export function CreateIssueForm({
       typeId: defaultTypeId,
       description: initialDescription(templateOf(defaultTypeId)),
       categoryId: "",
-      proofLinks: "",
+      repositoryUrl: defaultRepositoryUrl ?? "",
       severity: "medium" as (typeof severities)[number],
       assigneeId: "",
       assignToMe: false,
@@ -141,7 +143,7 @@ export function CreateIssueForm({
         if (mode === "detailed") {
           formData.set("typeId", values.typeId);
           formData.set("categoryId", values.categoryId);
-          formData.set("proofLinks", values.proofLinks);
+          formData.set("repositoryUrl", values.repositoryUrl);
         }
         if (isAdmin) {
           formData.set("severity", values.severity);
@@ -327,28 +329,27 @@ export function CreateIssueForm({
           <FieldError formId={errs.formId} field="description" errors={errs.fieldErrors} />
         </div>
 
+        {/* #1047: the issue lives here; its work happens in a repository. The
+            pull request is posted later, with the delivery. */}
         {mode === "detailed" ? (
           <div className="space-y-1.5">
-            <label
-              htmlFor="proofLinks"
-              className="text-sm font-medium text-slate-700"
-            >
-              GitHub PR
+            <label htmlFor="repositoryUrl" className="text-sm font-medium text-slate-700">
+              Repository
             </label>
-            <Textarea
-              id="proofLinks"
-              name="proofLinks"
-              rows={3}
-              placeholder={
-                "https://github.com/organization/repo/pull/123"
-              }
-              value={values.proofLinks}
-              onChange={(event) => setValue("proofLinks", event.target.value)}
-              {...errs.attrs("proofLinks")}
+            <Input
+              id="repositoryUrl"
+              name="repositoryUrl"
+              type="url"
+              inputMode="url"
+              placeholder="https://github.com/owner/repository"
+              value={values.repositoryUrl}
+              onChange={(event) => setValue("repositoryUrl", event.target.value)}
+              {...errs.attrs("repositoryUrl")}
             />
-            <FieldError formId={errs.formId} field="proofLinks" errors={errs.fieldErrors} />
+            <FieldError formId={errs.formId} field="repositoryUrl" errors={errs.fieldErrors} />
             <p className="text-xs text-slate-500">
-              Optional. One GitHub link per line (e.g. https://github.com/organization/repo/pull/123).
+              The GitHub repository where this gets fixed. It starts as the project&apos;s; change it if the work
+              belongs in another one.
             </p>
           </div>
         ) : null}

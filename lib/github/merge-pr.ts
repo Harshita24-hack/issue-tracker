@@ -299,6 +299,7 @@ const mergeBugSelect = {
   tenantId: true,
   projectId: true,
   pullRequestUrl: true,
+  repositoryUrl: true,
   assigneeId: true,
   project: { select: { repoUrl: true, githubInstallationId: true } },
   claims: {
@@ -314,6 +315,7 @@ type LoadedBug = {
   tenantId: string;
   projectId: string;
   pullRequestUrl: string | null;
+  repositoryUrl?: string | null;
   assigneeId: string | null;
   project: { repoUrl: string | null; githubInstallationId: string | null } | null;
   claims: { beneficiaryUserId: string }[];
@@ -445,12 +447,13 @@ export async function mergeAcceptedFix(
     );
   }
 
-  // Gate 2: the issue links a pull request that belongs to the project's repo.
+  // Gate 2: the issue links a pull request in the issue's repository (#1047),
+  // which is the project's unless the issue names another.
   const ref = parsePullRequestUrl(bug.pullRequestUrl);
   if (!ref) return fail(409, "no_pull_request", "No pull request is linked to this issue.");
-  const repo = parseGitHubRepoUrl(bug.project?.repoUrl);
+  const repo = parseGitHubRepoUrl(bug.repositoryUrl ?? bug.project?.repoUrl);
   if (!repo || !sameRepo(ref, repo)) {
-    return fail(422, "repo_mismatch", "That pull request is not in this project's repository.");
+    return fail(422, "repo_mismatch", "That pull request is not in this issue's repository.");
   }
 
   const client = deps.client ?? clientForInstallation(bug.project?.githubInstallationId, deps.env);

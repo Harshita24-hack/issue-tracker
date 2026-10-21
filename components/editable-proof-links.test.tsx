@@ -17,11 +17,12 @@ describe("EditableProofLinks (#745, #705)", () => {
     cleanup();
   });
 
-  it("renders GitHub PR heading and empty state copy", () => {
+  it("renders the Links heading and empty state copy (#1047)", () => {
     render(<EditableProofLinks bugId="b1" initialLinks={[]} canEdit={true} />);
 
-    expect(screen.getByText("GitHub PR")).toBeTruthy();
-    expect(screen.getByText("No GitHub PR attached to this report.")).toBeTruthy();
+    expect(screen.getByText("Links")).toBeTruthy();
+    expect(screen.getByText("No links on this report.")).toBeTruthy();
+    expect(screen.queryByText("GitHub PR")).toBeNull();
   });
 
   it("renders compact label for PR links with full URL in href and title", () => {
@@ -34,7 +35,7 @@ describe("EditableProofLinks (#745, #705)", () => {
       />
     );
 
-    expect(screen.getByText("GitHub PR")).toBeTruthy();
+    expect(screen.getByText("Links")).toBeTruthy();
     const link = screen.getByRole("link", { name: "zedu/web #123 · PR" });
     expect(link).toBeTruthy();
     expect(link.getAttribute("href")).toBe(prUrl);

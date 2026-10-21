@@ -688,3 +688,36 @@ describe("issue read confirmation", () => {
     expect(body.items[0]).not.toHaveProperty("validations");
   });
 });
+
+describe("each issue names its repository (#1047)", () => {
+  it("starts a new issue with the project's repository", async () => {
+    db.project.findFirst.mockResolvedValue({ id: "project-a", repoUrl: "https://github.com/acme/web.git" });
+    expect((await create(request("POST", validBody))).status).toBe(201);
+    expect(db.bug.create.mock.calls[0]![0].data.repositoryUrl).toBe("https://github.com/acme/web");
+  });
+
+  it("takes another repository when the agent names one", async () => {
+    db.project.findFirst.mockResolvedValue({ id: "project-a", repoUrl: "https://github.com/acme/web" });
+    const response = await create(request("POST", { ...validBody, repositoryUrl: "https://github.com/acme/api/" }));
+    expect(response.status).toBe(201);
+    expect(db.bug.create.mock.calls[0]![0].data.repositoryUrl).toBe("https://github.com/acme/api");
+  });
+
+  it("refuses something that isn't a GitHub repository", async () => {
+    const response = await create(request("POST", { ...validBody, repositoryUrl: "https://github.com/acme/web/pull/4" }));
+    expect(response.status).toBe(422);
+    expect(db.bug.create).not.toHaveBeenCalled();
+  });
+
+  it("returns repositoryUrl on reads, falling back to the project's", async () => {
+    db.bug.findFirst.mockResolvedValue({ ...issue, repositoryUrl: null, project: { repoUrl: "https://github.com/acme/web" } });
+    const { issue: body } = await (await read(request("GET"), context)).json();
+    expect(body.repositoryUrl).toBe("https://github.com/acme/web");
+    expect(body).not.toHaveProperty("project");
+
+    db.bug.findMany.mockResolvedValue([{ ...issue, repositoryUrl: "https://github.com/acme/api", project: { repoUrl: "https://github.com/acme/web" } }]);
+    const page = await (await list(request("GET"))).json();
+    expect(page.items[0].repositoryUrl).toBe("https://github.com/acme/api");
+    expect(page.items[0]).not.toHaveProperty("project");
+  });
+});

@@ -331,6 +331,9 @@ model Bug {
   /// #423: set when an agent filed the issue. Null for people.
   createdByAgentId  String?
   createdByAgent    Agent?             @relation("AgentCreatedBugs", fields: [createdByAgentId], references: [id], onDelete: SetNull)
+  /// #1047: the GitHub repository this issue's work happens in. Starts as the
+  /// project's `repoUrl`; can differ when a project spans several repositories.
+  repositoryUrl     String?
   /// #452: the pull request that fixes this issue, if one is linked.
   pullRequestUrl    String?
   /// Head commit of that pull request when it was linked (#489). Acceptance

@@ -8,6 +8,7 @@ import { currentTenantIdFor } from "@/lib/tenant-context";
 import { tenantMemberWhere } from "@/lib/tenant-mentions";
 import { CreateIssueForm } from "@/components/create-issue-form";
 import { activeProjectIdFor } from "@/lib/project-context";
+import { normalizeRepositoryUrl } from "@/lib/issue-repository";
 
 /* Distinct browser-tab title; the root layout appends "· Ziki". */
 export const metadata = { title: "Report an issue" };
@@ -83,6 +84,12 @@ export default async function NewBugPage() {
     if (!tenantId) return null;
     return activeProjectIdFor(prisma, tenantId);
   }, null);
+  // #1047: the detailed form starts with the project's repository.
+  const defaultRepositoryUrl = await loadOrEmpty("project repository", async () => {
+    if (!projectId) return null;
+    const project = await prisma.project.findUnique({ where: { id: projectId }, select: { repoUrl: true } });
+    return normalizeRepositoryUrl(project?.repoUrl);
+  }, null);
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -92,8 +99,8 @@ export default async function NewBugPage() {
         </Link>
         <h1 className="text-2xl font-semibold text-slate-900">Report an issue</h1>
         <p className="text-sm text-slate-600">
-          Include a type, clear description, and optional GitHub PR so the team
-          can triage quickly.
+          Say what you expected, what happened instead, and how to make it happen
+          again. Agents take it from there.
         </p>
       </div>
       <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
@@ -105,6 +112,7 @@ export default async function NewBugPage() {
           isAdmin={admin}
           currentUserId={user.id}
           projectId={projectId}
+          defaultRepositoryUrl={defaultRepositoryUrl}
         />
       </div>
     </div>

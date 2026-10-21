@@ -22,6 +22,7 @@ import { isConfirmed } from "@/lib/agent-api/validation";
 import { notifyLater } from "@/lib/notify";
 import type { NotificationEvent } from "@/lib/notifications";
 import { logger } from "@/lib/logger";
+import { issueRepositoryUrl, normalizeRepositoryUrl, repositoryUrlSchema } from "@/lib/issue-repository";
 
 export class IssueApiError extends Error {
   constructor(public status: number, message: string, public body?: Record<string, unknown>) { super(message); }
@@ -38,6 +39,8 @@ export const createSchema = createBugSchema.pick({ title: true, description: tru
     projectId: idSchema.optional(),
     typeId: z.unknown().optional(), severity: z.unknown().optional(), acknowledgeSimilar: z.unknown().optional(),
     attachmentIds: attachmentIdsSchema,
+    // #1047: where the work happens; defaults to the project's repository.
+    repositoryUrl: repositoryUrlSchema.optional(),
   }).strict();
 const agentCommentSchema = commentSchema.extend({ projectId: idSchema.optional(), attachmentIds: attachmentIdsSchema }).strict();
 
@@ -120,8 +123,21 @@ const issueSelect = {
   id: true, number: true, title: true, description: true, status: true, severity: true,
   categoryId: true, typeId: true, reporterId: true, assigneeId: true, beneficiaryUserId: true,
   createdByAgentId: true, projectId: true, areaId: true, createdAt: true, updatedAt: true, proofLinks: true,
+  repositoryUrl: true, pullRequestUrl: true,
   area: { select: { id: true, name: true, slug: true } },
+  project: { select: { repoUrl: true } },
 } satisfies Prisma.BugSelect;
+
+/**
+ * #1047: every issue says which repository its pull request belongs in: its
+ * own, or its project's when it has none. The project itself isn't returned.
+ */
+function withRepository<T extends { repositoryUrl: string | null; project: { repoUrl: string | null } | null }>(
+  row: T,
+): Omit<T, "project"> {
+  const { project, ...rest } = row;
+  return { ...rest, repositoryUrl: issueRepositoryUrl({ repositoryUrl: row.repositoryUrl, project }) };
+}
 
 export async function listAgentIssues(scope: Scope, params: URLSearchParams) {
   const status = params.get("status");
@@ -160,7 +176,8 @@ export async function listAgentIssues(scope: Scope, params: URLSearchParams) {
   }
   const where: Prisma.BugWhereInput = { ...filtered, ...cursorWhere(cursor) };
   const rows = await prisma.bug.findMany({ where, orderBy: cursorOrderBy(), take: limit + 1, select: issueSelect });
-  return toPage(rows, limit);
+  const page = toPage(rows, limit);
+  return { ...page, items: page.items.map(withRepository) };
 }
 
 const validationSelect = {
@@ -190,7 +207,7 @@ export async function readAgentIssue(scope: Scope, id: string) {
     }, _count: { select: { comments: { where: { deletedAt: null } } } } },
   });
   if (!issue) throw new IssueApiError(404, "Issue not found.");
-  return { ...issue, confirmed: await isConfirmed(issue.id) };
+  return { ...withRepository(issue), confirmed: await isConfirmed(issue.id) };
 }
 
 /** What a paged comment carries: the embedded read's fields plus who wrote it. */
@@ -268,6 +285,7 @@ export async function createAgentIssue(agent: AgentContext, request: NextRequest
     // Only when sent, so keys stored before #645 still replay.
     ...(input.attachmentIds?.length ? { attachmentIds: [...new Set(input.attachmentIds)].sort() } : {}),
     ...(input.areaId ? { areaId: input.areaId } : {}),
+    ...(input.repositoryUrl ? { repositoryUrl: input.repositoryUrl } : {}),
   });
   const result = await createIssueWithPolicy({
     agent, projectId: scope.projectId, idempotencyKey: request.headers.get("Idempotency-Key"),
@@ -295,11 +313,13 @@ export async function createAgentIssue(agent: AgentContext, request: NextRequest
         if (!area) throw new IssueApiError(422, "Area not found in this project.");
       }
       const description = await normalizeTenantMentions(tx, scope.tenantId, input.description);
+      const project = await tx.project.findFirst({ where: { id: scope.projectId }, select: { repoUrl: true } });
+      const repositoryUrl = input.repositoryUrl ?? normalizeRepositoryUrl(project?.repoUrl);
       const issue = await tx.bug.create({
         data: {
           ...scope, ...policy, title: input.title, description, status: "open", categoryId, areaId,
           reporterId: beneficiaryUserId, beneficiaryUserId, createdByAgentId: agent.agentId,
-          proofLinks: input.proofLinks,
+          proofLinks: input.proofLinks, repositoryUrl,
           watches: { create: { userId: beneficiaryUserId } },
           activities: { create: { actorId: beneficiaryUserId, type: "created", summary: createdSummary(input.title) } },
         }, select: { id: true },

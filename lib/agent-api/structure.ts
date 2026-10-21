@@ -6,6 +6,7 @@ import type { SimilarIssue } from "@/lib/similar-issues";
 import { audit } from "@/lib/agents/audit";
 import { publish } from "@/lib/agent-api/events";
 import { z } from "zod";
+import { repositoryUrlSchema } from "@/lib/issue-repository";
 
 const idSchema = z.string().trim().min(1).max(191);
 
@@ -23,6 +24,8 @@ export const structureInputSchema = z
     type: z.string().trim().optional(),
     typeId: idSchema.optional(),
     duplicateOfId: idSchema.optional(),
+    // #1047: the repository the work belongs in, when it isn't the project's.
+    repositoryUrl: repositoryUrlSchema.optional(),
     checkDuplicates: z.boolean().optional().default(true),
   })
   .strict();
@@ -258,6 +261,7 @@ export async function structureIssue(
         categoryId: resolvedCategoryId,
         typeId: resolvedTypeId,
         duplicateOfId: resolvedDuplicateOfId,
+        ...(input.repositoryUrl ? { repositoryUrl: input.repositoryUrl } : {}),
         updatedAt: new Date(),
       },
     });

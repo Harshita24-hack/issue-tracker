@@ -48,6 +48,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
         id: true,
         projectId: true,
         pullRequestUrl: true,
+        repositoryUrl: true,
         project: { select: { repoUrl: true, githubInstallationId: true } },
       },
     });
@@ -64,10 +65,11 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       );
     }
 
-    const repo = parseGitHubRepoUrl(bug.project?.repoUrl);
+    // #1047: the issue's own repository, else the project's.
+    const repo = parseGitHubRepoUrl(bug.repositoryUrl ?? bug.project?.repoUrl);
     if (repo && !sameRepo(ref, repo)) {
       return NextResponse.json(
-        { error: "That pull request is not in this project's repository." },
+        { error: "That pull request is not in this issue's repository." },
         { status: 422 },
       );
     }
