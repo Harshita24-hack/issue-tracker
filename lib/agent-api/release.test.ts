@@ -86,12 +86,13 @@ describe("an agent gives work back (#547)", () => {
   });
 
   it("offers the issue to someone else, never back to the same person", async () => {
-    db.issueClaim.findFirst.mockResolvedValue(claim("active"));
+    db.$queryRaw.mockResolvedValueOnce([{ id: "bug-1" }]).mockResolvedValueOnce([{ id: "bob" }]);
+    db.issueClaim.findFirst.mockResolvedValueOnce(claim("active")).mockResolvedValueOnce(null);
     db.bug.findFirstOrThrow.mockResolvedValue({ id: "bug-1", title: "T", status: "in_progress", assigneeId: "ada", projectId: "p" });
     isConfirmed.mockResolvedValue(true);
     db.membership.findMany.mockResolvedValue([
-      { userId: "ada", user: { agents: [{ id: "agent-ada", level: "contributor", createdAt: new Date(0), apiKeys: [{ lastUsedAt: new Date() }], bids: [] }] } },
-      { userId: "bob", user: { agents: [{ id: "agent-bob", level: "contributor", createdAt: new Date(0), apiKeys: [{ lastUsedAt: new Date() }], bids: [] }] } },
+      { userId: "ada", user: { agents: [{ id: "agent-ada", level: "contributor", createdAt: new Date(0), apiKeys: [{ lastUsedAt: new Date() }], bids: [], areaPreferences: [] }] } },
+      { userId: "bob", user: { agents: [{ id: "agent-bob", level: "contributor", createdAt: new Date(0), apiKeys: [{ lastUsedAt: new Date() }], bids: [], areaPreferences: [] }] } },
     ]);
     db.issueClaim.create.mockResolvedValue({ id: "claim-2", bugId: "bug-1", offeredAt: new Date() });
 

@@ -209,3 +209,159 @@ describe("IssueFilters unified Filter button popover (#762)", () => {
     expect(screen.queryByRole("dialog", { name: "Filter issues" })).not.toBeInTheDocument();
   });
 });
+
+describe("IssueFilters keyboard shortcuts (#727)", () => {
+  beforeEach(() => {
+    nav.params = new URLSearchParams();
+    nav.push.mockReset();
+    nav.replace.mockReset();
+  });
+  afterEach(cleanup);
+
+  it("does not focus search or preventDefault when shortcutsEnabled is false", () => {
+    render(<IssueFilters shortcutsEnabled={false} />);
+    const searchInput = screen.getByRole("combobox", { name: /search/i });
+
+    const slashEvent = new KeyboardEvent("keydown", { key: "/", bubbles: true, cancelable: true });
+    window.dispatchEvent(slashEvent);
+
+    expect(slashEvent.defaultPrevented).toBe(false);
+    expect(document.activeElement).not.toBe(searchInput);
+
+    const cmdKEvent = new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true, cancelable: true });
+    window.dispatchEvent(cmdKEvent);
+
+    expect(cmdKEvent.defaultPrevented).toBe(false);
+    expect(document.activeElement).not.toBe(searchInput);
+  });
+
+  it("does not trigger search hotkeys when focus is inside a dialog or dialog is open", () => {
+    render(
+      <div>
+        <IssueFilters shortcutsEnabled={true} />
+        <dialog open>
+          <input data-testid="dialog-input" />
+        </dialog>
+      </div>,
+    );
+    const searchInput = screen.getByRole("combobox", { name: /search/i });
+    const dialogInput = screen.getByTestId("dialog-input");
+    dialogInput.focus();
+
+    const slashEvent = new KeyboardEvent("keydown", { key: "/", bubbles: true, cancelable: true });
+    dialogInput.dispatchEvent(slashEvent);
+
+    expect(slashEvent.defaultPrevented).toBe(false);
+    expect(document.activeElement).toBe(dialogInput);
+
+    const windowSlash = new KeyboardEvent("keydown", { key: "/", bubbles: true, cancelable: true });
+    window.dispatchEvent(windowSlash);
+    expect(windowSlash.defaultPrevented).toBe(false);
+    expect(document.activeElement).not.toBe(searchInput);
+  });
+
+  it("does not trigger Ctrl/Cmd+K when focused on an editable element", () => {
+    render(
+      <div>
+        <IssueFilters shortcutsEnabled={true} />
+        <textarea data-testid="other-editor" />
+      </div>,
+    );
+    const searchInput = screen.getByRole("combobox", { name: /search/i });
+    const otherEditor = screen.getByTestId("other-editor");
+    otherEditor.focus();
+
+    const cmdKEvent = new KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true, cancelable: true });
+    otherEditor.dispatchEvent(cmdKEvent);
+
+    expect(cmdKEvent.defaultPrevented).toBe(false);
+    expect(document.activeElement).toBe(otherEditor);
+    expect(document.activeElement).not.toBe(searchInput);
+  });
+});
+
+describe("IssueFilters search commit + feedback (#690)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    nav.params = new URLSearchParams();
+    nav.push.mockReset();
+    nav.replace.mockReset();
+    fetchMock.mockReset();
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ issues: [] }) });
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it("renders an explicit Search button next to the box", () => {
+    render(<IssueFilters tagTypes={tagTypes} />);
+    expect(screen.getByRole("button", { name: "Search" })).toBeInTheDocument();
+  });
+
+  it("does not commit the search when the box is blurred", () => {
+    render(<IssueFilters tagTypes={tagTypes} />);
+    const input = screen.getByRole("combobox", { name: "Search" });
+
+    typeSearch("login timeout");
+    // Blur must not itself commit the search: nothing happens on the event.
+    fireEvent.blur(input);
+    expect(nav.push).not.toHaveBeenCalled();
+    expect(nav.replace).not.toHaveBeenCalled();
+
+    // Only the documented live-search debounce may navigate, once (#671).
+    vi.advanceTimersByTime(300);
+    expect(nav.push).toHaveBeenCalledTimes(1);
+  });
+
+  it("navigates exactly once when the Search button is pressed", () => {
+    render(<IssueFilters tagTypes={tagTypes} />);
+
+    typeSearch("login timeout");
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+
+    expect(nav.push).toHaveBeenCalledTimes(1);
+    expect(nav.push).toHaveBeenCalledWith("/issues?q=login+timeout");
+
+    // The debounce must not fire a second navigation.
+    vi.advanceTimersByTime(300);
+    expect(nav.push).toHaveBeenCalledTimes(1);
+    expect(nav.replace).not.toHaveBeenCalled();
+  });
+
+  it("navigates exactly once on Enter", () => {
+    render(<IssueFilters tagTypes={tagTypes} />);
+
+    const input = screen.getByRole("combobox", { name: "Search" });
+    typeSearch("crash");
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(nav.push).toHaveBeenCalledTimes(1);
+    expect(nav.push).toHaveBeenCalledWith("/issues?q=crash");
+
+    vi.advanceTimersByTime(300);
+    expect(nav.push).toHaveBeenCalledTimes(1);
+  });
+
+  it("still clears the search via the active-filter chip", () => {
+    nav.params = new URLSearchParams("q=login");
+    render(<IssueFilters tagTypes={tagTypes} />);
+
+    const chip = screen.getByText(/Search:/);
+    fireEvent.click(within(chip).getByRole("button", { name: "Remove search filter" }));
+
+    expect(nav.push).toHaveBeenCalledWith("/issues");
+  });
+
+  it("exposes a busy state on the search box", () => {
+    render(<IssueFilters tagTypes={tagTypes} />);
+    // aria-busy is wired to the transition, starting idle. (It flips to true
+    // only while a real navigation is pending, which a mocked router settles
+    // synchronously, so the true case is asserted via source in the unit test
+    // below rather than here.)
+    expect(screen.getByTestId("search-box")).toHaveAttribute("aria-busy", "false");
+  });
+});

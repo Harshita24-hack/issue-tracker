@@ -45,6 +45,7 @@ export function headerNavItems(
 
   const items: HeaderNavItem[] = [
     { href: "/issues", label: "Issues" },
+    { href: "/team", label: "Team" },
     {
       href: "/projects",
       label: "Manage Project",
@@ -64,6 +65,8 @@ export function headerNavItems(
       { href: "/redesigns", label: "Redesigns" },
     );
   }
+
+  items.push({ href: "/docs", label: "API Docs" });
 
   if (isSuperAdmin(role)) {
     items.push({ href: "/admin/users", label: "Admins" });

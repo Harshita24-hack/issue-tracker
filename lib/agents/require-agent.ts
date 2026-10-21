@@ -5,6 +5,7 @@ import { bearerToken, hashSecret } from "@/lib/agents/keys";
 import { AgentLevelError } from "@/lib/agents/levels";
 import { AgentPlatformDisabledError, agentPlatformDisabledResponse } from "@/lib/agents/platform-gate";
 import { isAgentPlatformEnabled } from "@/lib/feature-flags";
+import { logger } from "@/lib/logger";
 
 export { AgentPlatformDisabledError, agentPlatformDisabledResponse };
 
@@ -24,6 +25,8 @@ export type AgentContext = {
   level: AgentLevel;
   /** For the rate budget (#440). */
   burst: boolean;
+  /** When the higher budget lapses; null means no expiry (#596). */
+  burstUntil?: Date | null;
   /** The key used for this call, so rotation can revoke exactly it. */
   keyId: string;
   /**
@@ -102,6 +105,7 @@ export async function requireAgent(request: HeaderSource): Promise<AgentContext>
           tenantId: true,
           level: true,
           burst: true,
+          burstUntil: true,
           revokedAt: true,
           owner: { select: { memberships: { select: { tenantId: true } } } },
         },
@@ -129,7 +133,7 @@ export async function requireAgent(request: HeaderSource): Promise<AgentContext>
         data: { lastUsedAt: now },
       }),
     ).catch((error) => {
-      console.error("[requireAgent] failed to update lastUsedAt", error);
+      logger.error("[requireAgent] failed to update lastUsedAt", error);
     });
   }
 
@@ -140,6 +144,7 @@ export async function requireAgent(request: HeaderSource): Promise<AgentContext>
     tenantId: agent.tenantId,
     level: agent.level,
     burst: agent.burst,
+    burstUntil: agent.burstUntil ?? null,
     keyId: key.id,
     projectId: key.projectId,
     projectSlug: key.project?.slug ?? null,

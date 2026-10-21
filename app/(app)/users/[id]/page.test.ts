@@ -19,10 +19,21 @@ vi.mock("@/lib/points/leaderboard", () => ({
   pointTotals: vi.fn(async () => ({ points: 0, solvedTasks: 0 })),
 }));
 
+// #618: the page also reads the ledger balance; stub it so these specs stay
+// about which issues a viewer may see.
+vi.mock("@/lib/points/balance", () => ({
+  pointBalance: vi.fn(async () => ({
+    lifetime: { points: 0, entries: 0, from: null, to: null },
+    period: { points: 0, entries: 0, from: null, to: null },
+  })),
+}));
+
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     user: { findUnique: vi.fn() },
-    membership: { findFirst: vi.fn() },
+    membership: { findFirst: vi.fn(), findUnique: vi.fn() },
+    agent: { findMany: vi.fn() },
+    issueClaim: { findMany: vi.fn() },
     bug: {
       findMany: vi.fn(),
       groupBy: vi.fn(),
@@ -48,8 +59,12 @@ beforeEach(() => {
   vi.mocked(prisma.bug.findMany).mockResolvedValue([] as never);
   vi.mocked(prisma.bug.groupBy).mockResolvedValue([] as never);
   vi.mocked(prisma.bug.count).mockResolvedValue(0 as never);
+  vi.mocked(prisma.agent.findMany).mockResolvedValue([] as never);
+  vi.mocked(prisma.issueClaim.findMany).mockResolvedValue([] as never);
   // By default the viewer and the person share a tenant.
   vi.mocked(prisma.membership.findFirst).mockResolvedValue({ id: "m-1" } as never);
+  // #618: the viewer is an ordinary member, so no wallet is shown.
+  vi.mocked(prisma.membership.findUnique).mockResolvedValue({ role: "member" } as never);
 });
 
 describe("profile issues (#439)", () => {
@@ -79,6 +94,9 @@ describe("profile issues (#439)", () => {
         where: expect.objectContaining({ reporterId: person.id, tenantId: "tenant-zedu" }),
       }),
     );
+    expect(prisma.agent.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { tenantId: "tenant-zedu", ownerUserId: { in: [person.id] }, revokedAt: null },
+    }));
   });
 });
 

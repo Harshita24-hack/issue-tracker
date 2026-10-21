@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { agentMentionId } from "@/lib/mentions";
 import { requireUser } from "@/lib/auth-helpers";
 import { bugInTenant, currentTenantIdFor } from "@/lib/tenant-context";
 import { viewerBugScope } from "@/lib/tenant-viewer";
@@ -39,6 +40,7 @@ import { IssueAgentActivity, type AgentDecision } from "@/components/issue-agent
 import { IssueEscalations, type TicketEscalation } from "@/components/issue-escalations";
 import { listBugEscalations } from "@/lib/agent-questions";
 import { IssueBids } from "@/components/issue-bids";
+import { GoalBudgetSection } from "@/components/goal-budgets";
 import { Badge } from "@/components/ui/badge";
 import { VoteButton } from "@/components/vote-button";
 import { WatchButton } from "@/components/watch-button";
@@ -47,27 +49,33 @@ import { UpdateIssueForm } from "@/components/update-issue-form";
 import { CommentThread } from "@/components/comment-thread";
 import { AttachmentList, type AttachmentView } from "@/components/attachment-list";
 import { ChooseRedesignButton } from "@/components/choose-redesign-button";
+import { IssueApprovalBanner } from "@/components/issue-approval-banner";
 import { isTenantAdminRole } from "@/lib/agents/membership";
 import { UserNameWithBadges } from "@/components/user-name-with-badges";
 import { getActiveIssueTypesCached, getActivePlatforms } from "@/lib/lookups";
 import { getIssueTypeBadgeClass } from "@/lib/issue-type-styles";
 import { fetchVoterSummary } from "@/lib/voter-summaries";
 import { createEmptyVoterSummary } from "@/lib/voters";
-import { canDeleteTicket } from "@/lib/ticket-deletion";
+import {
+  canDeleteTicket,
+  deletedSummary,
+  deleteSummary,
+} from "@/lib/ticket-deletion";
 import { currentTenantAccess } from "@/lib/tenant-access";
 import { MilestoneDue } from "@/components/milestone-due";
 import { dueDateValue } from "@/lib/milestones";
 import { canEditTicket } from "@/lib/ticket-editing";
 import { DeleteIssueButton } from "@/components/delete-issue-button";
 import { RestoreIssueButton } from "@/components/restore-issue-button";
-import { BoostTicketButton } from "@/components/boost-ticket-button";
 import { canAssignTicket } from "@/lib/ticket-assignment";
 import { SelfAssignButton } from "@/components/self-assign-button";
-import { CopyLinkButton } from "@/components/copy-link-button";
 import { EditableIssueDescription } from "@/components/editable-issue-description";
+import { EditableProofLinks } from "@/components/editable-proof-links";
+import { IssuePullRequest } from "@/components/issue-pull-request";
 import { withCurrentOption } from "@/lib/triage-options";
 import { issueTenantHintFor } from "@/lib/issue-tenant-hint";
 import { IssueTenantSwitch } from "@/components/issue-tenant-hint";
+import { tenantMemberWhere } from "@/lib/tenant-mentions";
 
 type BugPageProps = {
   params: Promise<{ id: string }>;
@@ -218,15 +226,18 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
   const access = await currentTenantAccess(user.id, user.role);
   const canTriage = access.admin;
   const canDelete = canDeleteTicket(user.role, access.membershipRole);
+  const userTenantId = await currentTenantIdFor(userId);
   // #289: open milestones for the triage panel (admins only). Started here,
   // alongside the issue query, and awaited where the form needs them.
   const milestoneOptionsPromise: Promise<{ id: string; title: string; isClosed: boolean }[]> = canTriage
     ? loadOptional("milestones", [], () =>
-        prisma.milestone.findMany({
-          where: { isClosed: false },
-          select: { id: true, title: true, isClosed: true },
-          orderBy: [{ dueDate: { sort: "asc", nulls: "last" } }, { title: "asc" }],
-        }),
+        userTenantId
+          ? prisma.milestone.findMany({
+              where: { isClosed: false, tenantId: userTenantId },
+              select: { id: true, title: true, isClosed: true },
+              orderBy: [{ dueDate: { sort: "asc", nulls: "last" } }, { title: "asc" }],
+            })
+          : Promise.resolve([]),
       )
     : Promise.resolve([]);
 
@@ -243,6 +254,7 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
         milestone: { select: { id: true, title: true, dueDate: true, isClosed: true } },
         assignee: { select: { id: true, name: true, role: true, image: true } },
         category: { select: { id: true, name: true, isActive: true } },
+        area: { select: { id: true, name: true } },
         votes: { where: { userId }, select: { id: true, value: true }, take: 1 },
         // #285: both sides of a duplicate link.
         duplicateOf: { select: { id: true, number: true, title: true, status: true, isDeleted: true } },
@@ -275,6 +287,7 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
           createdByAgent: { select: { id: true, name: true } },
           assignee: { select: { id: true, name: true, role: true, image: true } },
           category: { select: { id: true, name: true, isActive: true } },
+          area: { select: { id: true, name: true } },
           votes: { where: { userId }, select: { id: true, value: true }, take: 1 },
           duplicateOf: { select: { id: true, number: true, title: true, status: true, isDeleted: true } },
           duplicates: {
@@ -345,26 +358,41 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
       select: {
         id: true,
         note: true,
+        createdAt: true,
         beneficiaryUserId: true,
-        agent: { select: { name: true } },
+        agent: { select: { name: true, areaPreferences: {
+          where: { projectAreaId: bug.areaId ?? "" },
+          select: { projectAreaId: true },
+        } } },
         beneficiary: { select: { name: true } },
       },
     }),
   );
+  const hasAreaMatch = (bid: { agent: { areaPreferences: unknown[] } }) =>
+    Boolean(bug.areaId && bid.agent.areaPreferences.length);
   const canAwardBid = bug.status === "open" && !bug.isDeleted && (bug.reporterId === user.id || canChooseRedesign);
 
-  const [users, categories, types, voterSummary, activities, activityCount, watchRow, comments, latestStatusChange, attachments, lastRevision, agentDecisions, escalations] =
+  const [users, categories, areas, types, voterSummary, activities, activityCount, watchRow, comments, latestStatusChange, attachments, lastRevision, agentDecisions, escalations, volunteerCount, pendingApproval] =
     await Promise.all([
       canTriage
         ? loadOptional("users", [], () =>
+            // #502: only the issue's tenant can be mentioned or assigned.
             prisma.user.findMany({
+              where: tenantMemberWhere(bug.tenantId),
               orderBy: { name: "asc" },
               select: { id: true, name: true, role: true, image: true },
             }),
           )
         : Promise.resolve([]),
       loadOptional("platforms", [], () => getActivePlatforms(bug.tenantId)),
-      canTriage ? loadOptional("types", [], () => getActiveIssueTypesCached()) : Promise.resolve([]),
+      canTriage
+        ? loadOptional("project areas", [], () => prisma.projectArea.findMany({
+            where: { projectId: bug.projectId },
+            orderBy: [{ name: "asc" }, { id: "asc" }],
+            select: { id: true, name: true },
+          }))
+        : Promise.resolve([]),
+      canTriage ? loadOptional("types", [], () => getActiveIssueTypesCached(bug.tenantId)) : Promise.resolve([]),
       loadOptional("votes", createEmptyVoterSummary(), () => fetchVoterSummary(id)),
       loadOptional("activity", [] as ActivityEntry[], () =>
         prisma.bugActivity.findMany({
@@ -438,7 +466,10 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
             select: {
               id: true,
               createdAt: true,
-              agent: { select: { name: true } },
+              deliverBy: true,
+              extendedAt: true,
+              waitingOnOwnerSince: true,
+              agent: { select: { name: true, owner: { select: { name: true } } } },
               beneficiary: { select: { name: true } },
             },
           }),
@@ -474,6 +505,9 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
             kind: "claimed",
             agentName: c.agent.name,
             personName: c.beneficiary.name,
+            deliverBy: bug.pullRequestUrl ? null : c.deliverBy,
+            extendedAt: c.extendedAt,
+            waitingOnName: c.waitingOnOwnerSince ? c.agent.owner.name : null,
           })),
           ...verdicts.map<AgentDecision>((v) => ({
             id: `verdict-${v.id}`,
@@ -494,7 +528,40 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
       loadOptional<TicketEscalation[]>("escalations", [], () =>
         tenantId ? listBugEscalations(id, tenantId) : Promise.resolve([]),
       ),
+      loadOptional<number>("volunteers", 0, () =>
+        prisma.issueInterest.count({
+          where: { bugId: id, withdrawnAt: null },
+        }),
+      ),
+      loadOptional("pendingApproval", null, () =>
+        (typeof (prisma as { issueApproval?: unknown }).issueApproval !== "undefined"
+          ? prisma.issueApproval.findFirst({
+              where: { bugId: id, status: "pending" },
+              include: { rule: { include: { issueType: { select: { name: true } } } } },
+              orderBy: { createdAt: "desc" },
+            })
+          : Promise.resolve(null)),
+      ),
     ]);
+  // #603: the tenant's active agents, offered in the comment @mention list
+  // as "Mark's Claude · Mark Essien" alongside people.
+  const mentionAgents = canTriage
+    ? await loadOptional("mention agents", [], () =>
+        prisma.agent.findMany({
+          where: { tenantId: bug.tenantId, revokedAt: null },
+          orderBy: { name: "asc" },
+          select: { id: true, name: true, owner: { select: { name: true } } },
+        }),
+      )
+    : [];
+  const commentMentionUsers = [
+    ...users,
+    ...mentionAgents.map((agent) => ({
+      id: agentMentionId(agent.id),
+      name: agent.name,
+      agentOwner: agent.owner.name,
+    })),
+  ];
   const issueAttachments: AttachmentView[] = attachments.filter((a) => !a.commentId);
   const attachmentsByComment: Record<string, AttachmentView[]> = {};
   for (const a of attachments) {
@@ -534,6 +601,48 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
 
   const resolution = currentResolution(bug.status, latestStatusChange);
 
+  // Workflow badges that are always visible: status and severity. Anything
+  // else (boost, volunteers) is supplementary and folds into the mobile +N
+  // control, so status/severity never hide behind it (#687).
+  const extraBadgeCount =
+    (bug.isBoosted && !bug.isDeleted ? 1 : 0) + (volunteerCount > 0 ? 1 : 0);
+
+  const headerActions = (
+    <>
+      {canSelfAssign ? (
+        <SelfAssignButton
+          bugId={bug.id}
+          isAssignedToMe={isAssignee}
+          size="sm"
+        />
+      ) : null}
+      {!bug.isDeleted ? (
+        <WatchButton
+          bugId={bug.id}
+          watching={isWatchingIssue(user.id, [bug.reporterId, bug.assigneeId], watchRow)}
+        />
+      ) : null}
+      {canTriage && !bug.isDeleted && !bug.duplicateOf ? (
+        <MarkDuplicateButton bugId={bug.id} />
+      ) : null}
+      {!bug.isDeleted && userId && (bug.reporterId === userId || bug.assigneeId === userId) ? (
+        <Link
+          href={`/points/disputes/new?bug=${bug.number}`}
+          className="text-xs font-medium text-teal-700 hover:text-teal-800 hover:underline"
+          title="Say your points award for this issue is missing or wrong"
+        >
+          Dispute award
+        </Link>
+      ) : null}
+    </>
+  );
+
+  // What a delete keeps, shown the same way in every delete/restore message (#692).
+  const deletionCounts = {
+    comments: comments.visibleCount,
+    votes: voterSummary.likes.count + voterSummary.dislikes.count,
+  };
+
   return (
     <div className="space-y-6">
       {bug.isDeleted ? (
@@ -546,11 +655,16 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
                   This issue was deleted
                 </h3>
                 <p className="text-xs text-red-700">
-                  It is currently hidden from regular users. Admins and super admins can restore it at any time.
+                  {deletedSummary(deletionCounts)}
                 </p>
               </div>
             </div>
-            <RestoreIssueButton bugId={bug.id} bugTitle={bug.title} size="sm" />
+            <RestoreIssueButton
+              bugId={bug.id}
+              bugTitle={bug.title}
+              counts={deletionCounts}
+              size="sm"
+            />
           </div>
         </div>
       ) : null}
@@ -602,6 +716,13 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
             </p>
           ) : null}
         </section>
+      ) : null}
+
+      {pendingApproval ? (
+        <IssueApprovalBanner
+          approval={pendingApproval}
+          canDecide={canChooseRedesign}
+        />
       ) : null}
 
       {redesignProposals.length ? (
@@ -660,24 +781,22 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
                 </span>{" "}
                 {bug.title}
               </h1>
+
+              {/* On mobile (<sm): compact horizontal scroll action row pinned directly under title (#698) */}
+              <div
+                data-testid="mobile-actions-row"
+                className="flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden sm:hidden print:hidden"
+              >
+                {headerActions}
+              </div>
+
+              {/* Row 1 — workflow state, which must outrank taxonomy (#687).
+                  Status and severity stay visible at every width; boost and
+                  volunteer counts fold into the mobile +N control (#698). */}
               <div className="flex flex-wrap items-center gap-2">
                 {bug.isDeleted ? (
                   <span className="inline-flex items-center gap-1 rounded-full border border-red-300 bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-900 shadow-2xs">
                     🗑️ Deleted
-                  </span>
-                ) : null}
-                {bug.isBoosted && !bug.isDeleted ? (
-                  <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-900 shadow-2xs">
-                    ⚡ Boosted
-                  </span>
-                ) : null}
-                {bug.type ? (
-                  <span
-                    className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${getIssueTypeBadgeClass(
-                      bug.type.name,
-                    )}`}
-                  >
-                    {bug.type.name}
                   </span>
                 ) : null}
                 <Badge className={statusClass[bug.status]}>
@@ -686,15 +805,41 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
                 <Badge className={severityClass[bug.severity]}>
                   {severityLabels[bug.severity]}
                 </Badge>
-                {bug.category ? (
-                  <Badge className="border border-teal-200 bg-teal-50 text-teal-950">
-                    {bug.category.name}
-                  </Badge>
+                {bug.isBoosted && !bug.isDeleted ? (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-900 shadow-2xs">
+                    ⚡ Boosted
+                  </span>
                 ) : null}
-                <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
-                  {bug.voteCount} score ({voterSummary.likes.count} like{voterSummary.likes.count === 1 ? "" : "s"}, {voterSummary.dislikes.count} dislike{voterSummary.dislikes.count === 1 ? "" : "s"})
-                </span>
+                {extraBadgeCount > 0 ? (
+                  <details className="group sm:contents">
+                    <summary
+                      aria-label={`${extraBadgeCount} more details`}
+                      className="cursor-pointer list-none select-none inline-flex items-center gap-1 rounded-full border border-slate-300 bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700 hover:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 sm:hidden"
+                    >
+                      +{extraBadgeCount}
+                    </summary>
+                    <span className="contents">
+                      {volunteerCount > 0 ? (
+                        <span className="inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700 border border-indigo-200">
+                          {volunteerCount} {volunteerCount === 1 ? "agent volunteered" : "agents volunteered"}
+                        </span>
+                      ) : null}
+                    </span>
+                  </details>
+                ) : null}
               </div>
+
+              {/* Row 2 — taxonomy, on its own muted line so its colours are not
+                  mistaken for workflow state (#687). */}
+              {bug.type || bug.category ? (
+                <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-slate-500">
+                  {bug.type ? <span>{bug.type.name}</span> : null}
+                  {bug.type && bug.category ? (
+                    <span aria-hidden="true">·</span>
+                  ) : null}
+                  {bug.category ? <span>{bug.category.name}</span> : null}
+                </p>
+              ) : null}
             </div>
 
             {/* Reactions and larger avatars sitting under the title */}
@@ -715,51 +860,12 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
           </div>
         </div>
 
-        <div className="flex shrink-0 flex-wrap items-center gap-2 self-start sm:pt-6 print:hidden">
-          {/* The canonical URL from the configured site, not the browser's
-              current one, which may carry a query string or a #comment. */}
-          <CopyLinkButton url={absoluteUrl(`/issues/${bug.id}`)} label="issue" />
-          {!bug.isDeleted ? (
-            <WatchButton
-              bugId={bug.id}
-              watching={isWatchingIssue(user.id, [bug.reporterId, bug.assigneeId], watchRow)}
-            />
-          ) : null}
-          {canTriage && !bug.isDeleted && !bug.duplicateOf ? (
-            <MarkDuplicateButton bugId={bug.id} />
-          ) : null}
-          {canTriage && !bug.isDeleted ? (
-            <BoostTicketButton
-              bugId={bug.id}
-              isBoosted={bug.isBoosted}
-              size="sm"
-            />
-          ) : null}
-          {!bug.isDeleted && userId && (bug.reporterId === userId || bug.assigneeId === userId) ? (
-            <Link
-              href={`/points/disputes/new?bug=${bug.number}`}
-              className="text-xs font-medium text-teal-700 hover:text-teal-800 hover:underline"
-              title="Say your points award for this issue is missing or wrong"
-            >
-              Dispute award
-            </Link>
-          ) : null}
-          {canDelete ? (
-            bug.isDeleted ? (
-              <RestoreIssueButton
-                bugId={bug.id}
-                bugTitle={bug.title}
-                size="sm"
-              />
-            ) : (
-              <DeleteIssueButton
-                bugId={bug.id}
-                bugTitle={bug.title}
-                variant="danger-secondary"
-                size="sm"
-              />
-            )
-          ) : null}
+        <div className="hidden sm:block">
+          {/* #687: the back-link sits above the title, so actions must offset
+              past it to share the title's top edge (36px ≈ sm:pt-9). */}
+          <div className="flex shrink-0 flex-wrap items-center gap-2 self-start sm:pt-9 print:hidden">
+            {headerActions}
+          </div>
         </div>
       </div>
 
@@ -831,6 +937,12 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
               <dd>{bug.category.name}</dd>
             </div>
           ) : null}
+          {bug.area ? (
+            <div>
+              <dt className="font-medium text-slate-500">Area</dt>
+              <dd>{bug.area.name}</dd>
+            </div>
+          ) : null}
           {bug.milestone ? (
             <div>
               <dt className="font-medium text-slate-500">Milestone</dt>
@@ -862,43 +974,9 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
         </section>
       ) : null}
 
-      <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-          Proof links
-        </h2>
-        {proofLinks.length === 0 ? (
-          <p className="mt-3 text-sm text-slate-500">
-            No proof links attached to this report.
-          </p>
-        ) : (
-          <ul className="mt-3 space-y-2">
-            {proofLinks.map((url, index) => (
-              <li key={`${index}-${url}`}>
-                <a
-                  href={url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 break-all text-sm font-medium text-teal-700 hover:underline"
-                >
-                  <svg
-                    className="h-4 w-4 shrink-0 text-slate-600"
-                    fill="currentColor"
-                    viewBox="0 0 24 24"
-                    aria-hidden="true"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      clipRule="evenodd"
-                      d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
-                    />
-                  </svg>
-                  <span>{url}</span>
-                </a>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <IssuePullRequest pullRequestUrl={bug.pullRequestUrl} />
+
+      <EditableProofLinks bugId={bug.id} initialLinks={proofLinks} canEdit={canEdit} />
 
       {canUpdateStatus && !bug.isDeleted ? (
         <UpdateIssueForm
@@ -908,8 +986,10 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
           typeId={bug.typeId}
           assigneeId={bug.assigneeId}
           categoryId={bug.categoryId}
+          areaId={bug.areaId}
           users={users}
           categories={withCurrentOption(categories, bug.category)}
+          areas={areas}
           types={withCurrentOption(types, bug.type)}
           milestoneId={bug.milestoneId}
           milestones={
@@ -927,25 +1007,33 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
       />
 
       <IssueBids
-        bids={openBids.map((bid) => ({
-          id: bid.id,
-          agentName: bid.agent.name,
-          personName: bid.beneficiary.name ?? "A member",
-          note: bid.note,
-        }))}
+        bids={[...openBids]
+          .sort((a, b) => Number(hasAreaMatch(b)) - Number(hasAreaMatch(a)) || a.createdAt.getTime() - b.createdAt.getTime())
+          .map((bid) => ({
+            id: bid.id,
+            agentName: bid.agent.name,
+            personName: bid.beneficiary.name ?? "A member",
+            note: bid.note,
+            areaMatch: hasAreaMatch(bid),
+          }))}
         canAward={canAwardBid}
       />
 
       <IssueEscalations escalations={escalations} />
 
+      <Suspense fallback={null}>
+        <GoalBudgetSection tenantId={bug.tenantId} projectId={bug.projectId} bugId={bug.id} />
+      </Suspense>
+
       <IssueAgentActivity decisions={agentDecisions} />
 
       <section
-        id="comments"
+        id="conversation"
         className="scroll-mt-24 rounded-xl border border-slate-200 bg-white p-4 sm:p-6"
       >
+        <span id="comments" className="sr-only" aria-hidden="true" />
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-          Comments ({comments.visibleCount})
+          Conversation ({comments.visibleCount})
         </h2>
         {comments.hiddenThreads > 0 ? (
           <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600 print:hidden">
@@ -980,7 +1068,7 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
           reporterId={bug.reporterId}
           comments={commentTree}
           attachmentsByComment={attachmentsByComment}
-          users={users}
+          users={commentMentionUsers}
           currentUserId={user.id}
           currentUserRole={user.role}
           tenantAdmin={access.admin}
@@ -996,12 +1084,13 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
                 Danger zone
               </h2>
               <p className="text-sm text-slate-600">
-                Delete this issue. It will be hidden from everyone except owners and admins of this organization, who can restore it.
+                Delete this issue. {deleteSummary(deletionCounts)}
               </p>
             </div>
             <DeleteIssueButton
               bugId={bug.id}
               bugTitle={bug.title}
+              counts={deletionCounts}
               variant="danger"
             />
           </div>

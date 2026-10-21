@@ -111,6 +111,7 @@ vi.mock("@/lib/prisma", () => ({
     attachment: { findMany: vi.fn().mockResolvedValue([]) },
     bugRevision: { findFirst: vi.fn().mockResolvedValue(null) },
     milestone: { findMany: vi.fn().mockResolvedValue([]) },
+    goal: { findMany: vi.fn().mockResolvedValue([]) },
     issueValidation: { findMany: vi.fn().mockResolvedValue([]) },
     issueClaim: { findMany: vi.fn().mockResolvedValue([]) },
     testVerdict: { findMany: vi.fn().mockResolvedValue([]) },
@@ -134,6 +135,38 @@ describe("BugDetailPage conditional user query (#349)", () => {
     expect(pageSource).toMatch(/canTriage[\s\S]*?prisma\.user\.findMany/);
   });
 
+  it("does not render CopyLinkButton, BoostTicketButton, or DeleteIssueButton in the header (#760)", () => {
+    const pageSourceFresh = readFileSync(
+      path.resolve(__dirname, "page.tsx"),
+      "utf8",
+    );
+    // Find the header action bar container
+    const headerActionBlockMatch = pageSourceFresh.match(
+      /<div className="flex shrink-0 flex-wrap items-center gap-2 self-start sm:pt-9 print:hidden">([\s\S]*?)<\/div>/,
+    );
+    expect(headerActionBlockMatch).toBeTruthy();
+    const headerActionBlock = headerActionBlockMatch![1];
+
+    expect(headerActionBlock).not.toContain("CopyLinkButton");
+    expect(headerActionBlock).not.toContain("BoostTicketButton");
+    expect(headerActionBlock).not.toContain("DeleteIssueButton");
+    expect(headerActionBlock).not.toContain("RestoreIssueButton");
+
+    // Danger zone still retains DeleteIssueButton
+    expect(pageSourceFresh).toContain("Danger zone");
+    expect(pageSourceFresh).toMatch(/Danger zone[\s\S]*?<DeleteIssueButton/);
+  });
+
+  it("renders Conversation section heading and supports conversation anchor (#753)", () => {
+    const pageSourceFresh = readFileSync(
+      path.resolve(__dirname, "page.tsx"),
+      "utf8",
+    );
+    expect(pageSourceFresh).toContain('id="conversation"');
+    expect(pageSourceFresh).toContain('id="comments"');
+    expect(pageSourceFresh).toContain("Conversation ({comments.visibleCount})");
+  });
+
   describe("runtime execution", () => {
     beforeEach(() => {
       vi.clearAllMocks();
@@ -141,6 +174,7 @@ describe("BugDetailPage conditional user query (#349)", () => {
       mockBugFindUnique.mockResolvedValue({
         id: "bug-1",
         number: 42,
+        tenantId: "tenant-zedu",
         title: "Test Bug",
         description: "Test Description",
         status: "open",
@@ -211,7 +245,9 @@ describe("BugDetailPage conditional user query (#349)", () => {
       });
 
       expect(mockUserFindMany).toHaveBeenCalledTimes(1);
+      // #502: only the issue's tenant can be mentioned or assigned.
       expect(mockUserFindMany).toHaveBeenCalledWith({
+        where: { memberships: { some: { tenantId: "tenant-zedu" } } },
         orderBy: { name: "asc" },
         select: { id: true, name: true, role: true, image: true },
       });
@@ -231,7 +267,9 @@ describe("BugDetailPage conditional user query (#349)", () => {
       });
 
       expect(mockUserFindMany).toHaveBeenCalledTimes(1);
+      // #502: only the issue's tenant can be mentioned or assigned.
       expect(mockUserFindMany).toHaveBeenCalledWith({
+        where: { memberships: { some: { tenantId: "tenant-zedu" } } },
         orderBy: { name: "asc" },
         select: { id: true, name: true, role: true, image: true },
       });
