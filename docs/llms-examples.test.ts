@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { z } from "zod";
-import { agentQuestionSchema } from "@/lib/agent-questions";
+import { agentEscalationSchema } from "@/lib/agent-questions";
 import { redesignSchema } from "@/lib/redesigns";
 import { commentSchema, statusSchema } from "@/lib/validations/issue";
 import { bidSchema } from "@/lib/agent-api/bid";
@@ -42,7 +42,7 @@ const EXAMPLES: Array<[string, z.ZodType]> = [
   ["POST /api/v1/issues/{id}/extend", extendSchema],
   ["POST /api/v1/issues/{id}/validations", validationBodySchema],
   ["POST /api/v1/issues/{id}/test-results", testVerdictBodySchema],
-  ["POST /api/v1/questions", agentQuestionSchema],
+  ["POST /api/v1/escalations", agentEscalationSchema],
   ["POST /api/v1/redesigns", redesignSchema],
 ];
 

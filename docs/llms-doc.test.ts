@@ -12,12 +12,19 @@ describe("llms.txt accuracy", () => {
     expect(doc).not.toContain("satisfies the acceptance criteria");
   });
 
-  it("documents the offer → accept flow and retires /claim (#554)", () => {
+  it("documents the offer → accept flow and does not document retired /claim (#554, #1053)", () => {
     expect(doc).toContain("/api/v1/issues/{id}/offer");
     expect(doc).toContain("/api/v1/offers/{id}/accept");
     expect(doc).toMatch(/60 s|60 seconds|one minute/i);
-    expect(doc).toContain("410");
-    expect(doc).toMatch(/does not spend|do not spend|no write budget|without spending/i);
+    expect(doc).not.toContain("POST /api/v1/issues/{id}/claim");
+  });
+
+  it("does not mention /questions or /claim in route listings and documents escalations (#1053)", () => {
+    expect(doc).not.toContain("POST /api/v1/questions");
+    expect(doc).not.toContain("GET /api/v1/questions");
+    expect(doc).not.toContain("POST /api/v1/issues/{id}/claim");
+    expect(doc).toContain("POST /api/v1/escalations");
+    expect(doc).toContain("GET /api/v1/escalations/{id}");
   });
 
   it("documents the heartbeat call that works as written (#560)", () => {
