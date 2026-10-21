@@ -114,8 +114,10 @@ async function findEligibleReviewers(
 
 /**
  * Offers a new submission to independent reviewers and records how many accepts
- * it needs (#617). Returns the number of distinct reviewers already holding an
- * offer (the threshold), or the default of 2 when nobody is available.
+ * it needs (#617). Returns `DEFAULT_REVIEW_VERDICTS_NEEDED` (the quorum), which
+ * is fixed: when fewer eligible reviewers exist than the quorum, only that many
+ * offers are sent, but the threshold stays at the full quorum so a late reviewer
+ * must still bring the independent accepts up to it (#1022).
  */
 export async function createJobReviewOffers(
   db: Db,
@@ -126,7 +128,8 @@ export async function createJobReviewOffers(
   const candidates = await findEligibleReviewers(db, job.tenantId, submission, new Set());
 
   if (!candidates.length) {
-    // Nobody can review yet. Still 2, so a late reviewer must reach quorum.
+    // Nobody can review yet. Still the full quorum, so a late reviewer must
+    // reach it rather than accepting on their own.
     return DEFAULT_REVIEW_VERDICTS_NEEDED;
   }
 
@@ -160,7 +163,7 @@ export async function createJobReviewOffers(
     });
   }
 
-  return Math.min(selected.length, DEFAULT_REVIEW_VERDICTS_NEEDED);
+  return DEFAULT_REVIEW_VERDICTS_NEEDED;
 }
 
 /** Accepts a pending job review offer (#617), mirroring the PR flow's TTLs. */

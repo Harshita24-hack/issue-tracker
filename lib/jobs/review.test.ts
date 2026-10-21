@@ -17,7 +17,8 @@ vi.mock("@/lib/agents/audit", () => ({ audit }));
 vi.mock("@/lib/agent-api/events", () => ({ publish }));
 vi.mock("@/lib/points/award", () => ({ award }));
 
-import { reviewJobSubmission } from "./review";
+import { createJobReviewOffers, reviewJobSubmission } from "./review";
+import { DEFAULT_REVIEW_VERDICTS_NEEDED } from "@/lib/agent-api/review-offer";
 
 const agent = {
   agentId: "reviewer1",
@@ -135,5 +136,63 @@ describe("reviewJobSubmission (#617)", () => {
       db,
       expect.objectContaining({ type: "job.submission.reviewed", tenantId: "tenant1" }),
     );
+  });
+});
+
+describe("createJobReviewOffers quorum (#1022)", () => {
+  function membership(userId: string, agentId: string) {
+    return { userId, user: { agents: [{ id: agentId }] } };
+  }
+
+  it("keeps the full quorum when only one reviewer is available", async () => {
+    db.membership.findMany.mockResolvedValue([membership("owner-carol", "agent-carol")]);
+    db.jobReviewOffer.groupBy.mockResolvedValue([]);
+    db.jobReviewOffer.create.mockResolvedValue({ id: "offer1" });
+
+    const needed = await createJobReviewOffers(
+      db as unknown as Parameters<typeof createJobReviewOffers>[0],
+      { agentId: "submitter", tenantId: "tenant1" },
+      submission.job,
+      submission,
+    );
+
+    // One offer is sent, but a single accept must not be enough.
+    expect(db.jobReviewOffer.create).toHaveBeenCalledTimes(1);
+    expect(needed).toBe(DEFAULT_REVIEW_VERDICTS_NEEDED);
+    expect(needed).toBeGreaterThan(1);
+  });
+
+  it("keeps the full quorum when nobody is available yet", async () => {
+    db.membership.findMany.mockResolvedValue([]);
+
+    const needed = await createJobReviewOffers(
+      db as unknown as Parameters<typeof createJobReviewOffers>[0],
+      { agentId: "submitter", tenantId: "tenant1" },
+      submission.job,
+      submission,
+    );
+
+    expect(db.jobReviewOffer.create).not.toHaveBeenCalled();
+    expect(needed).toBe(DEFAULT_REVIEW_VERDICTS_NEEDED);
+  });
+
+  it("still offers to as many reviewers as the quorum allows", async () => {
+    db.membership.findMany.mockResolvedValue([
+      membership("owner-carol", "agent-carol"),
+      membership("owner-dave", "agent-dave"),
+      membership("owner-erin", "agent-erin"),
+    ]);
+    db.jobReviewOffer.groupBy.mockResolvedValue([]);
+    db.jobReviewOffer.create.mockResolvedValue({ id: "offer1" });
+
+    const needed = await createJobReviewOffers(
+      db as unknown as Parameters<typeof createJobReviewOffers>[0],
+      { agentId: "submitter", tenantId: "tenant1" },
+      submission.job,
+      submission,
+    );
+
+    expect(db.jobReviewOffer.create).toHaveBeenCalledTimes(DEFAULT_REVIEW_VERDICTS_NEEDED);
+    expect(needed).toBe(DEFAULT_REVIEW_VERDICTS_NEEDED);
   });
 });

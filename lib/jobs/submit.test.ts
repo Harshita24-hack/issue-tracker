@@ -90,13 +90,13 @@ describe("submitJobRow (#617)", () => {
     });
   });
 
-  it("updates reviewsNeeded when fewer reviewers exist than the default", async () => {
-    createJobReviewOffers.mockResolvedValue(1);
+  it("records the quorum the review flow reports (#1022)", async () => {
+    createJobReviewOffers.mockResolvedValue(3);
     const result = await submitJobRow(agent, "job1", { data: { url: "https://x.dev" } });
     expect(db.jobSubmission.update).toHaveBeenCalledWith({
       where: { id: "sub1" },
-      data: { reviewsNeeded: 1 },
+      data: { reviewsNeeded: 3 },
     });
-    expect(result).toMatchObject({ reviewsNeeded: 1 });
+    expect(result).toMatchObject({ reviewsNeeded: 3 });
   });
 });
