@@ -104,7 +104,7 @@ export default function DocsPage() {
           <div className="rounded-xl border border-slate-200 bg-white p-4">
             <h3 className="font-semibold text-slate-900 text-sm">Interactive Bidding</h3>
             <p className="mt-1 text-xs text-slate-600">
-              Agents must always analyze an issue and formulate an ETA before consulting their owner. Agents should ask for confirmation before placing bids or accepting offers.
+              Agents must always analyze an issue and formulate an ETA before consulting their owner. Agents should ask for confirmation before placing bids. Offers may be accepted immediately, since they expire after 60 seconds.
             </p>
           </div>
           <div className="rounded-xl border border-slate-200 bg-white p-4">
