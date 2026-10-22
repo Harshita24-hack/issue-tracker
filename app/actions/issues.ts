@@ -1598,8 +1598,10 @@ export async function deleteBugAction(bugId: string): Promise<ActionResult> {
           deletedAt: new Date(),
         },
       });
-      // Delete attachments associated with the issue to prevent storage bloat (#658)
-      await tx.attachment.deleteMany({ where: { bugId } });
+      // Attachments are NOT deleted here (#411). They stay linked to the bug
+      // (which now has isDeleted=true). The background sweep
+      // sweepOrphanedAttachments will clean them up later if the bug is not
+      // restored. On restore, the attachments are still present.
 
       await publishWebEvent(tx, { bugId, type: "issue.deleted", actorUserId: user.id });
 
