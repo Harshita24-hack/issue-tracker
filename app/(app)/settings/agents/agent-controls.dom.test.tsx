@@ -54,6 +54,17 @@ describe("AgentControls high-volume budget (#596)", () => {
     expect(screen.getByRole("option", { name: "Reviewer" })).toBeTruthy();
   });
 
+  it("labels the level and key project controls visibly (#404)", () => {
+    renderControls({
+      projects: [{ id: "project-1", name: "Ziki" }],
+      currentProjectId: "project-1",
+    });
+
+    expect(screen.getByText("Level")).toBeDefined();
+    expect(screen.getByText("Key project")).toBeDefined();
+    expect((screen.getByLabelText("Key project") as HTMLSelectElement).value).toBe("project-1");
+  });
+
   it("lets an admin enable high-volume with an optional expiry", async () => {
     renderControls({ canSetBurst: true });
 
