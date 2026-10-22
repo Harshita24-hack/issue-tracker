@@ -18,7 +18,7 @@ import { Avatar } from "@/components/avatar";
 export const metadata = { title: "Team" };
 
 type TeamPageProps = {
-  searchParams: Promise<{ role?: string | string[]; capacity?: string }>;
+  searchParams: Promise<{ role?: string | string[]; capacity?: string | string[] }>;
 };
 
 /** The team directory: displays workspace members, roles, points and active claim capacity. */
@@ -97,7 +97,9 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
 
   const pointsMap = new Map(points.map((row) => [row.userId, row._sum.points ?? 0]));
   const activeClaimMap = new Map(activeClaims.map((row) => [row.beneficiaryUserId, row._count._all]));
-  const showCapacityOnly = filters.capacity === "1";
+  const showCapacityOnly = Array.isArray(filters.capacity)
+    ? filters.capacity.includes("1")
+    : filters.capacity === "1";
   const selectedRole = typeof filters.role === "string" ? filters.role.toLowerCase() : "";
   const capacityScope = context.activeProjectId ? "selected project" : "workspace";
 

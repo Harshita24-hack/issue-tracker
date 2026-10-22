@@ -119,6 +119,20 @@ describe("team directory page", () => {
     expect(html).toContain("Grace");
   });
 
+  it("filters members by capacity when repeated query parameters are provided", async () => {
+    vi.mocked(prisma.issueClaim.groupBy).mockResolvedValue([
+      { beneficiaryUserId: "viewer-1", _count: { _all: 2 } },
+    ] as never);
+
+    const page = await TeamPage({
+      searchParams: Promise.resolve({ capacity: ["1", "1"] }),
+    });
+    const html = renderToStaticMarkup(page);
+
+    expect(html).not.toContain("Ada");
+    expect(html).toContain("Grace");
+  });
+
   it("does not query or display tenant data without a workspace", async () => {
     currentTenantIdFor.mockResolvedValue(null);
 
