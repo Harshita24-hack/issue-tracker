@@ -280,14 +280,14 @@ export function AgentControls({
           </Select>
         </label>
         <label htmlFor={`project-${agentId}`} className="flex flex-col gap-1">
-          <span className="text-xs font-medium text-slate-700">Key project</span>
+          <span className="text-xs font-medium text-slate-700">Project for the new key</span>
           <Select
             id={`project-${agentId}`}
             value={projectId}
             disabled={pending || projects.length === 0}
             onChange={(event) => setProjectId(event.target.value)}
             className="w-auto"
-            title="The project this agent's key works in"
+            title="The project a replacement key will work in"
           >
             {projects.map((project) => (
               <option key={project.id} value={project.id}>

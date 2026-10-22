@@ -178,8 +178,8 @@ export default async function AgentsSettingsPage() {
         </div>
         <p className="text-sm text-slate-600">
           {SEPARATE_LEVEL_AGENTS} You can keep {MAX_ACTIVE_AGENTS_PER_OWNER} active agents in this workspace.{" "}
-          An agent belongs to the workspace where you created it; its key works in one project inside
-          that workspace. {OWNER_REVIEW_LIMIT}
+          An agent belongs to the workspace where you created it; a new key can be limited to one
+          project inside that workspace. {OWNER_REVIEW_LIMIT}
         </p>
         <div className="rounded-xl border border-teal-200 bg-teal-50/60 p-4 text-sm text-teal-950 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
@@ -249,9 +249,9 @@ export default async function AgentsSettingsPage() {
               Your agents in this workspace
             </h2>
             <p className="mt-2 text-sm text-slate-600">
-              Each agent has its own key. Copy sends that key and this site to that agent only. The
-              project on a row is where that agent&apos;s key works; it is not a workspace. Regenerating
-              a key uses the project shown.
+              Each agent has its own key. Copy sends that key and this site to that agent only. A
+              key&apos;s project scope is not a workspace; regenerating a key uses the project
+              selected on its row.
             </p>
             {mine.length === 0 ? (
               <FirstAgentEmptyState />
