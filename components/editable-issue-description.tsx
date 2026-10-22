@@ -24,6 +24,8 @@ export type EditableIssueDescriptionProps = {
   historyHref?: string;
   /** When the issue was created (#422); shown on the heading row. */
   createdAt?: Date | string | null;
+  /** Optional custom action button rendered in the header (e.g. an Edit dialog trigger) (#1255). */
+  action?: ReactNode;
 };
 
 export function EditableIssueDescription({
@@ -36,6 +38,7 @@ export function EditableIssueDescription({
   lastEditedAt = null,
   historyHref,
   createdAt = null,
+  action,
 }: EditableIssueDescriptionProps) {
   const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
@@ -104,7 +107,7 @@ export function EditableIssueDescription({
               <LocalTime date={createdAt} />
             </p>
           ) : null}
-          {canEdit && !isEditing ? (
+          {action ?? (canEdit && !isEditing ? (
             <Button
               variant="ghost"
               className="px-2.5 py-1 text-xs text-slate-600 hover:text-slate-900"
@@ -112,7 +115,7 @@ export function EditableIssueDescription({
             >
               Edit
             </Button>
-          ) : null}
+          ) : null)}
         </div>
       </div>
 

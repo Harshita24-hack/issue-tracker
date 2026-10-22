@@ -59,8 +59,9 @@ describe("Bug detail header responsive layout (#698)", () => {
     );
     expect(pageSource).not.toContain("← Back to issues");
 
-    // Danger zone remains at the bottom of the page
-    expect(pageSource).toMatch(/Danger zone[\s\S]*?<DeleteIssueButton/);
+    // Danger zone is removed from the page body; delete is moved inside EditIssueDialog (#1051, #1255)
+    expect(pageSource).not.toContain("Danger zone");
+    expect(pageSource).toContain("EditIssueDialog");
   });
 
   it("places the back arrow beside the issue number with an accessible name (#451)", () => {
