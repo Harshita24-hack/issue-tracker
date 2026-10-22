@@ -5,6 +5,7 @@ import { changePasswordAction, type ChangePasswordResult } from "@/app/actions/s
 import { Button } from "@/components/ui/button";
 import { FieldError, useFieldErrors } from "@/components/ui/field-errors";
 import { PasswordInput } from "@/components/ui/password-input";
+import { Input } from "@/components/ui/input";
 
 const FORM_ID = "change-password";
 
@@ -39,6 +40,12 @@ export function ChangePasswordForm() {
         <label htmlFor="confirmPassword" className="text-sm font-medium text-slate-800">Confirm new password</label>
         <PasswordInput id="confirmPassword" name="confirmPassword" visibilityLabel="confirm new password" autoComplete="new-password" minLength={8} required {...attrs("confirmPassword")} />
         <FieldError formId={FORM_ID} field="confirmPassword" errors={fieldErrors} />
+      </div>
+      <div className="space-y-1.5">
+        <label htmlFor="code" className="text-sm font-medium text-slate-800">Two-factor code</label>
+        <Input id="code" name="code" autoComplete="one-time-code" placeholder="Required when two-factor is on" {...attrs("code")} />
+        <FieldError formId={FORM_ID} field="code" errors={fieldErrors} />
+        <p className="text-xs text-slate-500">Use a code from your authenticator app or a backup code.</p>
       </div>
       {result?.error && !result.field ? <p className="text-sm text-red-600" role="alert">{result.error}</p> : null}
       {result?.ok ? <p className="text-sm text-emerald-700" role="status">Password updated. Sign in again to continue.</p> : null}

@@ -224,6 +224,7 @@ export const changePasswordSchema = z
     currentPassword: z.string().min(1, "Enter your current password"),
     password: passwordField,
     confirmPassword: z.string().min(1, "Confirm your new password"),
+    code: z.string().trim().max(64, "Enter a valid two-factor code").optional(),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords do not match",

@@ -1,10 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const requireUser = vi.hoisted(() => vi.fn());
+const confirmIdentity = vi.hoisted(() => vi.fn());
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/auth-helpers", () => ({ requireUser }));
-vi.mock("@/lib/prisma", () => ({ prisma: { user: { update: vi.fn(), findUnique: vi.fn() } } }));
-vi.mock("bcryptjs", () => ({ compare: vi.fn(), hash: vi.fn() }));
+vi.mock("@/lib/prisma", () => ({
+  prisma: {
+    user: { update: vi.fn(), findUnique: vi.fn() },
+    agentApiKey: { updateMany: vi.fn() },
+    $transaction: vi.fn(),
+  },
+}));
+vi.mock("@/lib/two-factor", () => ({ confirmIdentity }));
+vi.mock("bcryptjs", () => ({ hash: vi.fn() }));
 vi.mock("@/lib/mail", () => ({ smtpConfigured: vi.fn(), sendMail: vi.fn() }));
 vi.mock("@/lib/rate-limit", () => ({
   RATE_LIMIT_MESSAGE: "You're doing that too fast. Please wait a moment.",
@@ -13,16 +21,19 @@ vi.mock("@/lib/rate-limit", () => ({
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { compare, hash } from "bcryptjs";
+import { hash } from "bcryptjs";
 import { smtpConfigured, sendMail } from "@/lib/mail";
 import { consumeAuthRateLimit } from "@/lib/rate-limit";
+import { confirmIdentity as confirmIdentityImport } from "@/lib/two-factor";
 import { changePasswordAction, setKeyboardShortcutsAction, setWalletAddressAction, updateDisplayNameAction } from "./settings";
 
 const update = prisma.user.update as unknown as ReturnType<typeof vi.fn>;
 const findUnique = prisma.user.findUnique as unknown as ReturnType<typeof vi.fn>;
+const updateMany = prisma.agentApiKey.updateMany as unknown as ReturnType<typeof vi.fn>;
+const transaction = prisma.$transaction as unknown as ReturnType<typeof vi.fn>;
 // bcryptjs's callback overloads make vi.mocked() expect a void return.
-const compareMock = compare as unknown as ReturnType<typeof vi.fn>;
 const hashMock = hash as unknown as ReturnType<typeof vi.fn>;
+const confirmIdentityMock = confirmIdentityImport as unknown as ReturnType<typeof vi.fn>;
 const form = (name: string) => {
   const f = new FormData();
   f.set("name", name);
@@ -34,6 +45,10 @@ beforeEach(() => {
   requireUser.mockResolvedValue({ id: "u1", role: "user" });
   vi.mocked(consumeAuthRateLimit).mockResolvedValue({ allowed: true, retryAfterMs: 0 });
   vi.mocked(smtpConfigured).mockReturnValue(false);
+  confirmIdentityMock.mockResolvedValue({ ok: true });
+  update.mockResolvedValue({});
+  updateMany.mockResolvedValue({ count: 1 });
+  transaction.mockImplementation((operations: unknown[]) => Promise.all(operations));
 });
 
 describe("updateDisplayNameAction (#293)", () => {
@@ -136,38 +151,67 @@ describe("setWalletAddressAction (#618)", () => {
   });
 });
 
-describe("changePasswordAction (#570)", () => {
-  const passwordForm = (currentPassword = "OldPassw0rd!", password = "NewPassw0rd!") => {
+describe("changePasswordAction (#570, #568)", () => {
+  const passwordForm = (currentPassword = "OldPassw0rd!", password = "NewPassw0rd!", code?: string) => {
     const f = new FormData();
     f.set("currentPassword", currentPassword);
     f.set("password", password);
     f.set("confirmPassword", password);
+    if (code !== undefined) f.set("code", code);
     return f;
   };
 
-  it("updates only the signed-in user's password and invalidates every session", async () => {
+  it("updates only the signed-in user's password, invalidates sessions, and revokes agent keys", async () => {
     findUnique.mockResolvedValue({ email: "ada@example.com", passwordHash: "old-hash" });
-    compareMock.mockResolvedValue(true);
     hashMock.mockResolvedValue("new-hash");
 
     await expect(changePasswordAction(undefined, passwordForm())).resolves.toEqual({ ok: true });
 
     expect(consumeAuthRateLimit).toHaveBeenCalledWith("changePassword", { email: "user:u1", ip: null });
+    expect(confirmIdentityMock).toHaveBeenCalledWith("u1", { password: "OldPassw0rd!", code: undefined });
+    expect(transaction).toHaveBeenCalledTimes(1);
     expect(update).toHaveBeenCalledWith({
       where: { id: "u1" },
       data: { passwordHash: "new-hash", sessionVersion: { increment: 1 } },
     });
+    expect(updateMany).toHaveBeenCalledWith({
+      where: { revokedAt: null, agent: { ownerUserId: "u1" } },
+      data: { revokedAt: expect.any(Date) },
+    });
+  });
+
+  it("asks for and forwards a two-factor code when the account has one", async () => {
+    findUnique.mockResolvedValue({ email: "ada@example.com", passwordHash: "old-hash" });
+    hashMock.mockResolvedValue("new-hash");
+
+    await expect(changePasswordAction(undefined, passwordForm("OldPassw0rd!", "NewPassw0rd!", "123456"))).resolves.toEqual({ ok: true });
+
+    expect(confirmIdentityMock).toHaveBeenCalledWith("u1", { password: "OldPassw0rd!", code: "123456" });
+  });
+
+  it("does not change the password when the two-factor code is missing or wrong", async () => {
+    findUnique.mockResolvedValue({ email: "ada@example.com", passwordHash: "old-hash" });
+    confirmIdentityMock.mockResolvedValue({ ok: false, error: "Enter a code from your authenticator app or a backup code." });
+
+    await expect(changePasswordAction(undefined, passwordForm())).resolves.toMatchObject({
+      field: "code",
+      error: expect.stringMatching(/code/),
+    });
+    expect(update).not.toHaveBeenCalled();
+    expect(updateMany).not.toHaveBeenCalled();
+    expect(transaction).not.toHaveBeenCalled();
   });
 
   it("rejects an incorrect current password without changing it", async () => {
     findUnique.mockResolvedValue({ email: "ada@example.com", passwordHash: "old-hash" });
-    compareMock.mockResolvedValue(false);
+    confirmIdentityMock.mockResolvedValue({ ok: false, error: "That password isn't right." });
 
     await expect(changePasswordAction(undefined, passwordForm("wrong password"))).resolves.toMatchObject({
       field: "currentPassword",
-      error: expect.stringMatching(/incorrect/),
+      error: "That password isn't right.",
     });
     expect(update).not.toHaveBeenCalled();
+    expect(updateMany).not.toHaveBeenCalled();
   });
 
   it("does not check credentials or update when password-change attempts are rate limited", async () => {
@@ -177,12 +221,12 @@ describe("changePasswordAction (#570)", () => {
       error: "You're doing that too fast. Please wait a moment.",
     });
     expect(findUnique).not.toHaveBeenCalled();
+    expect(confirmIdentityMock).not.toHaveBeenCalled();
     expect(update).not.toHaveBeenCalled();
   });
 
   it("sends a security notice when mail is available, without delaying the password change", async () => {
     findUnique.mockResolvedValue({ email: "ada@example.com", passwordHash: "old-hash" });
-    compareMock.mockResolvedValue(true);
     hashMock.mockResolvedValue("new-hash");
     vi.mocked(smtpConfigured).mockReturnValue(true);
     vi.mocked(sendMail).mockResolvedValue(undefined);

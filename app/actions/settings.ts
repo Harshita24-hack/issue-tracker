@@ -11,11 +11,12 @@ import { walletAddressSchema } from "@/lib/validations/issue";
 import { isAdmin } from "@/lib/roles";
 import { fromZodError, fieldError, type FieldErrorResult } from "@/lib/form-errors";
 import { appCookieOptions } from "@/lib/cookie-options";
-import { compare, hash } from "bcryptjs";
+import { hash } from "bcryptjs";
 import { sendMail, smtpConfigured } from "@/lib/mail";
 import { logger } from "@/lib/logger";
 import { consumeAuthRateLimit, RATE_LIMIT_MESSAGE } from "@/lib/rate-limit";
 import { changePasswordSchema } from "@/lib/validations/issue";
+import { confirmIdentity } from "@/lib/two-factor";
 
 export type SettingsResult = { error?: string; ok?: boolean; emailNotifications?: boolean };
 
@@ -39,6 +40,7 @@ export async function changePasswordAction(
     currentPassword: formData.get("currentPassword"),
     password: formData.get("password"),
     confirmPassword: formData.get("confirmPassword"),
+    code: formData.get("code") ?? undefined,
   });
   if (!parsed.success) return fromZodError(parsed.error);
 
@@ -54,19 +56,31 @@ export async function changePasswordAction(
     return { error: "Password changes are only available for password-based accounts." };
   }
 
-  if (!(await compare(parsed.data.currentPassword, account.passwordHash))) {
-    return {
-      error: "Your current password is incorrect.",
-      field: "currentPassword",
-      fieldErrors: { currentPassword: "Your current password is incorrect." },
-    };
+  // Security changes re-authenticate inside the change itself. When two-factor
+  // is on this also requires a current TOTP or backup code (#568).
+  const identity = await confirmIdentity(user.id, {
+    password: parsed.data.currentPassword,
+    code: parsed.data.code,
+  });
+  if (!identity.ok) {
+    if (identity.error.startsWith("Too many attempts")) return { error: identity.error };
+    const field = /code|authenticator|backup/i.test(identity.error) ? "code" : "currentPassword";
+    return { error: identity.error, field, fieldErrors: { [field]: identity.error } };
   }
 
   const passwordHash = await hash(parsed.data.password, 10);
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { passwordHash, sessionVersion: { increment: 1 } },
-  });
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash, sessionVersion: { increment: 1 } },
+    }),
+    // A password change must not leave live agent keys behind (#568), the same
+    // way a reset does. The agent rows stay so owners can regenerate keys.
+    prisma.agentApiKey.updateMany({
+      where: { revokedAt: null, agent: { ownerUserId: user.id } },
+      data: { revokedAt: new Date() },
+    }),
+  ]);
 
   // Unlike reset links, this is an informational notice: only deliver it
   // when a real SMTP transport exists (not development's console mailer).
