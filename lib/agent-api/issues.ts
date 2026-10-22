@@ -20,7 +20,7 @@ import { commentDepth, MAX_COMMENT_DEPTH } from "@/lib/comments";
 import { attachmentIdsInMarkdown, linkAttachments } from "@/lib/attachment-link";
 import { MAX_ATTACHMENTS_PER_ITEM } from "@/lib/attachments";
 import { publish } from "@/lib/agent-api/events";
-import { isConfirmed } from "@/lib/agent-api/validation";
+import { isConfirmed, issueReadiness } from "@/lib/agent-api/validation";
 import { notifyLater } from "@/lib/notify";
 import type { NotificationEvent } from "@/lib/notifications";
 import { logger } from "@/lib/logger";
@@ -221,6 +221,8 @@ export async function readAgentIssue(scope: Scope, id: string) {
     ...publicIssue,
     confirmed,
     intake: intakeKind({ status: issue.status, voteCount, confirmed }),
+    // #492: which gates are still open, as counts only.
+    readiness: await issueReadiness(issue.id),
   };
 }
 
