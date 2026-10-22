@@ -9,21 +9,25 @@ function bodyStream(totalBytes: number, chunkSize = 512 * 1024) {
   let sent = 0;
   let pulls = 0;
   let cancelled = false;
-  const stream = new ReadableStream<Uint8Array>({
-    pull(controller) {
-      pulls++;
-      if (sent >= totalBytes) {
-        controller.close();
-        return;
-      }
-      const size = Math.min(chunkSize, totalBytes - sent);
-      sent += size;
-      controller.enqueue(new Uint8Array(size));
+  const stream = new ReadableStream<Uint8Array>(
+    {
+      pull(controller) {
+        pulls++;
+        if (sent >= totalBytes) {
+          controller.close();
+          return;
+        }
+        const size = Math.min(chunkSize, totalBytes - sent);
+        sent += size;
+        controller.enqueue(new Uint8Array(size));
+      },
+      cancel() {
+        cancelled = true;
+      },
     },
-    cancel() {
-      cancelled = true;
-    },
-  });
+    // No prefetch: a pull then means someone actually read from the body.
+    { highWaterMark: 0 },
+  );
   return { stream, stats: () => ({ pulls, sent, cancelled }) };
 }
 
@@ -54,9 +58,7 @@ describe("readLimitedMultipart (#485)", () => {
     const result = await readLimitedMultipart(streamedRequest(stream, { "content-length": "12abc" }), CAP);
 
     expect(result).toMatchObject({ ok: false, status: 400, reason: "invalid-content-length" });
-    // Only undici's initial prefetch may happen; the guard never reads the body.
-    expect(stats().pulls).toBeLessThanOrEqual(1);
-    expect(stats().sent).toBeLessThanOrEqual(512 * 1024);
+    expect(stats().pulls).toBe(0);
   });
 
   it("rejects a negative content-length", async () => {
@@ -70,7 +72,7 @@ describe("readLimitedMultipart (#485)", () => {
     const result = await readLimitedMultipart(streamedRequest(stream, { "content-length": String(CAP + 1) }), CAP);
 
     expect(result).toMatchObject({ ok: false, status: 413, reason: "too-large" });
-    expect(stats().pulls).toBeLessThanOrEqual(1);
+    expect(stats().pulls).toBe(0);
   });
 
   it("still caps a body whose content-length under-reports its size", async () => {
