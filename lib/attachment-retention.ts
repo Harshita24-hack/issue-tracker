@@ -72,10 +72,9 @@ export async function pruneUnlinkedUploads(
 /**
  * Storage cleanup job to purge orphaned attachments (#658):
  * 1. Unattached uploads older than TTL (default 24 hours).
- *
- * Attachments of soft-deleted issues and comments are deliberately kept:
- * deletion only hides them, and restoring an issue must bring its screenshots
- * and logs back (#411). A permanent purge, if added later, owns that cleanup.
+ * 2. Attachments of issues/comments soft-deleted beyond the restore window
+ *    (default 7 days, #411). Within the window they are kept so restoring the
+ *    issue brings its screenshots and logs back.
  *
  * Runs in bounded batches to ensure predictable execution time.
  */

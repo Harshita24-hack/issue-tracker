@@ -54,7 +54,9 @@ describe("pruneUnlinkedUploads (#543)", () => {
 
 describe("sweepOrphanedAttachments (#658)", () => {
   it("purges unlinked uploads older than TTL", async () => {
-    const findMany = vi.fn().mockResolvedValueOnce([{ id: "u-1" }, { id: "u-2" }]);
+    const findMany = vi.fn()
+      .mockResolvedValueOnce([{ id: "u-1" }, { id: "u-2" }])
+      .mockResolvedValue([]);
     const deleteMany = vi.fn().mockResolvedValueOnce({ count: 2 });
 
     const db = { attachment: { findMany, deleteMany } };
@@ -64,8 +66,8 @@ describe("sweepOrphanedAttachments (#658)", () => {
     expect(result).toEqual({ unlinked: 2, deletedParents: 0, total: 2 });
 
     const cutoff = new Date(now.getTime() - ORPHANED_UPLOAD_TTL_MS);
-    expect(findMany).toHaveBeenCalledTimes(1);
-    expect(findMany).toHaveBeenCalledWith({
+    expect(findMany).toHaveBeenCalledTimes(3);
+    expect(findMany).toHaveBeenNthCalledWith(1, {
       where: { bugId: null, commentId: null, redesignProposalId: null, createdAt: { lt: cutoff } },
       select: { id: true },
       take: 500,
@@ -88,7 +90,6 @@ describe("sweepOrphanedAttachments (#658)", () => {
       .mockResolvedValueOnce([{ id: "b-1" }]) // deleted bug past cutoff
       .mockResolvedValueOnce([{ id: "c-1" }]); // deleted comment past cutoff
     const deleteMany = vi.fn()
-      .mockResolvedValueOnce({ count: 0 })
       .mockResolvedValueOnce({ count: 1 })
       .mockResolvedValueOnce({ count: 1 });
 
@@ -116,10 +117,10 @@ describe("sweepOrphanedAttachments (#658)", () => {
     });
 
     // Verify deleteMany re-checks the deletedAt cutoff (race condition fix)
-    expect(deleteMany).toHaveBeenNthCalledWith(2, {
+    expect(deleteMany).toHaveBeenNthCalledWith(1, {
       where: { id: { in: ["b-1"] }, bug: { isDeleted: true, deletedAt: { lt: deletedParentCutoff } } },
     });
-    expect(deleteMany).toHaveBeenNthCalledWith(3, {
+    expect(deleteMany).toHaveBeenNthCalledWith(2, {
       where: { id: { in: ["c-1"] }, comment: { deletedAt: { lt: deletedParentCutoff } } },
     });
   });
