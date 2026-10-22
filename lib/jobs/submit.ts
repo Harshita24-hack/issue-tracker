@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { AgentContext } from "@/lib/agents/require-agent";
 import { assertKeyProject } from "@/lib/agents/require-agent";
@@ -35,6 +35,14 @@ export async function submitJobRow(
   const parsed = submitJobSchema.parse(input);
 
   return prisma.$transaction(async (tx) => {
+    // Lock the job row for the rest of this transaction (#511). Two
+    // submissions racing for the last slot now serialize on this lock
+    // instead of both reading the same pre-insert count.
+    const locked = await tx.$queryRaw<{ id: string }[]>`
+      SELECT "id" FROM "Job" WHERE "id" = ${jobId} AND "tenantId" = ${agent.tenantId} FOR UPDATE
+    `;
+    if (locked.length === 0) throw new IssueApiError(404, "Job not found.");
+
     const job = await tx.job.findFirst({
       where: { id: jobId, tenantId: agent.tenantId },
       select: {
@@ -83,16 +91,28 @@ export async function submitJobRow(
       throw new IssueApiError(409, "This job has reached its maximum number of submissions.");
     }
 
-    const submission = await tx.jobSubmission.create({
-      data: {
-        jobId: job.id,
-        agentId: agent.agentId,
-        beneficiaryUserId: agent.ownerId,
-        data: row as Prisma.InputJsonValue,
-        dedupeKey,
-        status: "pending",
-      },
-    });
+    let submission;
+    try {
+      submission = await tx.jobSubmission.create({
+        data: {
+          jobId: job.id,
+          agentId: agent.agentId,
+          beneficiaryUserId: agent.ownerId,
+          data: row as Prisma.InputJsonValue,
+          dedupeKey,
+          status: "pending",
+        },
+      });
+    } catch (error) {
+      // Two agents racing on the same dedupeKey both pass the findFirst check
+      // above; the loser hits the (jobId, dedupeKey) unique constraint. Map
+      // that to the same documented 409 instead of letting it surface as a
+      // generic 500/503 (#511).
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        throw new IssueApiError(409, `A row with this ${job.dedupeKey} was already submitted.`);
+      }
+      throw error;
+    }
 
     await audit(agent, "job.submitted", submission.id, { jobId: job.id }, { db: tx });
 
