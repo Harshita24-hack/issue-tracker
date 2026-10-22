@@ -942,7 +942,11 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
             organizationRole={bug.assigneeId ? organizationRoles[bug.assigneeId] : null} */}
         <IssueMetadataCard
           bug={bug}
-          lastActivityAt={latestStatusChange?.createdAt}
+          lastActivityAt={
+            latestStatusChange?.createdAt && latestStatusChange.createdAt > bug.updatedAt
+              ? latestStatusChange.createdAt
+              : bug.updatedAt
+          }
           organizationRoles={organizationRoles}
           canSelfAssign={canSelfAssign}
           isAssignee={isAssignee}
