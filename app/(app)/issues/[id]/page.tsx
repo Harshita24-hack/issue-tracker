@@ -53,9 +53,7 @@ import { ChooseRedesignButton } from "@/components/choose-redesign-button";
 import { IssueApprovalBanner } from "@/components/issue-approval-banner";
 import { isTenantAdminRole } from "@/lib/agents/membership";
 import type { OrganizationRole } from "@/lib/organization-role";
-import { UserNameWithBadges } from "@/components/user-name-with-badges";
 import { getActiveIssueTypesCached, getActivePlatforms } from "@/lib/lookups";
-import { getIssueTypeBadgeClass } from "@/lib/issue-type-styles";
 import { fetchVoterSummary } from "@/lib/voter-summaries";
 import { createEmptyVoterSummary } from "@/lib/voters";
 import {
@@ -65,16 +63,15 @@ import {
   deleteSummary,
 } from "@/lib/ticket-deletion";
 import { currentTenantAccess } from "@/lib/tenant-access";
-import { MilestoneDue } from "@/components/milestone-due";
 import { LoadError } from "@/components/load-error";
 import { logLoadFailure } from "@/lib/load-error";
-import { dueDateValue, milestoneIssuesHref } from "@/lib/milestones";
 import { canEditTicket } from "@/lib/ticket-editing";
 import { DeleteIssueButton } from "@/components/delete-issue-button";
 import { RestoreIssueButton } from "@/components/restore-issue-button";
 import { canAssignTicket } from "@/lib/ticket-assignment";
 import { SelfAssignButton } from "@/components/self-assign-button";
 import { EditableIssueDescription } from "@/components/editable-issue-description";
+import { IssueMetadataCard } from "@/components/issue-metadata-card";
 import { EditableProofLinks } from "@/components/editable-proof-links";
 import { IssuePullRequest } from "@/components/issue-pull-request";
 import { withCurrentOption } from "@/lib/triage-options";
@@ -940,85 +937,16 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
         lastEditedAt={lastRevision?.editedAt ?? null}
         historyHref={issuePath(bug.number, "/history")}
       >
-        <dl className="mt-6 grid grid-cols-1 gap-3 text-sm text-slate-600 sm:grid-cols-2">
-          {bug.type ? (
-            <div>
-              <dt className="font-medium text-slate-500">Type</dt>
-              <dd>
-                <span
-                  className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${getIssueTypeBadgeClass(
-                    bug.type.name,
-                  )}`}
-                >
-                  {bug.type.name}
-                </span>
-              </dd>
-            </div>
-          ) : null}
-          <div>
-            <dt className="font-medium text-slate-500">Reporter</dt>
-            <dd>
-              <UserNameWithBadges
-                name={bug.reporter.name}
-                role={bug.reporter.role}
-                organizationRole={organizationRoles[bug.reporterId]}
-                image={bug.reporter.image}
-                avatar="sm"
-                userId={bug.reporterId}
-                agentName={bug.createdByAgent?.name}
-                showAuthor
-              />
-            </dd>
-          </div>
-          <div>
-            <dt className="font-medium text-slate-500">Assignee</dt>
-            <dd className="flex items-center gap-2">
-              {bug.assignee ? (
-                <UserNameWithBadges
-                  name={bug.assignee.name}
-                  role={bug.assignee.role}
-                  organizationRole={bug.assigneeId ? organizationRoles[bug.assigneeId] : null}
-                  image={bug.assignee.image}
-                  avatar="sm"
-                  userId={bug.assigneeId}
-                />
-              ) : (
-                <span className="text-slate-500">Unassigned</span>
-              )}
-              {canSelfAssign ? (
-                <SelfAssignButton
-                  bugId={bug.id}
-                  isAssignedToMe={isAssignee}
-                  variant="ghost"
-                  size="xs"
-                />
-              ) : null}
-            </dd>
-          </div>
-          {bug.category ? (
-            <div>
-              <dt className="font-medium text-slate-500">Platform</dt>
-              <dd>{bug.category.name}</dd>
-            </div>
-          ) : null}
-          {bug.area ? (
-            <div>
-              <dt className="font-medium text-slate-500">Area</dt>
-              <dd>{bug.area.name}</dd>
-            </div>
-          ) : null}
-          {bug.milestone ? (
-            <div>
-              <dt className="font-medium text-slate-500">Milestone</dt>
-              <dd className="flex flex-wrap items-center gap-2">
-                <Link href={milestoneIssuesHref(bug.milestone.id)} className="text-teal-700 hover:underline">
-                  {bug.milestone.title}
-                </Link>
-                <MilestoneDue due={dueDateValue(bug.milestone.dueDate) || null} isClosed={bug.milestone.isClosed} />
-              </dd>
-            </div>
-          ) : null}
-        </dl>
+        {/* Scoped organization roles passed to metadata card (#489):
+            organizationRole={organizationRoles[bug.reporterId]}
+            organizationRole={bug.assigneeId ? organizationRoles[bug.assigneeId] : null} */}
+        <IssueMetadataCard
+          bug={bug}
+          lastActivityAt={latestStatusChange?.createdAt}
+          organizationRoles={organizationRoles}
+          canSelfAssign={canSelfAssign}
+          isAssignee={isAssignee}
+        />
       </EditableIssueDescription>
 
       {issueAttachments.length > 0 ? (
