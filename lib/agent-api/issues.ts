@@ -12,7 +12,7 @@ import { parsePlatformFilter, platformFilterWhere } from "@/lib/platform-filter"
 import { boundSearchTerm, escapeSearchQuery } from "@/lib/search";
 import { parseProjectAreaFilter, projectAreaFilterWhere } from "@/lib/project-area-filter";
 import { intakeKind, openIssueStages, type IssueStage } from "@/lib/issue-stage";
-import { createIssueWithPolicy, cursorOrderBy, cursorWhere, decodeCursor, hashCreateRequest, pageSize, toPage, type IssueCursor } from "@/lib/agent-api/create-policy";
+import { createIssueWithPolicy, cursorOrderBy, cursorWhere, decodeCursor, DEFAULT_PAGE_SIZE, hashCreateRequest, MAX_PAGE_SIZE, pageSize, parseLimitStrict, toPage, type IssueCursor } from "@/lib/agent-api/create-policy";
 import { createdSummary, commentedSummary, commentPreview } from "@/lib/activity-log";
 import { extractMentionedUserIds, normalizeMentions } from "@/lib/mentions";
 import { commentDepth, MAX_COMMENT_DEPTH } from "@/lib/comments";
@@ -179,7 +179,7 @@ export async function listAgentIssues(scope: Scope, params: URLSearchParams) {
     if (ids.length === 0) return { items: [], nextCursor: null };
     filtered.id = { in: ids };
   }
-  const where: Prisma.BugWhereInput = { ...filtered, ...cursorWhere(cursor) };
+  const where: Prisma.BugWhereInput = { ...filtered, ...(cursor ? cursorWhere(cursor) : {}) };
   const rows = await prisma.bug.findMany({ where, orderBy: cursorOrderBy(), take: limit + 1, select: issueSelect });
   return toPage(rows, limit);
 }
@@ -247,7 +247,10 @@ export async function listAgentIssueComments(scope: Scope, id: string, params: U
   const cursorRaw = params.get("after");
   const cursor = decodeCursor(cursorRaw);
   if (cursorRaw !== null && !cursor) throw new IssueApiError(400, "Invalid cursor.");
-  const limit = pageSize(params.get("limit"));
+  const limitRaw = params.get("limit");
+  const limitResult = parseLimitStrict(limitRaw, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
+  if (!limitResult.ok) throw new IssueApiError(422, limitResult.error);
+  const limit = limitResult.value;
   const typeParam = params.get("type");
   const validTypes = ["comment", "bid", "review", "delivery", "request_to_merge"];
   if (typeParam && !validTypes.includes(typeParam)) {

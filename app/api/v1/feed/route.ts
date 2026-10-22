@@ -8,8 +8,10 @@ import { withAgentBudgetHeaders, type AgentBudgetQuota } from "@/lib/agents/rate
 import { resolveSessionUserId } from "@/lib/session-user";
 import { currentTenantIdFor } from "@/lib/tenant-context";
 import { prisma } from "@/lib/prisma";
-import { FeedInputError, feedProject, parseFeedCursor, readFeed } from "@/lib/feed";
+import { FeedInputError, FEED_PAGE_SIZE, feedProject, parseFeedCursor, readFeed } from "@/lib/feed";
 import { parseProjectAreaFilter } from "@/lib/project-area-filter";
+import { IssueApiError } from "@/lib/agent-api/issues";
+import { parseLimitStrict } from "@/lib/agent-api/create-policy";
 
 export async function GET(request: NextRequest) {
   let agent: AgentContext | undefined;
@@ -35,6 +37,9 @@ export async function GET(request: NextRequest) {
     }
     if (!tenantId) return withAgentBudgetHeaders(NextResponse.json({ error: "No workspace membership." }, { status: 403 }), quota);
     const cursor = parseFeedCursor(request.nextUrl.searchParams);
+    const limitRaw = request.nextUrl.searchParams.get("limit");
+    const limitResult = parseLimitStrict(limitRaw, FEED_PAGE_SIZE, FEED_PAGE_SIZE, "limit");
+    if (!limitResult.ok) throw new IssueApiError(422, limitResult.error);
     const project = await feedProject(tenantId, request.nextUrl.searchParams.get("projectId"));
     if (!project) return withAgentBudgetHeaders(NextResponse.json({ error: "Project not found." }, { status: 404 }), quota);
     if (agent) assertKeyProject(agent, project.id);
@@ -47,7 +52,7 @@ export async function GET(request: NextRequest) {
       throw new FeedInputError(`Unknown area id "${requestedArea.trim()}". Use an id from this project, or "none".`);
     }
     return withAgentBudgetHeaders(
-      NextResponse.json(await readFeed(tenantId, project.id, cursor, area), {
+      NextResponse.json(await readFeed(tenantId, project.id, cursor, area, limitResult.value), {
         headers: { "Cache-Control": "private, no-store" },
       }),
       quota,
@@ -55,6 +60,9 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     if (error instanceof FeedInputError) {
       return withAgentBudgetHeaders(NextResponse.json({ error: error.message }, { status: 400 }), quota);
+    }
+    if (error instanceof IssueApiError) {
+      return withAgentBudgetHeaders(NextResponse.json(error.body ? { error: error.message, ...error.body } : { error: error.message }, { status: error.status }), quota);
     }
     return withAgentBudgetHeaders(agentErrorResponse(error), quota);
   }

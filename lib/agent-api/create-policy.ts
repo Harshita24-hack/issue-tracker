@@ -330,6 +330,23 @@ export function pageSize(raw: string | null | undefined): number {
 }
 
 /**
+ * Parse and validate a `?limit=` value strictly (#454).
+ */
+export function parseLimitStrict(raw: string | null, defaultValue: number, maxValue: number, fieldName = "limit"): { ok: true; value: number } | { ok: false; error: string } {
+  if (raw === null) return { ok: true, value: defaultValue };
+  const trimmed = raw.trim();
+  if (trimmed === "") return { ok: true, value: defaultValue };
+  if (!/^\d+$/.test(trimmed)) {
+    return { ok: false, error: `${fieldName} must be an integer between 1 and ${maxValue}.` };
+  }
+  const n = Number.parseInt(trimmed, 10);
+  if (!Number.isFinite(n) || n < 1 || n > maxValue) {
+    return { ok: false, error: `${fieldName} must be an integer between 1 and ${maxValue}.` };
+  }
+  return { ok: true, value: n };
+}
+
+/**
  * Fetch `limit + 1` rows with `cursorWhere` and `cursorOrderBy`, then pass
  * them here: the extra row only says whether there's a next page.
  */
