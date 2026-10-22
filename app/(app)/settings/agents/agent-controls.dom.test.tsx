@@ -60,9 +60,20 @@ describe("AgentControls high-volume budget (#596)", () => {
       currentProjectId: "project-1",
     });
 
-    expect(screen.getByText("Level")).toBeDefined();
-    expect(screen.getByText("Key project")).toBeDefined();
-    expect((screen.getByLabelText("Key project") as HTMLSelectElement).value).toBe("project-1");
+    const level = screen.getByLabelText("Level") as HTMLSelectElement;
+    const project = screen.getByLabelText("Key project") as HTMLSelectElement;
+    expect(project.value).toBe("project-1");
+
+    for (const [text, control] of [
+      [screen.getByText("Level"), level],
+      [screen.getByText("Key project"), project],
+    ] as const) {
+      const label = text.closest("label");
+      expect(label).not.toBeNull();
+      expect(label?.htmlFor).toBe(control.id);
+      expect(label?.className ?? "").not.toContain("sr-only");
+      expect(text.className).not.toContain("sr-only");
+    }
   });
 
   it("lets an admin enable high-volume with an optional expiry", async () => {
