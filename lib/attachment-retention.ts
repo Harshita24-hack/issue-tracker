@@ -117,8 +117,13 @@ export async function sweepOrphanedAttachments(
     take: batchSize,
   });
   if (staleBugs.length > 0) {
+    // Re-check "still deleted" in the delete itself, in case a concurrent
+    // restoreBugAction re-attached the bug (set isDeleted=false).
     const removed = await db.attachment.deleteMany({
-      where: { id: { in: staleBugs.map((row) => row.id) } },
+      where: {
+        id: { in: staleBugs.map((row) => row.id) },
+        bug: { isDeleted: true },
+      },
     });
     deletedParents += removed.count;
   }
@@ -130,8 +135,13 @@ export async function sweepOrphanedAttachments(
     take: batchSize,
   });
   if (staleComments.length > 0) {
+    // Re-check "still deleted" in the delete itself, in case a concurrent
+    // restore or undelete re-attached the comment.
     const removed = await db.attachment.deleteMany({
-      where: { id: { in: staleComments.map((row) => row.id) } },
+      where: {
+        id: { in: staleComments.map((row) => row.id) },
+        comment: { deletedAt: { not: null } },
+      },
     });
     deletedParents += removed.count;
   }
