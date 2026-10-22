@@ -14,6 +14,10 @@ export const UNLINKED_UPLOAD_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 /** Default TTL for orphaned uploads cleanup: 24 hours (#658). */
 export const ORPHANED_UPLOAD_TTL_MS = 24 * 60 * 60 * 1000;
 
+/** How long a soft-deleted issue/comment may be restored before its
+ *  attachments are permanently purged. Default 7 days (#411). */
+export const DELETED_PARENT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
 /** How often (1 in N uploads) the site-wide sweep also runs. */
 export const SITE_SWEEP_EVERY = 50;
 
@@ -80,6 +84,7 @@ export async function sweepOrphanedAttachments(
   options: {
     now?: Date;
     ttlMs?: number;
+    deletedParentTtlMs?: number;
     sweep?: boolean;
     batchSize?: number;
   } = {},
@@ -87,6 +92,7 @@ export async function sweepOrphanedAttachments(
   const {
     now = new Date(),
     ttlMs = ORPHANED_UPLOAD_TTL_MS,
+    deletedParentTtlMs = DELETED_PARENT_TTL_MS,
     sweep = Math.random() * SITE_SWEEP_EVERY < 1,
     batchSize = SWEEP_BATCH,
   } = options;
@@ -94,6 +100,7 @@ export async function sweepOrphanedAttachments(
   if (!sweep) return { unlinked: 0, deletedParents: 0, total: 0 };
 
   const cutoff = new Date(now.getTime() - ttlMs);
+  const deletedParentCutoff = new Date(now.getTime() - deletedParentTtlMs);
 
   // Purge unattached uploads older than TTL. Re-check "still unlinked" in the
   // delete itself, in case one was attached meanwhile.
@@ -113,5 +120,55 @@ export async function sweepOrphanedAttachments(
     unlinked = removed.count;
   }
 
-  return { unlinked, deletedParents: 0, total: unlinked };
+  // Purge attachments whose parent bug was soft-deleted beyond the restore window.
+  // Re-check "still deleted past cutoff" in the delete, in case a concurrent
+  // restoreBugAction re-attached the bug.
+  const staleBugs = await db.attachment.findMany({
+    where: {
+      bug: {
+        isDeleted: true,
+        deletedAt: { lt: deletedParentCutoff },
+      },
+    },
+    select: { id: true },
+    take: batchSize,
+  });
+  let deletedParents = 0;
+  if (staleBugs.length > 0) {
+    const removed = await db.attachment.deleteMany({
+      where: {
+        id: { in: staleBugs.map((row) => row.id) },
+        bug: {
+          isDeleted: true,
+          deletedAt: { lt: deletedParentCutoff },
+        },
+      },
+    });
+    deletedParents += removed.count;
+  }
+
+  // Purge attachments whose parent comment was deleted beyond the restore window.
+  // Re-check "still deleted past cutoff" in the delete, in case of a concurrent restore.
+  const staleComments = await db.attachment.findMany({
+    where: {
+      comment: {
+        deletedAt: { lt: deletedParentCutoff },
+      },
+    },
+    select: { id: true },
+    take: batchSize,
+  });
+  if (staleComments.length > 0) {
+    const removed = await db.attachment.deleteMany({
+      where: {
+        id: { in: staleComments.map((row) => row.id) },
+        comment: {
+          deletedAt: { lt: deletedParentCutoff },
+        },
+      },
+    });
+    deletedParents += removed.count;
+  }
+
+  return { unlinked, deletedParents, total: unlinked + deletedParents };
 }

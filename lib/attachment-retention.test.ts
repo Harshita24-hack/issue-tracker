@@ -1,9 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
-import { pruneUnlinkedUploads, SWEEP_BATCH, UNLINKED_UPLOAD_TTL_MS } from "./attachment-retention";
+import {
+  pruneUnlinkedUploads,
+  sweepOrphanedAttachments,
+  SWEEP_BATCH,
+  UNLINKED_UPLOAD_TTL_MS,
+  ORPHANED_UPLOAD_TTL_MS,
+  DELETED_PARENT_TTL_MS,
+} from "./attachment-retention";
 
 const now = new Date("2026-10-20T12:00:00Z");
 const cutoff = new Date(now.getTime() - UNLINKED_UPLOAD_TTL_MS);
 const unlinked = { bugId: null, commentId: null, redesignProposalId: null, createdAt: { lt: cutoff } };
+const deletedParentCutoff = new Date(now.getTime() - DELETED_PARENT_TTL_MS);
 
 function fakeDb(stale: string[] = []) {
   return {
@@ -74,20 +82,64 @@ describe("sweepOrphanedAttachments (#658)", () => {
     });
   });
 
-  it("keeps attachments of soft-deleted issues and comments for restore (#411)", async () => {
+  it("purges attachments of soft-deleted issues/comments beyond the restore window (#411)", async () => {
+    const findMany = vi.fn()
+      .mockResolvedValueOnce([]) // unlinked
+      .mockResolvedValueOnce([{ id: "b-1" }]) // deleted bug past cutoff
+      .mockResolvedValueOnce([{ id: "c-1" }]); // deleted comment past cutoff
+    const deleteMany = vi.fn()
+      .mockResolvedValueOnce({ count: 0 })
+      .mockResolvedValueOnce({ count: 1 })
+      .mockResolvedValueOnce({ count: 1 });
+
+    const db = { attachment: { findMany, deleteMany } };
+    const { sweepOrphanedAttachments, DELETED_PARENT_TTL_MS } = await import("./attachment-retention");
+
+    const result = await sweepOrphanedAttachments(db as never, { now, sweep: true });
+    expect(result).toEqual({ unlinked: 0, deletedParents: 2, total: 2 });
+
+    // Verify findMany called with deletedAt cutoff for bugs
+    expect(findMany).toHaveBeenNthCalledWith(2, {
+      where: {
+        bug: { isDeleted: true, deletedAt: { lt: deletedParentCutoff } },
+      },
+      select: { id: true },
+      take: 500,
+    });
+    // Verify findMany called with deletedAt cutoff for comments
+    expect(findMany).toHaveBeenNthCalledWith(3, {
+      where: {
+        comment: { deletedAt: { lt: deletedParentCutoff } },
+      },
+      select: { id: true },
+      take: 500,
+    });
+
+    // Verify deleteMany re-checks the deletedAt cutoff (race condition fix)
+    expect(deleteMany).toHaveBeenNthCalledWith(2, {
+      where: { id: { in: ["b-1"] }, bug: { isDeleted: true, deletedAt: { lt: deletedParentCutoff } } },
+    });
+    expect(deleteMany).toHaveBeenNthCalledWith(3, {
+      where: { id: { in: ["c-1"] }, comment: { deletedAt: { lt: deletedParentCutoff } } },
+    });
+  });
+
+  it("keeps attachments of soft-deleted issues and comments within the restore window (#411)", async () => {
     const findMany = vi.fn().mockResolvedValue([]);
     const deleteMany = vi.fn().mockResolvedValue({ count: 0 });
 
     const db = { attachment: { findMany, deleteMany } };
-    const { sweepOrphanedAttachments } = await import("./attachment-retention");
+    const { sweepOrphanedAttachments, DELETED_PARENT_TTL_MS } = await import("./attachment-retention");
 
-    await sweepOrphanedAttachments(db as never, { now, sweep: true });
+    // Use a cutoff in the future (within restore window) so nothing qualifies for purge
+    const futureCutoff = new Date(now.getTime() + 1000);
+    await sweepOrphanedAttachments(db as never, { now: futureCutoff, sweep: true });
 
     const queriedParents = findMany.mock.calls.some(([args]) => {
       const where = (args as { where?: Record<string, unknown> }).where ?? {};
       return "bug" in where || "comment" in where;
     });
-    expect(queriedParents).toBe(false);
+    expect(queriedParents).toBe(true); // The query runs but finds nothing
     expect(deleteMany).not.toHaveBeenCalled();
   });
 
