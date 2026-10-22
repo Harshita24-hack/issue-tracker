@@ -11,8 +11,9 @@ vi.mock("next/image", () => ({
   default: (props: { alt?: string }) => <span data-testid="img" aria-hidden={props.alt === ""} />,
 }));
 
+const navigation = vi.hoisted(() => ({ pathname: "/issues" }));
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/issues",
+  usePathname: () => navigation.pathname,
 }));
 
 vi.mock("@/app/(app)/tenants/actions", () => ({
@@ -34,6 +35,7 @@ const selectTenant = vi.mocked(selectTenantAction);
 afterEach(() => cleanup());
 
 beforeEach(() => {
+  navigation.pathname = "/issues";
   switchRole.mockReset();
   switchRole.mockResolvedValue({ error: "refused" });
 });
@@ -55,12 +57,13 @@ function renderHeader(props?: Partial<Parameters<typeof AppHeader>[0]>) {
 }
 
 describe("account menu role switch", () => {
-  it("keeps the account menu outside the blurred header layer", () => {
+  it("keeps the account menu outside the header's painted chrome layer", () => {
     renderHeader();
     const header = document.querySelector("header");
     expect(header?.className).not.toContain("backdrop-blur");
     const background = header?.querySelector(":scope > [aria-hidden='true']");
-    expect(background?.className).toContain("backdrop-blur");
+    // Chrome is solid navy in both themes; the layer must not blur/clip the menu.
+    expect(background?.className).toContain("bg-deep-ocean");
     const account = screen.getByRole("button", { name: /account menu/i });
     expect(account.parentElement?.parentElement?.className).toContain("shrink-0");
   });
@@ -77,12 +80,26 @@ describe("account menu role switch", () => {
     expect(switchRole).toHaveBeenCalledWith("user", `${window.location.pathname}${window.location.search}`);
   });
 
+  it("keeps Overview and Issues in the desktop bar", () => {
+    renderHeader();
+    expect(screen.getByRole("link", { name: "Overview" }).getAttribute("href")).toBe("/dashboard");
+    expect(screen.getByRole("link", { name: "Issues" }).getAttribute("href")).toBe("/issues");
+  });
+
+  it("closes the Agents menu when a destination is chosen", async () => {
+    const user = userEvent.setup();
+    renderHeader();
+    await user.click(screen.getByRole("button", { name: "Agents" }));
+    expect(screen.getByRole("button", { name: "Agents" }).getAttribute("aria-expanded")).toBe("true");
+    await user.click(screen.getByRole("link", { name: "Manage agents" }));
+    expect(screen.getByRole("button", { name: "Agents" }).getAttribute("aria-expanded")).toBe("false");
+  });
+
   it("renders Escalations as a link, with the pending count (#763)", () => {
     renderHeader({ pendingEscalationsCount: 5 });
     const link = screen.getByRole("link", { name: /escalations/i });
     expect(link.getAttribute("href")).toBe("/escalations");
     expect(screen.getAllByLabelText("5 pending").length).toBeGreaterThan(0);
-    expect(screen.queryByRole("button", { name: /agents/i })).toBeNull();
   });
 
   it("does not put a Workspace menu in the bar", () => {
@@ -180,5 +197,32 @@ describe("theme toggle in header (#659)", () => {
 
     expect(screen.getByRole("group", { name: /theme preference/i })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Dark" })).toBeTruthy();
+  });
+});
+
+
+describe("Profile account navigation (#576)", () => {
+  it.each([
+    ["/settings/profile", "Profile"],
+    ["/settings", "Settings"],
+    ["/settings/security", "Settings"],
+  ])("marks only %s current in both account menus", async (pathname, currentLabel) => {
+    navigation.pathname = pathname;
+    const user = userEvent.setup();
+    const { container } = renderHeader();
+
+    for (const [buttonName, panelId] of [
+      [/account menu/i, "account-menu"],
+      [/open menu/i, "mobile-menu"],
+    ] as const) {
+      await user.click(screen.getByRole("button", { name: buttonName }));
+      const panel = container.querySelector(`#${panelId}`)!;
+      const profile = panel.querySelector('a[href="/settings/profile"]')!;
+      const settings = panel.querySelector('a[href="/settings"]')!;
+      expect(profile.textContent).toBe("Profile");
+      expect(settings.textContent).toBe("Settings");
+      expect(profile.getAttribute("aria-current")).toBe(currentLabel === "Profile" ? "page" : null);
+      expect(settings.getAttribute("aria-current")).toBe(currentLabel === "Settings" ? "page" : null);
+    }
   });
 });
