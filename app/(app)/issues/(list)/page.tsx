@@ -87,6 +87,9 @@ import { logLoadFailure } from "@/lib/load-error";
 import { AREA_PARAM, parseProjectAreaFilter, projectAreaFilterWhere } from "@/lib/project-area-filter";
 import { intakeDetail, intakeLabel, openIssueStages, parseIssueStageView, type IssueStage } from "@/lib/issue-stage";
 import { issuePath } from "@/lib/issue-ref";
+import { PROJECT_ALL_PARAM, showsAllProjects } from "@/lib/issue-list-filters";
+import { DashboardSidebar } from "@/components/dashboard-sidebar";
+import { loadSidebarCounts } from "@/lib/dashboard-overview";
 
 /* Distinct browser-tab title; the root layout appends "· Ziki". */
 export const metadata = { title: "Issues" };
@@ -156,6 +159,17 @@ export default async function BugsPage({
     ? await prisma.project.findFirst({ where: { id: projectId, tenantId }, select: { slug: true, name: true, goal: true } }).catch(() => null)
     : null;
 
+  // The persistent sidebar's live badges. A failure leaves zeros rather than
+  // taking down the list; the counts are navigation, not page data.
+  let sidebarCounts = { unresolved: 0, assigned: 0, reported: 0 };
+  if (tenantId && userId) {
+    try {
+      sidebarCounts = await loadSidebarCounts({ userId, tenantId });
+    } catch (error) {
+      console.error("[bugs] sidebar counts failed", error);
+    }
+  }
+
   // #641: a short checklist for a new workspace's owner or admin, until it's
   // done or dismissed on this device.
   let gettingStarted: { tenantId: string; workspaceName: string; steps: GettingStartedStep[] } | null = null;
@@ -184,6 +198,8 @@ export default async function BugsPage({
   const deletedParam = toSingleQueryParam(params.deleted);
   const mineFilter = parseMineFilter(params.mine);
   const isDeletedView = canDelete && deletedParam === "true";
+  // Workspace-wide view (dashboard links). Absent → unchanged project scope.
+  const allProjects = showsAllProjects(params[PROJECT_ALL_PARAM]);
 
   const currentSort = parseBugSort(sortParam, defaultSortFor(mineFilter));
   const isWatchingView = mineFilter === "watching" && !!userId;
@@ -191,7 +207,7 @@ export default async function BugsPage({
   const showDuplicates = parseShowDuplicates(params[DUPLICATES_PARAM]);
   const where: Prisma.BugWhereInput = {
     ...bugInTenant(tenantId),
-    ...(projectId ? { projectId } : {}),
+    ...(projectId && !allProjects ? { projectId } : {}),
     isDeleted: isDeletedView,
     ...mineFilterWhere(mineFilter, userId),
     ...duplicatesWhere(showDuplicates),
@@ -550,13 +566,17 @@ export default async function BugsPage({
   // (#292): filter advice on an empty tracker sends people looking for a
   // filter that is not there. The extra count only runs when the page is
   // already empty, so a populated list pays nothing for it. It counts the
-  // project the list shows, so a new project in a busy workspace is "no
-  // issues yet" too, not "no issues match".
+  // same scope the list shows, including ?project=all, so an empty filter
+  // across a busy workspace is "no issues match", not "no issues yet".
   let isFirstRun = false;
   if (totalCount === 0 && !isDeletedView) {
     try {
       isFirstRun = (await prisma.bug.count({
-        where: { ...bugInTenant(tenantId), ...(projectId ? { projectId } : {}), isDeleted: false },
+        where: {
+          ...bugInTenant(tenantId),
+          ...(projectId && !allProjects ? { projectId } : {}),
+          isDeleted: false,
+        },
       })) === 0;
     } catch {
       isFirstRun = false;
@@ -617,12 +637,21 @@ export default async function BugsPage({
     low: "bg-emerald-500",
   };
 
-  // #1056: one centred column, a simple list going down; no stats card.
+  // #1056: one centred list column. The persistent sidebar (#dashboard) stays
+  // on this page so Overview is always one click away.
   const page = (
-    <div className="mx-auto w-full max-w-3xl space-y-6">
+    <div className="mx-auto flex w-full max-w-5xl items-start gap-6">
+      <DashboardSidebar
+        active="issues"
+        counts={sidebarCounts}
+        userName={session?.user?.name ?? session?.user?.email}
+        userImage={session?.user?.image}
+        userEmail={session?.user?.email}
+      />
+      <div className="min-w-0 flex-1 space-y-6">
       {gettingStarted ? <GettingStarted {...gettingStarted} /> : null}
       {activeProject?.goal ? (
-        <section aria-labelledby="project-goal-heading" className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+        <section aria-labelledby="project-goal-heading" className="rounded-xl border border-slate-200 bg-card px-4 py-3">
           <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
             <h2 id="project-goal-heading" className="text-sm font-semibold text-slate-900">{activeProject.name} goal</h2>
             {membershipRole && isOrganizationAdmin(membershipRole, effectiveRole) ? (
@@ -650,10 +679,17 @@ export default async function BugsPage({
                 Admin view
               </span>
             ) : null}
+            {allProjects && !isDeletedView ? (
+              <span className="rounded-full border border-teal-200 bg-teal-50 px-2.5 py-0.5 text-xs font-semibold text-teal-800">
+                All projects
+              </span>
+            ) : null}
           </div>
           {isDeletedView ? null : (
             <p className="mt-1 max-w-xl text-sm font-normal text-slate-600">
-              A report stays an idea until reviewers accept it and three people upvote it. Then it is an issue and can be passed on.
+              {allProjects
+                ? "Every issue in this workspace, across all projects."
+                : "A report stays an idea until reviewers accept it and three people upvote it. Then it is an issue and can be passed on."}
             </p>
           )}
         </div>
@@ -663,7 +699,7 @@ export default async function BugsPage({
               href={isDeletedView ? "/issues" : "/issues?deleted=true"}
               className={`inline-flex h-9 items-center justify-center rounded-full px-3.5 text-sm font-medium border transition ${
                 isDeletedView
-                  ? "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                  ? "border-slate-300 bg-card text-slate-700 hover:bg-slate-50"
                   : "border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
               }`}
             >
@@ -729,7 +765,7 @@ export default async function BugsPage({
           {milestoneSummary ? (
             <section
               aria-label={`Milestone ${milestoneSummary.title}`}
-              className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5"
+              className="rounded-xl border border-slate-200 bg-card p-4 sm:p-5"
             >
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-base font-semibold text-slate-900">{milestoneSummary.title}</h2>
@@ -750,7 +786,7 @@ export default async function BugsPage({
           {isFirstRun ? (
             <FirstRunWelcome isAdmin={canDelete} hasTenant={Boolean(tenantId)} />
           ) : bugs.length === 0 ? (
-            <div className="rounded-xl border border-slate-200 bg-white px-4 py-5">
+            <div className="rounded-xl border border-slate-200 bg-card px-4 py-5">
               <p className="text-sm font-medium text-slate-800">
                 {isWatchingView && !qParam && !statusParam && !severityParam && !tagsParam && !selectedPlatform && !selectedMilestone
                   ? "You're not watching any issues."
@@ -772,7 +808,7 @@ export default async function BugsPage({
             </div>
           ) : (
             <>
-              <ul className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200 bg-white">
+              <ul className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200 bg-card">
                 {bugs.map((bug) => {
                   const userVote =
                     Array.isArray(bug.votes) && bug.votes.length > 0
@@ -788,7 +824,7 @@ export default async function BugsPage({
                   const pills: RowPill[] = [
                     {
                       name: severityLabels[bug.severity],
-                      className: "border-slate-200 bg-white text-slate-700",
+                      className: "border-slate-200 bg-card text-slate-700",
                       content: (
                         <>
                           <span
@@ -1005,10 +1041,12 @@ export default async function BugsPage({
                   deleted: isDeletedView,
                   showDuplicates,
                   showResolved,
+                  allProjects,
                 })}
               />
             </>
           )}
+        </div>
       </div>
     </div>
   );
@@ -1057,7 +1095,7 @@ function FirstRunWelcome({
   }
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white px-4 py-5">
+    <section className="rounded-xl border border-slate-200 bg-card px-4 py-5">
       <h2 className="text-lg font-semibold text-slate-900">No issues yet</h2>
       <p className="mx-auto mt-2 max-w-md text-sm text-slate-600">
         This is where reported issues will appear. A good report says what you

@@ -125,8 +125,31 @@ describe("issue list layout", () => {
     const html = await renderList();
     expect(html).toContain("No issues yet");
     expect(html).not.toContain("No issues match these filters.");
-    const firstRunCount = count.mock.calls.find(([args]) => args?.where?.isDeleted === false && !args?.where?.status);
+    const firstRunCount = count.mock.calls.find(
+      ([args]) =>
+        args?.where?.isDeleted === false &&
+        args?.where?.projectId === "project-acme" &&
+        !args?.where?.status,
+    );
     expect(firstRunCount?.[0].where).toMatchObject({ tenantId: "tenant-acme", projectId: "project-acme" });
+  });
+
+  it("does not call a workspace-wide empty filter a first run", async () => {
+    // The active project is empty, but other projects in the workspace are not.
+    // ?project=all must count those, or the page hides the filters.
+    count.mockImplementation(async (args: { where?: { projectId?: unknown; OR?: unknown } }) => {
+      if (args?.where?.OR) return 0;
+      if (args?.where?.projectId) return 0;
+      return 4;
+    });
+    findMany.mockResolvedValue([]);
+    const html = await renderList({ project: "all", q: "nothing" });
+    expect(html).toContain("No issues match these filters.");
+    expect(html).not.toContain("No issues yet");
+    const firstRunCount = count.mock.calls.find(
+      ([args]) => args?.where?.isDeleted === false && !args?.where?.OR && !args?.where?.status,
+    );
+    expect(firstRunCount?.[0].where.projectId).toBeUndefined();
   });
 
   it("says no issues match when the project has issues but the filters hide them", async () => {
@@ -149,10 +172,10 @@ describe("issue list layout", () => {
     expect(listQuery.where.id).toEqual({ in: ["bug-1"] });
   });
 
-  it("is one centred column without the stats card (#1056)", async () => {
+  it("is one centred list column without the stats card (#1056)", async () => {
     const html = await renderList();
     expect(html).not.toContain("Total issues");
-    expect(html).toMatch(/^<div class="mx-auto w-full max-w-3xl /);
+    expect(html).toMatch(/^<div class="mx-auto flex w-full max-w-5xl items-start gap-6">/);
     // The four stats counts are no longer queried.
     const statusOnly = count.mock.calls.filter(([args]) => args?.where?.status === "in_progress");
     expect(statusOnly).toHaveLength(0);

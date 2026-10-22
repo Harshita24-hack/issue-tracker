@@ -60,7 +60,6 @@ import {
 } from "@/lib/ticket-boosting";
 import { canAssignTicket, TICKET_ASSIGN_ERRORS } from "@/lib/ticket-assignment";
 import { canChangeTicketStatus, TICKET_TRIAGE_ERRORS } from "@/lib/ticket-triage";
-import { publish } from "@/lib/agent-api/events";
 import {
   canEditTicket,
   formatEditSummary,
@@ -96,7 +95,9 @@ import {
   ACTION_RATE_LIMITS,
   RATE_LIMIT_MESSAGE,
 } from "@/lib/rate-limit";
+import { publish } from "@/lib/agent-api/events";
 import { issueChangePayload, publishWebEvent } from "@/lib/agent-api/web-events";
+import { firstPullRequestLink, pullRequestAttachment } from "@/lib/github/pr-mention";
 import {
   agentMentionNames,
   agentOwnerIds,
@@ -393,14 +394,19 @@ export async function createBugAction(
     bugId: bug.id,
   });
 
-  // #600: agents hear about issues people file, not only ones agents file.
+  // #600 / #534: agents hear about issues people file, published once with complete payload.
   // The issue already exists, so a failed event mustn't fail the report.
   try {
     await publishWebEvent(prisma, {
       bugId: bug.id,
       type: "issue.created",
       actorUserId: userId,
-      payload: { reporterId: userId },
+      payload: {
+        reporterId: userId,
+        projectId,
+        beneficiaryUserId: userId,
+        isReport,
+      },
     });
   } catch (error) {
     console.error("[issues] issue.created event failed", error);
@@ -416,26 +422,6 @@ export async function createBugAction(
     events.push({ ...actor, kind: "assignee_changed", fromUserId: null, toUserId: assigneeId });
   }
   if (events.length > 0) notifyLater(...events);
-
-  // Notify agent platform on feed (#764)
-  try {
-    if (prisma.agentEvent) {
-      await publish(prisma, {
-        tenantId,
-        type: isReport ? "report.created" : "issue.created",
-        payload: {
-          issueId: bug.id,
-          projectId,
-          beneficiaryUserId: userId,
-          isReport,
-        },
-        bugId: bug.id,
-      });
-    }
-  } catch (err) {
-    // Non-fatal if agent events / webhooks are not configured in test environment
-    console.warn("[createBugAction] could not publish agent event", err);
-  }
 
   revalidatePath("/issues");
   revalidatePath("/bugs");
@@ -557,7 +543,8 @@ export async function updateBugAction(
 
   // Claiming an issue doesn't also grant its status in the same request: a
   // normal user who isn't the assignee yet must assign themselves first
-  // (#218, #175).
+  // (#218, #175). Someone an admin already assigned can move the status
+  // from this page; that does not require an agent claim.
   if (
     !admin &&
     !isAssignee &&
@@ -565,14 +552,6 @@ export async function updateBugAction(
     parsed.data.status !== existing.status
   ) {
     return { error: TICKET_ASSIGN_ERRORS.statusNeedsAssignment };
-  }
-
-  if (!admin && parsed.data.status && parsed.data.status !== existing.status) {
-    const claim = await prisma.issueClaim.findFirst({
-      where: { bugId: existing.id, beneficiaryUserId: userId, status: "active", releasedAt: null },
-      select: { id: true },
-    });
-    if (!claim) return { error: TICKET_ASSIGN_ERRORS.needsAgentClaim };
   }
 
   // #316: an optional note, only for a change into resolved or closed.
@@ -1213,7 +1192,9 @@ export async function editProofLinksAction(
     select: {
       id: true,
       proofLinks: true,
+      pullRequestUrl: true,
       reporterId: true,
+      assigneeId: true,
       isDeleted: true,
     },
   });
@@ -1222,14 +1203,15 @@ export async function editProofLinksAction(
     return { error: TICKET_EDIT_ERRORS.notFound };
   }
 
-  if (
-    !canEditTicket({
+  const mayEditLinks =
+    existing.assigneeId === userId ||
+    canEditTicket({
       actorId: userId,
       actorRole: user.role,
       membershipRole: (await currentTenantAccess(userId, user.role)).membershipRole,
       reporterId: existing.reporterId,
-    })
-  ) {
+    });
+  if (!mayEditLinks) {
     return { error: TICKET_EDIT_ERRORS.unauthorized };
   }
 
@@ -1247,10 +1229,18 @@ export async function editProofLinksAction(
     return { ok: true };
   }
 
+  const attachedPullRequest = existing.pullRequestUrl
+    ? null
+    : firstPullRequestLink(proofLinks);
+
   await prisma.$transaction(async (tx) => {
     await tx.bug.update({
       where: { id: bugId },
-      data: { proofLinks, updatedAt: new Date() },
+      data: {
+        proofLinks,
+        updatedAt: new Date(),
+        ...(attachedPullRequest ? { pullRequestUrl: attachedPullRequest } : {}),
+      },
     });
 
     await publishWebEvent(tx, {
@@ -1320,7 +1310,16 @@ export async function addCommentAction(
 
   const bug = await prisma.bug.findUnique({
     where: { id: bugId, ...bugInTenant(await currentTenantIdFor(userId)) },
-    select: { id: true, isDeleted: true, title: true, reporterId: true, assigneeId: true, tenantId: true },
+    select: {
+      id: true,
+      isDeleted: true,
+      title: true,
+      reporterId: true,
+      assigneeId: true,
+      tenantId: true,
+      pullRequestUrl: true,
+      proofLinks: true,
+    },
   });
   if (!bug || bug.isDeleted) {
     return { error: "Issue not found" };
@@ -1400,10 +1399,33 @@ export async function addCommentAction(
         } as Prisma.InputJsonValue,
       },
     });
+    const attachment = pullRequestAttachment({
+      authorId: userId,
+      assigneeId: bug.assigneeId,
+      pullRequestUrl: bug.pullRequestUrl,
+      proofLinks: bug.proofLinks ?? [],
+      body: normalizedBody,
+      metadata,
+    });
     await tx.bug.update({
       where: { id: bugId },
-      data: { updatedAt: new Date() },
+      data: {
+        updatedAt: new Date(),
+        ...(attachment ? { pullRequestUrl: attachment.pullRequestUrl } : {}),
+        ...(attachment?.proofLinks ? { proofLinks: attachment.proofLinks } : {}),
+      },
     });
+    if (attachment) {
+      await tx.bugActivity.create({
+        data: {
+          bugId,
+          actorId: userId,
+          type: "edited",
+          summary: `linked PR ${attachment.pullRequestUrl}`,
+          metadata: { field: "pullRequestUrl", pullRequestUrl: attachment.pullRequestUrl, via: "comment" },
+        },
+      });
+    }
     // Commenting on an issue means you want to hear about replies (#216).
     await ensureWatching(tx, bugId, [userId]);
     // #600: a person's reply reaches the agents polling /api/v1/events.

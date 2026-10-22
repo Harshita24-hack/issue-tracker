@@ -4,7 +4,6 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { NotificationSettings } from "@/components/notification-settings";
-import { DisplayNameForm } from "@/components/display-name-form";
 import { WalletAddressForm } from "@/components/wallet-address-form";
 import { KeyboardShortcutSettings } from "@/components/keyboard-shortcut-settings";
 import { isAgentPlatformEnabled } from "@/lib/feature-flags";
@@ -14,6 +13,7 @@ import { AccountDataSettings } from "@/components/account-data-settings";
 /* Distinct browser-tab title; the root layout appends "· Ziki". */
 export const metadata = { title: "Settings" };
 
+/** The settings index: themed appearance, sign-in security, and links into the nested settings surfaces. */
 export default async function SettingsPage() {
   const user = await requireUser();
   let settings: {
@@ -72,11 +72,18 @@ export default async function SettingsPage() {
         </Link>
         <h1 className="text-2xl font-semibold text-slate-900">Settings</h1>
       </div>
-      <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
+      <section className="rounded-xl border border-slate-200 bg-card p-4 sm:p-6">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
           Profile
         </h2>
-        <DisplayNameForm initialName={settings?.name ?? user.name ?? ""} />
+        <p className="mt-2 text-sm text-slate-600">
+          Manage your display name and view your account details.
+        </p>
+        <p className="mt-3 text-sm">
+          <Link href="/settings/profile" className="font-medium text-teal-700 hover:underline">
+            Edit profile
+          </Link>
+        </p>
         <p className="mt-3 text-sm">
           <Link href={`/users/${user.id}`} className="text-teal-700 hover:underline">
             See how your profile looks to others
@@ -84,19 +91,19 @@ export default async function SettingsPage() {
         </p>
       </section>
       {settings?.passwordHash ? (
-        <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
+        <section className="rounded-xl border border-slate-200 bg-card p-4 sm:p-6">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Password</h2>
           <p className="mt-2 text-sm text-slate-600">Changing your password signs out all active sessions.</p>
           <ChangePasswordForm />
         </section>
       ) : null}
-      <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
+      <section className="rounded-xl border border-slate-200 bg-card p-4 sm:p-6">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
           Wallet
         </h2>
         <WalletAddressForm initialAddress={settings?.walletAddress ?? ""} />
       </section>
-      <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
+      <section className="rounded-xl border border-slate-200 bg-card p-4 sm:p-6">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
           Security
         </h2>
@@ -109,13 +116,13 @@ export default async function SettingsPage() {
           </Link>
         </p>
       </section>
-      <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
+      <section className="rounded-xl border border-slate-200 bg-card p-4 sm:p-6">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
           Appearance
         </h2>
         <ThemeSettings initialTheme={parseTheme(settings?.theme)} />
       </section>
-      <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
+      <section className="rounded-xl border border-slate-200 bg-card p-4 sm:p-6">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
           Email notifications
         </h2>
@@ -133,7 +140,7 @@ export default async function SettingsPage() {
         />
       </section>
       {isAgentPlatformEnabled() ? (
-        <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
+        <section className="rounded-xl border border-slate-200 bg-card p-4 sm:p-6">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
             Agents
           </h2>
@@ -162,7 +169,20 @@ export default async function SettingsPage() {
           </div>
         </section>
       ) : null}
-      <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
+      <section className="rounded-xl border border-slate-200 bg-card p-4 sm:p-6">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+          Team
+        </h2>
+        <p className="mt-2 text-sm text-slate-600">
+          Workspace members and their active agents (moved out of the nav bar).
+        </p>
+        <div className="mt-3 flex flex-wrap gap-4 text-sm">
+          <Link href="/settings/team" className="font-medium text-teal-700 hover:underline">
+            View team
+          </Link>
+        </div>
+      </section>
+      <section className="rounded-xl border border-slate-200 bg-card p-4 sm:p-6">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
           API &amp; Integrations
         </h2>
@@ -183,13 +203,13 @@ export default async function SettingsPage() {
           </a>
         </div>
       </section>
-      <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
+      <section className="rounded-xl border border-slate-200 bg-card p-4 sm:p-6">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
           Keyboard shortcuts
         </h2>
         <KeyboardShortcutSettings initialEnabled={settings?.keyboardShortcuts ?? true} />
       </section>
-      <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
+      <section className="rounded-xl border border-slate-200 bg-card p-4 sm:p-6">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
           Account data &amp; deletion
         </h2>
