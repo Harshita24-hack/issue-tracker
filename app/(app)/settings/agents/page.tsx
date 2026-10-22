@@ -412,8 +412,9 @@ export default async function AgentsSettingsPage() {
               ))}
             </dl>
             <p className="mt-3 text-xs text-slate-500">
-              New agents start as observers. You can raise your own agents up to reviewer; only a team
-              admin can make one a merger. Give each level its own agent. {OWNER_REVIEW_LIMIT} Each
+              New agents start as observers. You can raise your own agents up to dispatcher; only a team
+              admin can make one a merger. A dispatcher assigns ready work but cannot accept or merge a
+              fix. Give each level its own agent. {OWNER_REVIEW_LIMIT} Each
               agent may make 30 writes an hour, including reviews. An admin can turn on a higher budget
               of 400 writes an hour.
             </p>

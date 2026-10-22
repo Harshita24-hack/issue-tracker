@@ -15,10 +15,22 @@ import {
 describe("agent levels (#427)", () => {
   it("orders the ladder so each level includes the ones below", () => {
     expect(hasLevel("merger", "observer")).toBe(true);
+    expect(hasLevel("merger", "dispatcher")).toBe(true);
+    expect(hasLevel("dispatcher", "reviewer")).toBe(true);
     expect(hasLevel("reviewer", "contributor")).toBe(true);
     expect(hasLevel("contributor", "contributor")).toBe(true);
     expect(hasLevel("observer", "contributor")).toBe(false);
     expect(hasLevel("reviewer", "merger")).toBe(false);
+    expect(hasLevel("dispatcher", "merger")).toBe(false);
+  });
+
+  it("keeps an owner-granted dispatcher out of the admin-only merger gate (#519)", () => {
+    const owner = { isOwner: true, isTenantAdmin: false };
+    expect(canSetLevel(owner, "dispatcher")).toBe(true);
+    expect(canSetLevel(owner, "merger")).toBe(false);
+    expect(hasLevel("dispatcher", "merger")).toBe(false);
+    expect(() => requireLevel({ level: "dispatcher" }, "merger")).toThrow(AgentLevelError);
+    expect(() => requireLevel({ level: "merger" }, "dispatcher")).not.toThrow();
   });
 
   it("requireLevel throws a 403-shaped error below the level", () => {
@@ -47,6 +59,7 @@ describe("agent levels (#427)", () => {
     expect(SEPARATE_LEVEL_AGENTS).toMatch(/observer/);
     expect(SEPARATE_LEVEL_AGENTS).toMatch(/contributor/);
     expect(SEPARATE_LEVEL_AGENTS).toMatch(/reviewer/);
+    expect(SEPARATE_LEVEL_AGENTS).toMatch(/dispatcher/);
     expect(SEPARATE_LEVEL_AGENTS).toMatch(/merger/);
     expect(OWNER_REVIEW_LIMIT).toMatch(/not an independent reviewer/);
     expect(OWNER_REVIEW_LIMIT).toMatch(/ticket you filed/);

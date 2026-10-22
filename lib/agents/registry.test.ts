@@ -64,9 +64,9 @@ describe("createAgent (#427)", () => {
     });
   });
 
-  it("lets the owner start an agent as a contributor, but no higher", async () => {
-    await createAgent(ada, { name: "Ada's GPT", level: "contributor", projectId: "project_web" });
-    expect(db.agent.create.mock.calls[0][0].data.level).toBe("contributor");
+  it("lets the owner start an agent as a dispatcher, but not a merger (#519)", async () => {
+    await createAgent(ada, { name: "Ada's GPT", level: "dispatcher", projectId: "project_web" });
+    expect(db.agent.create.mock.calls[0][0].data.level).toBe("dispatcher");
     const result = await createAgent(ada, { name: "Ada's GPT", level: "merger", projectId: "project_web" });
     expect(result).toMatchObject({ ok: false, field: "level" });
   });
@@ -129,13 +129,22 @@ describe("revokeAgent and setAgentLevel (#427)", () => {
     expect(db.agent.delete).not.toHaveBeenCalled();
   });
 
-  it("lets the owner raise to reviewer but not merger", async () => {
+  it("lets the owner raise to reviewer or dispatcher but not merger (#519)", async () => {
     db.agent.findUnique.mockResolvedValue(agentRow);
     db.agent.findUniqueOrThrow.mockResolvedValue({ level: "observer" });
     expect(await setAgentLevel(ada, "agent1", "reviewer")).toEqual({ ok: true });
     expect(db.agent.update.mock.calls[0][0].data).toEqual({ level: "reviewer" });
+    db.agent.findUniqueOrThrow.mockResolvedValue({ level: "reviewer" });
+    expect(await setAgentLevel(ada, "agent1", "dispatcher")).toEqual({ ok: true });
+    expect(db.agent.update.mock.calls[1][0].data).toEqual({ level: "dispatcher" });
     expect(await setAgentLevel(ada, "agent1", "merger")).toMatchObject({ ok: false });
-    expect(db.agent.update).toHaveBeenCalledTimes(1);
+    expect(db.agent.update).toHaveBeenCalledTimes(2);
+  });
+
+  it("refuses a level change from anyone but the owner or a tenant admin", async () => {
+    db.agent.findUnique.mockResolvedValue(agentRow);
+    expect(await setAgentLevel({ id: "bob", role: "user" }, "agent1", "reviewer")).toMatchObject({ ok: false });
+    expect(db.agent.update).not.toHaveBeenCalled();
   });
 });
 
