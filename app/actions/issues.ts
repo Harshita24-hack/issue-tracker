@@ -1598,10 +1598,9 @@ export async function deleteBugAction(bugId: string): Promise<ActionResult> {
           deletedAt: new Date(),
         },
       });
-      // Attachments are NOT deleted here (#411). They stay linked to the bug
-      // (which now has isDeleted=true). The background sweep
-      // sweepOrphanedAttachments will clean them up later if the bug is not
-      // restored. On restore, the attachments are still present.
+      // Attachments are NOT deleted here (#411). Deleting only hides the
+      // issue, so its screenshots and logs must survive until a permanent
+      // purge (which does not exist yet) so restore brings them back.
 
       await publishWebEvent(tx, { bugId, type: "issue.deleted", actorUserId: user.id });
 

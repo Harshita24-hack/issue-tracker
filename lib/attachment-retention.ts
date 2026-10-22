@@ -68,7 +68,10 @@ export async function pruneUnlinkedUploads(
 /**
  * Storage cleanup job to purge orphaned attachments (#658):
  * 1. Unattached uploads older than TTL (default 24 hours).
- * 2. Attachments whose parent bug or comment was deleted.
+ *
+ * Attachments of soft-deleted issues and comments are deliberately kept:
+ * deletion only hides them, and restoring an issue must bring its screenshots
+ * and logs back (#411). A permanent purge, if added later, owns that cleanup.
  *
  * Runs in bounded batches to ensure predictable execution time.
  */
@@ -91,15 +94,15 @@ export async function sweepOrphanedAttachments(
   if (!sweep) return { unlinked: 0, deletedParents: 0, total: 0 };
 
   const cutoff = new Date(now.getTime() - ttlMs);
-  let unlinked = 0;
-  let deletedParents = 0;
 
-  // 1. Purge unattached uploads older than TTL
+  // Purge unattached uploads older than TTL. Re-check "still unlinked" in the
+  // delete itself, in case one was attached meanwhile.
   const staleUnlinked = await db.attachment.findMany({
     where: unlinkedBefore(cutoff),
     select: { id: true },
     take: batchSize,
   });
+  let unlinked = 0;
   if (staleUnlinked.length > 0) {
     const removed = await db.attachment.deleteMany({
       where: {
@@ -110,41 +113,5 @@ export async function sweepOrphanedAttachments(
     unlinked = removed.count;
   }
 
-  // 2. Purge attachments whose parent bug was marked deleted
-  const staleBugs = await db.attachment.findMany({
-    where: { bug: { isDeleted: true } },
-    select: { id: true },
-    take: batchSize,
-  });
-  if (staleBugs.length > 0) {
-    // Re-check "still deleted" in the delete itself, in case a concurrent
-    // restoreBugAction re-attached the bug (set isDeleted=false).
-    const removed = await db.attachment.deleteMany({
-      where: {
-        id: { in: staleBugs.map((row) => row.id) },
-        bug: { isDeleted: true },
-      },
-    });
-    deletedParents += removed.count;
-  }
-
-  // 3. Purge attachments whose parent comment was deleted
-  const staleComments = await db.attachment.findMany({
-    where: { comment: { deletedAt: { not: null } } },
-    select: { id: true },
-    take: batchSize,
-  });
-  if (staleComments.length > 0) {
-    // Re-check "still deleted" in the delete itself, in case a concurrent
-    // restore or undelete re-attached the comment.
-    const removed = await db.attachment.deleteMany({
-      where: {
-        id: { in: staleComments.map((row) => row.id) },
-        comment: { deletedAt: { not: null } },
-      },
-    });
-    deletedParents += removed.count;
-  }
-
-  return { unlinked, deletedParents, total: unlinked + deletedParents };
+  return { unlinked, deletedParents: 0, total: unlinked };
 }

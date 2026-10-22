@@ -45,46 +45,50 @@ describe("pruneUnlinkedUploads (#543)", () => {
 });
 
 describe("sweepOrphanedAttachments (#658)", () => {
-  it("purges unlinked uploads older than TTL and attachments of deleted bugs/comments", async () => {
-    const findMany = vi.fn()
-      .mockResolvedValueOnce([{ id: "u-1" }, { id: "u-2" }]) // unlinked
-      .mockResolvedValueOnce([{ id: "b-1" }]) // deleted bug
-      .mockResolvedValueOnce([{ id: "c-1" }]); // deleted comment
-    const deleteMany = vi.fn()
-      .mockResolvedValueOnce({ count: 2 })
-      .mockResolvedValueOnce({ count: 1 })
-      .mockResolvedValueOnce({ count: 1 });
+  it("purges unlinked uploads older than TTL", async () => {
+    const findMany = vi.fn().mockResolvedValueOnce([{ id: "u-1" }, { id: "u-2" }]);
+    const deleteMany = vi.fn().mockResolvedValueOnce({ count: 2 });
 
     const db = { attachment: { findMany, deleteMany } };
     const { sweepOrphanedAttachments, ORPHANED_UPLOAD_TTL_MS } = await import("./attachment-retention");
 
     const result = await sweepOrphanedAttachments(db as never, { now, sweep: true });
-    expect(result).toEqual({ unlinked: 2, deletedParents: 2, total: 4 });
+    expect(result).toEqual({ unlinked: 2, deletedParents: 0, total: 2 });
 
     const cutoff = new Date(now.getTime() - ORPHANED_UPLOAD_TTL_MS);
-    expect(findMany).toHaveBeenNthCalledWith(1, {
+    expect(findMany).toHaveBeenCalledTimes(1);
+    expect(findMany).toHaveBeenCalledWith({
       where: { bugId: null, commentId: null, redesignProposalId: null, createdAt: { lt: cutoff } },
       select: { id: true },
       take: 500,
     });
-    expect(findMany).toHaveBeenNthCalledWith(2, {
-      where: { bug: { isDeleted: true } },
-      select: { id: true },
-      take: 500,
+    expect(deleteMany).toHaveBeenCalledTimes(1);
+    expect(deleteMany).toHaveBeenCalledWith({
+      where: {
+        id: { in: ["u-1", "u-2"] },
+        bugId: null,
+        commentId: null,
+        redesignProposalId: null,
+        createdAt: { lt: cutoff },
+      },
     });
-    expect(findMany).toHaveBeenNthCalledWith(3, {
-      where: { comment: { deletedAt: { not: null } } },
-      select: { id: true },
-      take: 500,
-    });
+  });
 
-    // Verify deleteMany re-checks the deleted state (race condition fix #411)
-    expect(deleteMany).toHaveBeenNthCalledWith(2, {
-      where: { id: { in: ["b-1"] }, bug: { isDeleted: true } },
+  it("keeps attachments of soft-deleted issues and comments for restore (#411)", async () => {
+    const findMany = vi.fn().mockResolvedValue([]);
+    const deleteMany = vi.fn().mockResolvedValue({ count: 0 });
+
+    const db = { attachment: { findMany, deleteMany } };
+    const { sweepOrphanedAttachments } = await import("./attachment-retention");
+
+    await sweepOrphanedAttachments(db as never, { now, sweep: true });
+
+    const queriedParents = findMany.mock.calls.some(([args]) => {
+      const where = (args as { where?: Record<string, unknown> }).where ?? {};
+      return "bug" in where || "comment" in where;
     });
-    expect(deleteMany).toHaveBeenNthCalledWith(3, {
-      where: { id: { in: ["c-1"] }, comment: { deletedAt: { not: null } } },
-    });
+    expect(queriedParents).toBe(false);
+    expect(deleteMany).not.toHaveBeenCalled();
   });
 
   it("skips execution when sweep is false", async () => {
