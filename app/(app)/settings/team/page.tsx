@@ -18,7 +18,7 @@ import { Avatar } from "@/components/avatar";
 export const metadata = { title: "Team" };
 
 type TeamPageProps = {
-  searchParams: Promise<{ role?: string; capacity?: string }>;
+  searchParams: Promise<{ role?: string | string[]; capacity?: string }>;
 };
 
 /** The team directory: displays workspace members, roles, points and active claim capacity. */
@@ -98,7 +98,7 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
   const pointsMap = new Map(points.map((row) => [row.userId, row._sum.points ?? 0]));
   const activeClaimMap = new Map(activeClaims.map((row) => [row.beneficiaryUserId, row._count._all]));
   const showCapacityOnly = filters.capacity === "1";
-  const selectedRole = filters.role?.toLowerCase() ?? "";
+  const selectedRole = typeof filters.role === "string" ? filters.role.toLowerCase() : "";
   const capacityScope = context.activeProjectId ? "selected project" : "workspace";
 
   const visibleMembers = members.flatMap((membership) => {
@@ -128,7 +128,7 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
         </p>
       </header>
 
-      <form action="/settings/team" method="get" className="rounded-xl border border-slate-200 bg-white p-4">
+      <form action="/settings/team" method="get" className="rounded-xl border border-slate-200 bg-card p-4">
         <fieldset>
           <legend className="text-sm font-semibold text-slate-900">Filter team</legend>
           <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
@@ -171,7 +171,7 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
       </form>
 
       {visibleMembers.length === 0 ? (
-        <p className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600">
+        <p className="rounded-xl border border-slate-200 bg-card p-6 text-sm text-slate-600">
           {members.length === 0
             ? "This workspace has no members yet."
             : "No team members match these filters."}

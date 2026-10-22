@@ -168,7 +168,7 @@ export function ThemeToggle({
       aria-label={label}
       title={label}
       data-testid="theme-toggle"
-      className={`relative inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 ${className}`}
+      className={`relative inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-300 transition-colors hover:bg-white/5 hover:text-porcelain focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-tint focus-visible:ring-offset-2 focus-visible:ring-offset-deep-ocean ${className}`}
     >
       {isDark ? <SunIcon /> : <MoonIcon />}
     </button>
@@ -198,7 +198,7 @@ export function AccountThemeSelector() {
             aria-pressed={theme === opt}
             className={`rounded px-1.5 py-0.5 text-xs font-medium transition-colors ${
               theme === opt
-                ? "bg-white text-slate-900 shadow-xs ring-1 ring-slate-200"
+                ? "bg-card text-slate-900 shadow-xs ring-1 ring-slate-200"
                 : "text-slate-600 hover:text-slate-900"
             }`}
           >
