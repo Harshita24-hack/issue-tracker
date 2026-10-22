@@ -82,6 +82,7 @@ import {
   platformFilterWhere,
 } from "@/lib/platform-filter";
 import { PlatformTabs, type PlatformTab } from "@/components/platform-tabs";
+import { ProjectAgentSetupCard } from "@/components/project-agent-setup-card";
 import { LoadError } from "@/components/load-error";
 import { logLoadFailure } from "@/lib/load-error";
 import { AREA_PARAM, parseProjectAreaFilter, projectAreaFilterWhere } from "@/lib/project-area-filter";
@@ -153,7 +154,7 @@ export default async function BugsPage({
     console.error("[bugs] tenant/project resolution failed", error);
   }
   const activeProject = tenantId && projectId
-    ? await prisma.project.findFirst({ where: { id: projectId, tenantId }, select: { slug: true, name: true, goal: true } }).catch(() => null)
+    ? await prisma.project.findFirst({ where: { id: projectId, tenantId }, select: { id: true, slug: true, name: true, goal: true } }).catch(() => null)
     : null;
 
   // #641: a short checklist for a new workspace's owner or admin, until it's
@@ -631,6 +632,13 @@ export default async function BugsPage({
           </div>
           <RichText content={activeProject.goal} className="mt-1 text-sm" />
         </section>
+      ) : null}
+      {activeProject && !isDeletedView ? (
+        <ProjectAgentSetupCard
+          projectId={activeProject.id}
+          projectName={activeProject.name}
+          projectSlug={activeProject.slug}
+        />
       ) : null}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>

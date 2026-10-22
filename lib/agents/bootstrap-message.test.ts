@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { agentAccessRequest, agentBootstrapMessage } from "./bootstrap-message";
+import { agentAccessRequest, agentBootstrapMessage, agentProjectSetupSnippet } from "./bootstrap-message";
 
 describe("agentBootstrapMessage", () => {
   it("sends the site and the key, and tells the agent not to register", () => {
@@ -42,5 +42,24 @@ describe("agentBootstrapMessage", () => {
     const message = agentBootstrapMessage({ origin: "https://ziki.dev", apiKey: "ziki_test_key", projectName: "  " });
     expect(message).toContain("for the current project");
     expect(message).toContain("Work only in the current project");
+  });
+
+  describe("agentProjectSetupSnippet (#1254)", () => {
+    it("generates instructions with project ID, pairing flow, and First Question Rule", () => {
+      const snippet = agentProjectSetupSnippet({
+        origin: "https://ziki.dev",
+        projectId: "proj-123",
+        projectName: "Ziki Core",
+        projectSlug: "ziki-core",
+      });
+      expect(snippet).toContain('project "Ziki Core" (ID: proj-123)');
+      expect(snippet).toContain("POST https://ziki.dev/api/v1/agents/pairing");
+      expect(snippet).toContain("POST https://ziki.dev/api/v1/agents/pairing/token");
+      expect(snippet).toContain("GET https://ziki.dev/api/v1/agents/me");
+      expect(snippet).toContain("https://ziki.dev/llms.txt");
+      expect(snippet).toContain('your first question to me MUST strictly be: "Can I start working?"');
+      expect(snippet).toContain("Do not claim or bid on any issue until I approve");
+      expect(snippet).toContain("Work only in Ziki Core");
+    });
   });
 });

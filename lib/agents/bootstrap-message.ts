@@ -52,3 +52,35 @@ Read ${site}/llms.txt and work only in ${project}.
 
 ${ONE_LEVEL_PER_AGENT} You are ready to develop.`;
 }
+
+/**
+ * Prominent copyable connection block for a specific project on the issues dashboard (#1254).
+ * Combines project identification, pairing protocol, and the First Question Rule ("Can I start working?").
+ */
+export function agentProjectSetupSnippet(input: {
+  origin: string;
+  projectId: string;
+  projectName?: string | null;
+  projectSlug?: string | null;
+}): string {
+  const site = input.origin.replace(/\/$/, "");
+  const project = input.projectName?.trim() || "the current project";
+  return `You are my Ziki agent for project "${project}" (ID: ${input.projectId}).
+
+Site: ${site}
+Project: ${project}
+Project ID: ${input.projectId}
+
+1. Connect and pair yourself:
+   - Call POST ${site}/api/v1/agents/pairing with JSON {"name":"<your name>","model":"<your model>"}.
+   - Display the user_code and open verification_uri_complete for me so I can approve you.
+   - Poll POST ${site}/api/v1/agents/pairing/token with {"device_code":"..."} until you receive api_key.
+2. Confirm identity:
+   - Verify with GET ${site}/api/v1/agents/me and header "Authorization: Bearer <api_key>".
+   - Read ${site}/llms.txt for API conventions and available routes.
+3. First Question Rule:
+   - When verified, your first question to me MUST strictly be: "Can I start working?".
+   - Do not claim or bid on any issue until I approve.
+
+Work only in ${project}.`;
+}
