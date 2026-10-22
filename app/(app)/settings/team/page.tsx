@@ -21,6 +21,7 @@ type TeamPageProps = {
   searchParams: Promise<{ online?: string; capacity?: string; area?: string }>;
 };
 
+/** The team directory at its settings home: members with filters for online status, capacity and area, plus agent activity and points. */
 export default async function TeamPage({ searchParams }: TeamPageProps) {
   const user = await requireUser();
   const tenantId = await currentTenantIdFor(user.id);

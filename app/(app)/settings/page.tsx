@@ -14,6 +14,7 @@ import { AccountDataSettings } from "@/components/account-data-settings";
 /* Distinct browser-tab title; the root layout appends "· Ziki". */
 export const metadata = { title: "Settings" };
 
+/** The settings index: themed appearance, sign-in security, and links into the nested settings surfaces. */
 export default async function SettingsPage() {
   const user = await requireUser();
   let settings: {
