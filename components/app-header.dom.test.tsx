@@ -55,6 +55,22 @@ function renderHeader(props?: Partial<Parameters<typeof AppHeader>[0]>) {
 }
 
 describe("account menu role switch", () => {
+  it("makes Agents available on desktop and in the mobile menu", async () => {
+    const user = userEvent.setup();
+    renderHeader({ agentNavigation: "empty" });
+    expect(screen.getAllByText("Agents")).toHaveLength(1);
+    await user.click(screen.getByRole("button", { name: /open menu/i }));
+    expect(screen.getAllByText("Agents")).toHaveLength(2);
+    expect(screen.getAllByText("Connect your agent")).toHaveLength(2);
+  });
+  it("uses the existing Agents menu to open agent management", async () => {
+    const user = userEvent.setup();
+    renderHeader({ agentNavigation: "active" });
+    await user.click(screen.getByRole("button", { name: "Agents" }));
+    expect(screen.getByRole("menuitem", { name: "Manage your agents" }).getAttribute("href")).toBe("/settings/agents");
+    expect(screen.getByRole("menuitem", { name: /Escalations/ })).toBeTruthy();
+    expect(screen.queryByText("Connect your agent")).toBeNull();
+  });
   it("keeps the account menu outside the blurred header layer", () => {
     renderHeader();
     const header = document.querySelector("header");

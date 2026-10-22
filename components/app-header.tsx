@@ -20,6 +20,7 @@ import { isAdmin, type AppRole } from "@/lib/roles";
 import { FOCUSABLE, wrapFocusIndex } from "@/lib/focus-trap";
 import { Avatar } from "@/components/avatar";
 import { ThemeToggle, AccountThemeSelector } from "@/components/theme-toggle";
+import type { AgentNavigationState } from "@/lib/agents/navigation";
 import { pointsProgress, TARGET_POINTS } from "@/lib/points/rules";
 
 /** Closes a popover on outside click or Escape, returning focus to its trigger. */
@@ -302,6 +303,7 @@ export function AppHeader({
   canManagePlatforms = false,
   points = 0,
   solvedTasks = 0,
+  agentNavigation = null,
 }: {
   userName?: string | null;
   /** Their picture, if their sign-in provider gave one (#290). */
@@ -322,6 +324,7 @@ export function AppHeader({
   /** This person's points in the open workspace. */
   points?: number;
   solvedTasks?: number;
+  agentNavigation?: AgentNavigationState | null;
 }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -349,9 +352,20 @@ export function AppHeader({
     setOpenMenu(null);
   }
 
-  const items = headerNavItems(role, {
+  const allItems = headerNavItems(role, {
     managePlatforms: canManagePlatforms,
     pendingEscalations: pendingEscalationsCount,
+  });
+  const items: HeaderNavItem[] = allItems.flatMap((item) => {
+    if (item.label !== "Agents" || !agentNavigation) return [item];
+    if (agentNavigation === "empty") return [
+      { href: "/settings/agents/connect", label: "Connect your agent" },
+      item,
+    ];
+    return [{ ...item, children: [
+      { href: "/settings/agents", label: agentNavigation === "active" ? "Manage your agents" : "Open agent settings" },
+      ...(item.children ?? []),
+    ] }];
   });
   const canSwitchRole = Boolean((isRealSuperAdmin || isRealAdmin) && role);
   const realRole = realRoleOf({ isRealSuperAdmin, isRealAdmin });

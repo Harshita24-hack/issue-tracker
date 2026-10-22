@@ -34,6 +34,7 @@ export async function createAgentAction(
   });
   if (!result.ok) return result;
   revalidatePath("/settings/agents");
+  revalidatePath("/", "layout");
   return { ok: true, name: result.key.name, rawKey: result.key.rawKey, prefix: result.key.prefix };
 }
 
@@ -43,7 +44,10 @@ export async function revokeAgentAction(agentId: unknown): Promise<AgentActionRe
   if (typeof agentId !== "string") return { ok: false, error: "Invalid agent." };
   const user = await requireUser();
   const result = await revokeAgent(user, agentId);
-  if (result.ok) revalidatePath("/settings/agents");
+  if (result.ok) {
+    revalidatePath("/settings/agents");
+    revalidatePath("/", "layout");
+  }
   return result;
 }
 
@@ -154,6 +158,7 @@ export async function pairAgentAction(
     );
     if (!result.ok) return result;
     revalidatePath("/settings/agents");
+    revalidatePath("/", "layout");
     return { ok: true, step: "done", name: result.name };
   }
 

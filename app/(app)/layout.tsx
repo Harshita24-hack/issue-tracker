@@ -1,3 +1,4 @@
+import { isAgentPlatformEnabled } from "@/lib/feature-flags";
 import { headers } from "next/headers";
 import { ReportIssueFab } from "@/components/report-issue-fab";
 import { auth } from "@/auth";
@@ -18,6 +19,7 @@ import { currentTenantIdFor } from "@/lib/tenant-context";
 import { tenantsForUser } from "@/lib/tenants";
 import { countPendingEscalations } from "@/lib/agent-questions";
 import { pointTotals } from "@/lib/points/leaderboard";
+import { agentNavigationState, type AgentNavigationState } from "@/lib/agents/navigation";
 
 export default async function AppLayout({
   children,
@@ -69,6 +71,16 @@ export default async function AppLayout({
     console.error("[layout] workspace context failed", error);
   }
   // A missing Notification table must not take down every signed-in page.
+  let agentNavigation: AgentNavigationState | null = null;
+  if (isAgentPlatformEnabled()) {
+    agentNavigation = "unavailable";
+    try {
+      agentNavigation = await agentNavigationState(user.id, tenantId);
+    } catch (error) {
+      console.error("[layout] agent navigation failed", error);
+    }
+  }
+
   let unreadCount = 0;
   try {
     // Cached per user and expired by every write that changes it (#317), so
@@ -125,6 +137,7 @@ export default async function AppLayout({
         canManagePlatforms={canManagePlatforms}
         points={points}
         solvedTasks={solvedTasks}
+        agentNavigation={agentNavigation}
       />
       <main
         id={MAIN_CONTENT_ID}

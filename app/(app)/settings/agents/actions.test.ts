@@ -20,7 +20,38 @@ vi.mock("@/lib/tenant-context", () => ({ currentTenantIdFor: vi.fn(async () => "
 vi.mock("@/lib/feature-flags", () => ({ isAgentPlatformEnabled: () => true }));
 vi.mock("@/lib/rate-limit", () => ({ RATE_LIMIT_MESSAGE: "Too fast." }));
 
-import { setAgentBurstAction } from "./actions";
+import { setAgentBurstAction, createAgentAction, revokeAgentAction, pairAgentAction } from "./actions";
+import { createAgent, revokeAgent } from "@/lib/agents/registry";
+import { approvePairing } from "@/lib/agents/pairing";
+
+describe("agent navigation refresh (#403)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requireUser.mockResolvedValue({ id: "owner" });
+  });
+  it("refreshes the layout after explicit creation", async () => {
+    vi.mocked(createAgent).mockResolvedValue({ ok: true, key: { name: "Agent", rawKey: "test", prefix: "test" } } as Awaited<ReturnType<typeof createAgent>>);
+    await createAgentAction(undefined, new FormData());
+    expect(revalidatePath).toHaveBeenCalledWith("/", "layout");
+  });
+  it("refreshes the layout after revocation", async () => {
+    vi.mocked(revokeAgent).mockResolvedValue({ ok: true });
+    await revokeAgentAction("agent");
+    expect(revalidatePath).toHaveBeenCalledWith("/", "layout");
+  });
+  it("refreshes the layout after pairing approval", async () => {
+    vi.mocked(approvePairing).mockResolvedValue({ ok: true, name: "Agent" } as Awaited<ReturnType<typeof approvePairing>>);
+    const form = new FormData();
+    form.set("intent", "approve");
+    await pairAgentAction(undefined, form);
+    expect(revalidatePath).toHaveBeenCalledWith("/", "layout");
+  });
+  it("does not refresh after a denied revocation", async () => {
+    vi.mocked(revokeAgent).mockResolvedValue({ ok: false, error: "Denied" });
+    await revokeAgentAction("agent");
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+});
 
 describe("setAgentBurstAction (#596)", () => {
   beforeEach(() => {
