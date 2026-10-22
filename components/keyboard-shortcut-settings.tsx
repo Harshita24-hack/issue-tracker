@@ -7,7 +7,7 @@ import { ShowShortcutsButton } from "@/components/keyboard-shortcuts";
 /** Settings → Keyboard shortcuts (#287): the off switch and the cheat sheet. */
 export function KeyboardShortcutSettings({ initialEnabled }: { initialEnabled: boolean }) {
   const [enabled, setEnabled] = useState(initialEnabled);
-  const [message, setMessage] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<{ kind: "error" | "success"; text: string } | null>(null);
   const [pending, startTransition] = useTransition();
 
   return (
@@ -25,14 +25,17 @@ export function KeyboardShortcutSettings({ initialEnabled }: { initialEnabled: b
           onChange={(event) => {
             const next = event.target.checked;
             setEnabled(next);
-            setMessage(null);
+            setFeedback(null);
             startTransition(async () => {
               const result = await setKeyboardShortcutsAction(next);
               if (result.error) {
                 setEnabled(!next);
-                setMessage(result.error);
+                setFeedback({ kind: "error", text: result.error });
               } else {
-                setMessage(next ? "Keyboard shortcuts turned on." : "Keyboard shortcuts turned off.");
+                setFeedback({
+                  kind: "success",
+                  text: next ? "Keyboard shortcuts turned on." : "Keyboard shortcuts turned off.",
+                });
               }
             });
           }}
@@ -45,8 +48,11 @@ export function KeyboardShortcutSettings({ initialEnabled }: { initialEnabled: b
         to see them. They never fire while you&apos;re typing.
       </p>
       <ShowShortcutsButton />
+      <p role="alert" className="text-sm text-red-700 empty:hidden">
+        {feedback?.kind === "error" ? feedback.text : ""}
+      </p>
       <p role="status" aria-live="polite" className="text-sm text-emerald-700 empty:hidden">
-        {message ?? ""}
+        {feedback?.kind === "success" ? feedback.text : ""}
       </p>
     </div>
   );
