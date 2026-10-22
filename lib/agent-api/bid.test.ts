@@ -16,12 +16,16 @@ const db = vi.hoisted(() => {
 vi.mock("@/lib/prisma", () => ({ prisma: db }));
 vi.mock("@/lib/agent-api/validation", () => ({ isConfirmed: vi.fn(async () => true) }));
 vi.mock("@/lib/redesigns", () => ({ assertRedesignOpen: vi.fn(async () => undefined) }));
+vi.mock("@/lib/approvals", () => ({ assertApprovalOpen: vi.fn(async () => undefined) }));
 vi.mock("@/lib/agent-api/events", () => ({ publish: vi.fn(async () => ({ id: "evt" })) }));
 vi.mock("@/lib/watch", () => ({ ensureWatching: vi.fn(async () => undefined) }));
 vi.mock("@/lib/agents/membership", () => ({ isTenantAdmin: vi.fn(async () => false) }));
 
 import { isConfirmed } from "@/lib/agent-api/validation";
 import { publish } from "@/lib/agent-api/events";
+import { assertRedesignOpen } from "@/lib/redesigns";
+import { assertApprovalOpen } from "@/lib/approvals";
+import { IssueApiError } from "@/lib/agent-api/issues";
 import { awardBid, listBids, placeBid, withdrawBid } from "./bid";
 import { resetWorkflowCache } from "@/lib/workflow";
 
@@ -198,6 +202,23 @@ describe("awardBid", () => {
       status: 409,
       message: expect.stringContaining("still an idea"),
     });
+    expect(db.issueClaim.create).not.toHaveBeenCalled();
+  });
+
+  it("does not award while a redesign is waiting for a person (#508)", async () => {
+    db.issueBid.findUnique.mockResolvedValue(stored);
+    vi.mocked(assertRedesignOpen).mockRejectedValueOnce(new IssueApiError(409, "This redesign is waiting for a person."));
+    await expect(awardBid({ id: "reporter" }, "bid1")).rejects.toMatchObject({ status: 409 });
+    expect(assertRedesignOpen).toHaveBeenCalledWith("issue1", db);
+    expect(db.issueClaim.create).not.toHaveBeenCalled();
+    expect(db.bug.update).not.toHaveBeenCalled();
+  });
+
+  it("does not award while a before_offer human approval is pending (#508)", async () => {
+    db.issueBid.findUnique.mockResolvedValue(stored);
+    vi.mocked(assertApprovalOpen).mockRejectedValueOnce(new IssueApiError(409, "waiting_for_human", { approvalId: "ap1" }));
+    await expect(awardBid({ id: "reporter" }, "bid1")).rejects.toMatchObject({ status: 409 });
+    expect(assertApprovalOpen).toHaveBeenCalledWith("issue1", "before_offer", { db, tenantId: "tenant" });
     expect(db.issueClaim.create).not.toHaveBeenCalled();
   });
 
