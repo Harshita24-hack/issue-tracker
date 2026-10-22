@@ -65,7 +65,7 @@ function bugRow(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function merger(id: string, ownerId: string, level: "observer" | "contributor" | "triager" | "reviewer" | "dispatcher" | "merger" = "merger") {
+function merger(id: string, ownerId: string, level: "observer" | "contributor" | "reviewer" | "dispatcher" | "merger" = "merger") {
   return { agentId: id, name: id, ownerId, tenantId: "tenant_zedu", level, burst: false, keyId: `key-${id}` };
 }
 
@@ -123,16 +123,19 @@ beforeEach(() => {
 });
 
 describe("acceptFix: who may merge (#434)", () => {
-  it("rejects a contributor, a reviewer, and an owner-granted dispatcher before touching the issue (#434, #519)", async () => {
+  it("rejects a dispatcher without merger level before touching the issue", async () => {
+    expect(await acceptFix(merger("d1", "dan", "dispatcher"), "bug1")).toMatchObject({
+      status: 403,
+      error: "insufficient_level",
+    });
+    expect(db.bug.findFirst).not.toHaveBeenCalled();
+  });
+  it("rejects a contributor and a reviewer before touching the issue", async () => {
     expect(await acceptFix(merger("c1", "cara", "contributor"), "bug1")).toMatchObject({
       status: 403,
       error: "insufficient_level",
     });
     expect(await acceptFix(merger("r1", "rob", "reviewer"), "bug1")).toMatchObject({
-      status: 403,
-      error: "insufficient_level",
-    });
-    expect(await acceptFix(merger("d1", "dana", "dispatcher"), "bug1")).toMatchObject({
       status: 403,
       error: "insufficient_level",
     });

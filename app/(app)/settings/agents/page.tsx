@@ -22,6 +22,7 @@ import { isAgentPlatformEnabled } from "@/lib/feature-flags";
 import { CreateAgentForm } from "./create-agent-form";
 import { AgentControls } from "./agent-controls";
 import { AgentRowKey } from "./agent-row-key";
+import { FirstAgentEmptyState } from "@/components/first-agent-empty-state";
 
 /** Decrypts a stored agent key for display; a missing or unreadable seal yields null so the row still renders. */
 function revealAgentKey(sealed: string | null): string | null {
@@ -239,7 +240,7 @@ export default async function AgentsSettingsPage() {
               </Link>
               .
             </p>
-            <CreateAgentForm projects={projects} activeProjectId={context.activeProjectId} />
+            <CreateAgentForm projects={projects} activeProjectId={context.activeProjectId} levels={ownLevels} />
           </section>
 
           <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6" aria-labelledby="mine-heading">
@@ -250,9 +251,7 @@ export default async function AgentsSettingsPage() {
               Each agent has its own key. Copy sends that key and this site to that agent only.
             </p>
             {mine.length === 0 ? (
-              <p className="mt-3 text-sm text-slate-600">
-                No agents yet. Register one under “Add an agent”, or approve an agent that asked at the approval page.
-              </p>
+              <FirstAgentEmptyState />
             ) : (
               <ul className="mt-3 divide-y divide-slate-100">
                 {mine.map((agent) => (
@@ -412,9 +411,9 @@ export default async function AgentsSettingsPage() {
               ))}
             </dl>
             <p className="mt-3 text-xs text-slate-500">
-              New agents start as observers. You can raise your own agents up to dispatcher; only a team
-              admin can make one a merger. A dispatcher assigns ready work but cannot accept or merge a
-              fix. Give each level its own agent. {OWNER_REVIEW_LIMIT} Each
+              New agents start as observers. You can raise your own agents up to reviewer; only a team
+              admin can make one a dispatcher or merger. A dispatcher assigns ready work; only a merger can
+              accept and merge a fix. Give each level its own agent. {OWNER_REVIEW_LIMIT} Each
               agent may make 30 writes an hour, including reviews. An admin can turn on a higher budget
               of 400 writes an hour.
             </p>

@@ -37,6 +37,13 @@ beforeEach(() => {
 });
 
 describe("createAgent (#427)", () => {
+  it.each(["dispatcher", "merger"] as const)("requires tenant admin authority to create a %s", async (level) => {
+    expect(await createAgent(ada, { name: "Privileged agent", level, projectId: "project_web" })).toMatchObject({ ok: false, field: "level" });
+    expect(db.agent.create).not.toHaveBeenCalled();
+    db.membership.findUnique.mockResolvedValue({ role: "admin" });
+    expect(await createAgent(ada, { name: "Privileged agent", level, projectId: "project_web" })).toMatchObject({ ok: true });
+    expect(db.agent.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ level }) }));
+  });
   it("returns the raw key and seals it so the owner can copy it again", async () => {
     const result = await createAgent(ada, { name: "  Ada's   Claude ", model: "Claude", projectId: "project_web" });
     expect(result.ok).toBe(true);
@@ -64,9 +71,9 @@ describe("createAgent (#427)", () => {
     });
   });
 
-  it("lets the owner start an agent as a dispatcher, but not a merger (#519)", async () => {
-    await createAgent(ada, { name: "Ada's GPT", level: "dispatcher", projectId: "project_web" });
-    expect(db.agent.create.mock.calls[0][0].data.level).toBe("dispatcher");
+  it("lets the owner start an agent as a contributor, but no higher", async () => {
+    await createAgent(ada, { name: "Ada's GPT", level: "contributor", projectId: "project_web" });
+    expect(db.agent.create.mock.calls[0][0].data.level).toBe("contributor");
     const result = await createAgent(ada, { name: "Ada's GPT", level: "merger", projectId: "project_web" });
     expect(result).toMatchObject({ ok: false, field: "level" });
   });
@@ -129,22 +136,14 @@ describe("revokeAgent and setAgentLevel (#427)", () => {
     expect(db.agent.delete).not.toHaveBeenCalled();
   });
 
-  it("lets the owner raise to reviewer or dispatcher but not merger (#519)", async () => {
+  it("lets the owner raise to reviewer but not merger", async () => {
     db.agent.findUnique.mockResolvedValue(agentRow);
     db.agent.findUniqueOrThrow.mockResolvedValue({ level: "observer" });
     expect(await setAgentLevel(ada, "agent1", "reviewer")).toEqual({ ok: true });
     expect(db.agent.update.mock.calls[0][0].data).toEqual({ level: "reviewer" });
-    db.agent.findUniqueOrThrow.mockResolvedValue({ level: "reviewer" });
-    expect(await setAgentLevel(ada, "agent1", "dispatcher")).toEqual({ ok: true });
-    expect(db.agent.update.mock.calls[1][0].data).toEqual({ level: "dispatcher" });
     expect(await setAgentLevel(ada, "agent1", "merger")).toMatchObject({ ok: false });
-    expect(db.agent.update).toHaveBeenCalledTimes(2);
-  });
-
-  it("refuses a level change from anyone but the owner or a tenant admin", async () => {
-    db.agent.findUnique.mockResolvedValue(agentRow);
-    expect(await setAgentLevel({ id: "bob", role: "user" }, "agent1", "reviewer")).toMatchObject({ ok: false });
-    expect(db.agent.update).not.toHaveBeenCalled();
+    expect(await setAgentLevel(ada, "agent1", "dispatcher")).toMatchObject({ ok: false });
+    expect(db.agent.update).toHaveBeenCalledTimes(1);
   });
 });
 

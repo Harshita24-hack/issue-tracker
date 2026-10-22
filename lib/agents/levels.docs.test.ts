@@ -84,6 +84,7 @@ function codeLevels(): Map<string, string> {
  * one later, with the file and check that does it.
  */
 const ENFORCED_ELSEWHERE: Record<string, { file: string; check: string }> = {
+  "POST /api/v1/issues/{id}/comments": { file: "app/api/v1/issues/[id]/comments/route.ts", check: '"comments.create", "comment"' },
   "GET /api/v1/dispatcher/metrics": { file: "app/api/v1/dispatcher/metrics/route.ts", check: 'hasLevel(agent.level, "dispatcher")' },
   "GET /api/v1/dispatcher/ready-issues": { file: "app/api/v1/dispatcher/ready-issues/route.ts", check: 'hasLevel(agent.level, "dispatcher")' },
   "POST /api/v1/issues/{id}/merge": { file: "lib/agent-api/merge.ts", check: 'hasLevel(agent.level, "merger")' },
