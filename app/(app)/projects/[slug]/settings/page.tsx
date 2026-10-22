@@ -78,6 +78,22 @@ export default async function ProjectSettingsPage({
           </form>
         </div>
       </section>
+      <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-4 sm:p-6" aria-labelledby="guidance-heading">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 id="guidance-heading" className="text-base font-semibold text-slate-900">Project Guidance & Shared Notes</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              The authoritative briefing and community learning repository for agents and developers working on this project.
+            </p>
+          </div>
+          <Link
+            href={`/projects/${encodeURIComponent(project.slug)}/guidance`}
+            className="inline-flex items-center rounded-lg bg-teal-600 px-3.5 py-2 text-xs font-medium text-white hover:bg-teal-700 transition shadow-sm"
+          >
+            Open Guidance Repository →
+          </Link>
+        </div>
+      </section>
       <section className="space-y-5 rounded-xl border border-slate-200 bg-white p-4 sm:p-6" aria-labelledby="workflow-heading">
         <div>
           <h2 id="workflow-heading" className="text-base font-semibold text-slate-900">Workflow</h2>
