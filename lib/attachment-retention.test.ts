@@ -1,10 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   pruneUnlinkedUploads,
-  sweepOrphanedAttachments,
   SWEEP_BATCH,
   UNLINKED_UPLOAD_TTL_MS,
-  ORPHANED_UPLOAD_TTL_MS,
   DELETED_PARENT_TTL_MS,
 } from "./attachment-retention";
 
@@ -94,7 +92,7 @@ describe("sweepOrphanedAttachments (#658)", () => {
       .mockResolvedValueOnce({ count: 1 });
 
     const db = { attachment: { findMany, deleteMany } };
-    const { sweepOrphanedAttachments, DELETED_PARENT_TTL_MS } = await import("./attachment-retention");
+    const { sweepOrphanedAttachments } = await import("./attachment-retention");
 
     const result = await sweepOrphanedAttachments(db as never, { now, sweep: true });
     expect(result).toEqual({ unlinked: 0, deletedParents: 2, total: 2 });
@@ -130,7 +128,7 @@ describe("sweepOrphanedAttachments (#658)", () => {
     const deleteMany = vi.fn().mockResolvedValue({ count: 0 });
 
     const db = { attachment: { findMany, deleteMany } };
-    const { sweepOrphanedAttachments, DELETED_PARENT_TTL_MS } = await import("./attachment-retention");
+    const { sweepOrphanedAttachments } = await import("./attachment-retention");
 
     // Use a cutoff in the future (within restore window) so nothing qualifies for purge
     const futureCutoff = new Date(now.getTime() + 1000);
