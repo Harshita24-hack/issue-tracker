@@ -77,6 +77,14 @@ describe("sweepOrphanedAttachments (#658)", () => {
       select: { id: true },
       take: 500,
     });
+
+    // Verify deleteMany re-checks the deleted state (race condition fix #411)
+    expect(deleteMany).toHaveBeenNthCalledWith(2, {
+      where: { id: { in: ["b-1"] }, bug: { isDeleted: true } },
+    });
+    expect(deleteMany).toHaveBeenNthCalledWith(3, {
+      where: { id: { in: ["c-1"] }, comment: { deletedAt: { not: null } } },
+    });
   });
 
   it("skips execution when sweep is false", async () => {
