@@ -816,7 +816,7 @@ Create a goal. The pool starts unfunded, so a fresh goal reports `splitStatus: "
 }
 ```
 
-- `budgetPool` (required): whole credits, `0` to `1000000000`
+- `budgetPool` (required): whole credits, `0` to `1000000000`. Send a JSON number; a plain whole-number string such as `"250"` is also accepted. `null`, `""`, `true`/`false`, arrays and other strings (such as `"1e2"`) answer `400` naming the field, instead of being read as `0` or `1`.
 - `description` (optional): up to 4000 characters, or `""`/`null`
 
 **Response (201):** `{ "goal": { ... } }` — an invalid payload answers `400`, an unknown project `404`.
@@ -882,7 +882,7 @@ How the amounts are computed depends on `method`:
 | `milestone` | Every target carries a percentage `weight`; the shares must total exactly **100**. |
 | `even` | Equal slices for every target; leftover credits go to the earliest targets. |
 
-For `proportional`, `milestone`, and `even`, the optional top-level `amount` is the total to carve out (≥ 1 credit) and defaults to **everything still unallocated**. Targets that round to `0` credits get no allocation row.
+For `proportional`, `milestone`, and `even`, the optional top-level `amount` is the total to carve out (≥ 1 credit) and defaults to **everything still unallocated**. Every `amount` and `weight` must be a JSON number (or a plain whole-number string); any other value answers `400` naming the field. Targets that round to `0` credits get no allocation row.
 
 **Request Body:**
 ```json

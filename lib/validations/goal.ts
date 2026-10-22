@@ -25,12 +25,28 @@ export type GoalAllocationTargetValue = z.infer<typeof goalAllocationTargetSchem
 
 const idSchema = z.string().trim().min(1).max(191);
 
+/** A whole number written as a plain string, such as `"250"` (#502). */
+const WHOLE_NUMBER_STRING = /^\s*-?\d+\s*$/;
+
+/**
+ * A JSON number, or a plain whole-number string such as `"250"`, then `number`'s
+ * own checks (#502). Anything else (`null`, `""`, `true`, `false`, `[]`,
+ * `"1e2"`) is refused with a message naming the field, instead of being
+ * coerced by `Number()` into 0, 1 or 100 the way `z.coerce.number()` did.
+ */
+const numberField = <T extends z.ZodType<number>>(label: string, number: (base: z.ZodNumber) => T) =>
+  z.preprocess(
+    (value) => (typeof value === "string" && WHOLE_NUMBER_STRING.test(value) ? Number(value) : value),
+    number(z.number({ error: `${label} must be a number` })),
+  );
+
 const credits = (label: string, max: number, min: number) =>
-  z.coerce
-    .number()
-    .int(`${label} must be a whole number of credits`)
-    .min(min, `${label} must be at least ${min}`)
-    .max(max, `${label} must be at most ${max}`);
+  numberField(label, (n) =>
+    n
+      .int(`${label} must be a whole number of credits`)
+      .min(min, `${label} must be at least ${min}`)
+      .max(max, `${label} must be at most ${max}`),
+  );
 
 /**
  * Optional free-text description. `""`, `null`, and an omitted field all
@@ -82,7 +98,12 @@ const splitTargetSchema = z
       .max(200, "A deliverable label must be at most 200 characters")
       .optional(),
     /** Weight (`proportional`) or percentage share (`milestone`). */
-    weight: z.coerce.number().int().min(0).max(1_000_000).optional(),
+    weight: numberField("weight", (n) =>
+      n
+        .int("weight must be a whole number")
+        .min(0, "weight must be at least 0")
+        .max(1_000_000, "weight must be at most 1000000"),
+    ).optional(),
     /** Explicit slice for `manual` splits. */
     amount: credits("amount", MAX_POOL_CREDITS, 1).optional(),
   })

@@ -7,7 +7,7 @@ describe("createGoalSchema (#616)", () => {
     expect(parsed).toMatchObject({ title: "Ship the auth audit", budgetPool: 1000, description: null });
   });
 
-  it("coerces a numeric string pool and trims the title", () => {
+  it("accepts a plain whole-number string pool and trims the title", () => {
     const parsed = createGoalSchema.parse({ title: "  Ship it  ", budgetPool: "250" });
     expect(parsed.title).toBe("Ship it");
     expect(parsed.budgetPool).toBe(250);
@@ -137,6 +137,71 @@ describe("splitGoalPoolSchema (#616)", () => {
   it("rejects an empty target list and unknown keys", () => {
     expect(splitGoalPoolSchema.safeParse({ method: "even", targets: [] }).success).toBe(false);
     expect(splitGoalPoolSchema.safeParse({ method: "even", targets: [{ targetType: "issue", targetBugId: "b1" }], extra: 1 }).success).toBe(false);
+  });
+});
+
+describe("strict numbers for budgetPool, amount and weight (#502)", () => {
+  // Values Number() would have turned into 0, 1 or 100 under z.coerce.number().
+  const notNumbers = [null, "", "   ", false, true, [], [5], {}, "1e2", "12abc", "0x10"];
+
+  it("rejects non-number budgetPool values with a message naming the field", () => {
+    for (const budgetPool of notNumbers) {
+      const result = createGoalSchema.safeParse({ title: "Ship it", budgetPool });
+      expect(result.success, `budgetPool ${JSON.stringify(budgetPool)}`).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues[0].path).toEqual(["budgetPool"]);
+        expect(result.error.issues[0].message).toBe("budgetPool must be a number");
+      }
+    }
+  });
+
+  it("rejects non-number manual amounts and top-level amounts", () => {
+    for (const amount of notNumbers) {
+      const manual = splitGoalPoolSchema.safeParse({
+        method: "manual",
+        targets: [{ targetType: "agent", label: "Audit", amount }],
+      });
+      expect(manual.success, `target amount ${JSON.stringify(amount)}`).toBe(false);
+      const even = splitGoalPoolSchema.safeParse({
+        method: "even",
+        amount,
+        targets: [{ targetType: "agent", label: "Audit" }],
+      });
+      expect(even.success, `top-level amount ${JSON.stringify(amount)}`).toBe(false);
+      if (!even.success) expect(even.error.issues.some((issue) => issue.message === "amount must be a number")).toBe(true);
+    }
+  });
+
+  it("rejects non-number weights", () => {
+    for (const weight of notNumbers) {
+      const result = splitGoalPoolSchema.safeParse({
+        method: "proportional",
+        targets: [{ targetType: "agent", label: "Audit", weight }],
+      });
+      expect(result.success, `weight ${JSON.stringify(weight)}`).toBe(false);
+      if (!result.success) expect(result.error.issues.some((issue) => issue.message === "weight must be a number")).toBe(true);
+    }
+  });
+
+  it("still accepts JSON numbers (including exponent literals), zero where allowed, and plain whole-number strings", () => {
+    expect(createGoalSchema.parse({ title: "Ship it", budgetPool: 0 }).budgetPool).toBe(0);
+    expect(createGoalSchema.parse({ title: "Ship it", budgetPool: 1e2 }).budgetPool).toBe(100);
+    expect(createGoalSchema.parse({ title: "Ship it", budgetPool: " 250 " }).budgetPool).toBe(250);
+    const split = splitGoalPoolSchema.parse({
+      method: "proportional",
+      amount: "600",
+      targets: [{ targetType: "agent", label: "Audit", weight: "3" }, { targetType: "agent", label: "Docs", weight: 0 }],
+    });
+    expect(split.amount).toBe(600);
+    expect(split.targets.map((target) => target.weight)).toEqual([3, 0]);
+  });
+
+  it("keeps the range and whole-number checks after parsing a string", () => {
+    expect(createGoalSchema.safeParse({ title: "Ship it", budgetPool: "-1" }).success).toBe(false);
+    expect(createGoalSchema.safeParse({ title: "Ship it", budgetPool: "1.5" }).success).toBe(false);
+    expect(
+      splitGoalPoolSchema.safeParse({ method: "manual", targets: [{ targetType: "agent", label: "Audit", amount: "0" }] }).success,
+    ).toBe(false);
   });
 });
 
