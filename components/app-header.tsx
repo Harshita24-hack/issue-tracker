@@ -312,7 +312,7 @@ export function AppHeader({
   return (
     // Sticky only from lg: on phones and tablets the toolbar wraps onto rows,
     // and a header that tall pinned to the top covers the page under it.
-    <header className="relative z-40 w-full min-w-0 border-b border-zk-border bg-zk-surface lg:sticky lg:top-0">
+    <header className="relative z-10 w-full min-w-0 border-b border-zk-border bg-zk-surface lg:sticky lg:top-0 lg:z-40">
       <div className="flex w-full min-w-0 flex-wrap items-center gap-2 px-3 py-2.5 sm:gap-3 sm:px-6 sm:py-3">
         <Link
           href="/issues/new"

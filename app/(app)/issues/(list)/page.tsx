@@ -825,7 +825,7 @@ export default async function BugsPage({
                         <Link
                           href={issuePath(bug.number)}
                           data-issue-link=""
-                          className="flex min-w-0 flex-1 items-center gap-3 rounded-md text-left focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-electric-blue"
+                          className="scroll-mt-32 flex min-w-0 flex-1 items-center gap-3 rounded-md text-left focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-electric-blue"
                         >
                           <span
                             className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
