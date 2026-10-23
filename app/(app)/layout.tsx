@@ -172,7 +172,7 @@ export default async function AppLayout({
           /* Focusable so the skip link and the route announcer can move focus
              here; -1 keeps it out of the normal tab order. */
           tabIndex={-1}
-          className={`outline-none ${PAGE_CONTAINER_CLASS} flex-1 pb-10 pt-5 sm:px-6 sm:pb-12 sm:pt-8`}
+          className={`outline-none ${PAGE_CONTAINER_CLASS} flex-1 pb-10 pt-[64px] sm:px-6 sm:pb-12 sm:pt-8`}
         >
           {children}
         </main>
