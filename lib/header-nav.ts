@@ -20,10 +20,10 @@ export const SWITCH_TENANT_LINK: HeaderNavItem = { href: "/tenants", label: "Swi
 
 /**
  * The Agents dropdown in the top bar. Both destinations are real pages: the
- * pairing flow to get an agent connected, and the management page.
+ * onboarding flow and the management page.
  */
 export const AGENT_MENU_LINKS: HeaderNavItem[] = [
-  { href: "/settings/agents/pair", label: "Get started" },
+  { href: "/settings/agents/connect", label: "Get started" },
   { href: "/settings/agents", label: "Manage agents" },
 ];
 
