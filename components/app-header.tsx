@@ -333,6 +333,11 @@ export function AppHeader({
           {showEscalations ? (
             <Link
               href="/escalations"
+              aria-label={
+                pendingEscalationsCount > 0
+                  ? `Escalation, ${pendingEscalationsCount} pending`
+                  : "Escalation"
+              }
               aria-current={isNavItemActive(pathname, "/escalations") ? "page" : undefined}
               className={`inline-flex h-9 sm:h-10 shrink-0 items-center gap-1.5 sm:gap-2 rounded-full border border-zk-bad-bd bg-zk-bad-soft px-2.5 sm:px-4 text-xs sm:text-sm font-bold text-zk-bad-fg ${linkFocus}`}
             >

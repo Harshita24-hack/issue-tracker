@@ -4,6 +4,10 @@
 /* Ziki brand re-seed: accent families + surfaces, both themes. */
 @import "./theme-brand.css";
 
+html {
+  scroll-padding-top: 5rem;
+}
+
 :root {
   /* Light canvas from the redesign handoff. */
   --background: #f5f7fc;

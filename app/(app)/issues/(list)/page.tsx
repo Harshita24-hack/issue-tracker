@@ -803,7 +803,7 @@ export default async function BugsPage({
                     return (
                       <li
                         key={bug.id}
-                        className={`flex items-center gap-4 px-4 py-3.5 ${
+                        className={`scroll-mt-20 flex items-center gap-4 px-4 py-3.5 ${
                           index < bugs.length - 1 ? "border-b border-zk-divider" : ""
                         }`}
                       >
