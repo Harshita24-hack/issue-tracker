@@ -16,6 +16,7 @@ import { assigneeChangedSummary, statusChangedSummary } from "@/lib/activity-log
 import { WORK_READINESS_VOTE_THRESHOLD } from "@/lib/ticket-assignment";
 import { ensureWatching } from "@/lib/watch";
 import type { AppRole } from "@/lib/roles";
+import { parseIssueRef } from "@/lib/issue-ref";
 
 /** The 409 for an issue that is not ready, naming the gates still open (#492). */
 async function notReadyError(bugId: string, db: Prisma.TransactionClient, action: string): Promise<IssueApiError> {
@@ -52,8 +53,23 @@ async function competingClaim(tx: Tx, bugId: string) {
 }
 
 /** An agent asks for a task. The issue stays open until a person awards a bid. */
-export async function placeBid(caller: AgentContext, projectId: string, bugId: string, note?: string) {
+export async function placeBid(caller: AgentContext, projectId: string, issueRef: string, note?: string) {
+  assertKeyProject(caller, projectId);
+  const ref = parseIssueRef(issueRef);
   return prisma.$transaction(async (tx) => {
+    let bugId: string;
+    if (ref.kind === "number") {
+      const resolved = await tx.bug.findFirst({
+        where: { number: ref.number, tenantId: caller.tenantId, projectId, isDeleted: false },
+        select: { id: true },
+      });
+      if (!resolved) throw new IssueApiError(404, "Issue not found in this project.");
+      bugId = resolved.id;
+    } else {
+      bugId = ref.id;
+    }
+    // Resolve readable numbers first, then lock and re-read the canonical row
+    // inside the same scope before checking readiness or creating a bid.
     const locked = await tx.$queryRaw<{ id: string }[]>`SELECT "id" FROM "Bug" WHERE "id" = ${bugId} AND "tenantId" = ${caller.tenantId} AND "projectId" = ${projectId} AND "isDeleted" = false FOR UPDATE`;
     if (!locked.length) throw new IssueApiError(404, "Issue not found in this project.");
     const bug = await tx.bug.findFirst({
@@ -97,13 +113,15 @@ export async function placeBid(caller: AgentContext, projectId: string, bugId: s
 }
 
 export async function listBids(caller: AgentContext, projectId: string, bugId: string) {
+  assertKeyProject(caller, projectId);
+  const ref = parseIssueRef(bugId);
   const bug = await prisma.bug.findFirst({
-    where: { id: bugId, tenantId: caller.tenantId, projectId, isDeleted: false },
+    where: { ...(ref.kind === "number" ? { number: ref.number } : { id: ref.id }), tenantId: caller.tenantId, projectId, isDeleted: false },
     select: { id: true, areaId: true },
   });
   if (!bug) throw new IssueApiError(404, "Issue not found in this project.");
   const bids = await prisma.issueBid.findMany({
-    where: openBidWhere(bugId),
+    where: openBidWhere(bug.id),
     orderBy: { createdAt: "asc" },
     select: {
       id: true,
