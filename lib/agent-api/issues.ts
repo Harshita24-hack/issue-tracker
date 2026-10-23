@@ -12,7 +12,8 @@ import { parsePlatformFilter, platformFilterWhere } from "@/lib/platform-filter"
 import { boundSearchTerm, escapeSearchQuery } from "@/lib/search";
 import { parseProjectAreaFilter, projectAreaFilterWhere } from "@/lib/project-area-filter";
 import { intakeKind, openIssueStages, type IssueStage } from "@/lib/issue-stage";
-import { createIssueWithPolicy, cursorOrderBy, cursorWhere, decodeCursor, DEFAULT_PAGE_SIZE, hashCreateRequest, MAX_PAGE_SIZE, pageSize, parseLimitStrict, toPage, type IssueCursor } from "@/lib/agent-api/create-policy";
+import { parseIssueRef } from "@/lib/issue-ref";
+import { createIssueWithPolicy, cursorOrderBy, cursorWhere, decodeCursor, hashCreateRequest, pageSize, toPage, type IssueCursor } from "@/lib/agent-api/create-policy";
 import { createdSummary, commentedSummary, commentPreview } from "@/lib/activity-log";
 import { extractMentionedUserIds, normalizeMentions } from "@/lib/mentions";
 import { commentDepth, MAX_COMMENT_DEPTH } from "@/lib/comments";
@@ -46,7 +47,8 @@ const agentCommentSchema = commentSchema.extend({ projectId: idSchema.optional()
 export async function agentIssueRequest(
   request: NextRequest, action: string, level: AgentLevel, target: string | null,
   run: (agent: AgentContext) => Promise<Response>,
-  options: { budget?: "none" } = {},
+  // `write` charges an observer-level route that changes data (#515) to the write budget.
+  options: { budget?: "none" | "write" } = {},
 ): Promise<Response> {
   let agent: AgentContext | undefined;
   let response: Response | undefined;
@@ -60,7 +62,7 @@ export async function agentIssueRequest(
     } else {
       const budget = await consumeAgentBudget(
         { id: agent.agentId, burst: agent.burst, burstUntil: agent.burstUntil ?? null },
-        level === "observer" ? "read" : "write",
+        level === "observer" && options.budget !== "write" ? "read" : "write",
       );
       quota = budget;
       response = budget.allowed ? await run(agent) : agentBudgetExceededResponse(budget.retryAfterSeconds, budget);
@@ -179,7 +181,7 @@ export async function listAgentIssues(scope: Scope, params: URLSearchParams) {
     if (ids.length === 0) return { items: [], nextCursor: null };
     filtered.id = { in: ids };
   }
-  const where: Prisma.BugWhereInput = { ...filtered, ...(cursor ? cursorWhere(cursor) : {}) };
+  const where: Prisma.BugWhereInput = { ...filtered, ...cursorWhere(cursor) };
   const rows = await prisma.bug.findMany({ where, orderBy: cursorOrderBy(), take: limit + 1, select: issueSelect });
   return toPage(rows, limit);
 }
@@ -196,8 +198,10 @@ const validationSelect = {
 } satisfies Prisma.IssueValidationSelect;
 
 export async function readAgentIssue(scope: Scope, id: string) {
+  // #457: the path may be the readable number (`123`, `ZE-123`) or the id.
+  const ref = parseIssueRef(id);
   const issue = await prisma.bug.findFirst({
-    where: { ...scope, id, isDeleted: false },
+    where: { ...scope, ...(ref.kind === "number" ? { number: ref.number } : { id: ref.id }), isDeleted: false },
     select: { ...issueSelect, voteCount: true, comments: {
       where: { deletedAt: null }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 100,
       select: { id: true, body: true, authorId: true, agentId: true, parentId: true, type: true, metadata: true, createdAt: true, editedAt: true },
@@ -247,10 +251,7 @@ export async function listAgentIssueComments(scope: Scope, id: string, params: U
   const cursorRaw = params.get("after");
   const cursor = decodeCursor(cursorRaw);
   if (cursorRaw !== null && !cursor) throw new IssueApiError(400, "Invalid cursor.");
-  const limitRaw = params.get("limit");
-  const limitResult = parseLimitStrict(limitRaw, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
-  if (!limitResult.ok) throw new IssueApiError(422, limitResult.error);
-  const limit = limitResult.value;
+  const limit = pageSize(params.get("limit"));
   const typeParam = params.get("type");
   const validTypes = ["comment", "bid", "review", "delivery", "request_to_merge"];
   if (typeParam && !validTypes.includes(typeParam)) {
