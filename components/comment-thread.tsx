@@ -28,14 +28,6 @@ type OrganizationRoles = Record<string, OrganizationRole>;
 
 type UserOption = { id: string; name: string };
 
-type ViewerProps = {
-  currentUserId?: string;
-  currentUserRole?: AppRole | null;
-  /** Owner, admin, or site super admin of this issue's organization. */
-  tenantAdmin?: boolean;
-  readOnly?: boolean;
-};
-
 const commentTypeVisual: Record<
   CommentType,
   { label: string; chip: string; accent: string; filterOn: string }
