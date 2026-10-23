@@ -28,6 +28,14 @@ type OrganizationRoles = Record<string, OrganizationRole>;
 
 type UserOption = { id: string; name: string };
 
+type ViewerProps = {
+  currentUserId?: string;
+  currentUserRole?: AppRole | null;
+  /** Owner, admin, or site super admin of this issue's organization. */
+  tenantAdmin?: boolean;
+  readOnly?: boolean;
+};
+
 const commentTypeVisual: Record<
   CommentType,
   { label: string; chip: string; accent: string; filterOn: string }
@@ -370,7 +378,7 @@ function CommentItem({
 
       {comment.children.length > 0 ? (
         <ul className="ml-2.5 space-y-3 border-l border-zk-divider pl-2.5 sm:ml-6 sm:pl-4">
-          {comment.children.map((child) => (
+          {comment.children.map((child: CommentNode) => (
             <CommentItem
               key={child.id}
               comment={child}
@@ -416,7 +424,7 @@ export function CommentThread({
 } & ViewerProps) {
   const [typeFilter, setTypeFilter] = useState<string>("all");
 
-  const filteredComments = comments.filter((comment) => {
+  const filteredComments = comments.filter((comment: CommentNode) => {
     if (typeFilter === "all") return true;
     const cType = comment.type || "comment";
     return cType === typeFilter;
@@ -475,7 +483,7 @@ export function CommentThread({
         </div>
       ) : (
         <ul className="space-y-4">
-          {filteredComments.map((comment) => (
+          {filteredComments.map((comment: CommentNode) => (
             <CommentItem
               key={comment.id}
               comment={comment}
