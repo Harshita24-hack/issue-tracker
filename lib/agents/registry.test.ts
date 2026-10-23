@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const db = vi.hoisted(() => {
   const mock = {
-    agent: { create: vi.fn(), findUnique: vi.fn(), findUniqueOrThrow: vi.fn(), update: vi.fn(), delete: vi.fn(), count: vi.fn(async () => 0) },
+    agent: { create: vi.fn(), findUnique: vi.fn(), findUniqueOrThrow: vi.fn(), findMany: vi.fn(), update: vi.fn(), delete: vi.fn(), count: vi.fn(async () => 0) },
     agentApiKey: { create: vi.fn(), updateMany: vi.fn() },
     agentAreaPreference: { findMany: vi.fn(), deleteMany: vi.fn(), createMany: vi.fn() },
     projectArea: { findMany: vi.fn() },
@@ -10,6 +10,7 @@ const db = vi.hoisted(() => {
     membership: { findMany: vi.fn(), findUnique: vi.fn() },
     project: { findFirst: vi.fn() },
     issueClaim: { findMany: vi.fn(async () => []) },
+    issueValidation: { findMany: vi.fn() },
     issueBid: { updateMany: vi.fn(async () => ({ count: 0 })) },
     $transaction: vi.fn(),
   };
@@ -21,6 +22,7 @@ vi.mock("@/lib/prisma", () => ({ prisma: db }));
 import { hashSecret } from "./keys";
 import { openSecret } from "@/lib/secret-box";
 import { createAgent, deleteAgent, regenerateKey, revokeAgent, rotateKey, setAgentAreaPreferences, setAgentBurst, setAgentLevel } from "./registry";
+import { EARNED_REVIEWER_VALIDATIONS, REVIEWER_REGISTRATION_ERROR } from "./promotion";
 import { MAX_ACTIVE_AGENTS_PER_OWNER } from "./registry-limits";
 
 const ada = { id: "ada", role: "user" as const };
@@ -33,8 +35,22 @@ beforeEach(() => {
   db.membership.findMany.mockResolvedValue(zedu);
   db.membership.findUnique.mockResolvedValue({ role: "member" });
   db.project.findFirst.mockResolvedValue({ id: "project_web", slug: "web", name: "Web" });
+  db.agent.findMany.mockResolvedValue([{ id: "agent0" }]);
+  db.issueValidation.findMany.mockResolvedValue([]);
   db.agent.create.mockImplementation(async ({ data }: { data: { name: string } }) => ({ id: "agent1", name: data.name }));
 });
+
+function validation(id: string) {
+  return {
+    id,
+    agent: { id: "agent0", ownerUserId: "ada" },
+    bug: { createdByAgentId: null, beneficiaryUserId: "someone-else", createdByAgent: null, claims: [] },
+  };
+}
+
+function standingValidations(count: number) {
+  return Array.from({ length: count }, (_, i) => validation(`val-${i}`));
+}
 
 describe("createAgent (#427)", () => {
   it.each(["dispatcher", "merger"] as const)("requires tenant admin authority to create a %s", async (level) => {
@@ -76,6 +92,33 @@ describe("createAgent (#427)", () => {
     expect(db.agent.create.mock.calls[0][0].data.level).toBe("contributor");
     const result = await createAgent(ada, { name: "Ada's GPT", level: "merger", projectId: "project_web" });
     expect(result).toMatchObject({ ok: false, field: "level" });
+  });
+
+  it("refuses reviewer registration without 10 standing validations (#430)", async () => {
+    db.issueValidation.findMany.mockResolvedValue(standingValidations(EARNED_REVIEWER_VALIDATIONS - 1));
+    expect(await createAgent(ada, { name: "Ada's reviewer", level: "reviewer", projectId: "project_web" })).toEqual({
+      ok: false,
+      error: REVIEWER_REGISTRATION_ERROR,
+      field: "level",
+    });
+    expect(db.agent.create).not.toHaveBeenCalled();
+  });
+
+  it("registers a reviewer when the owner has 10 standing validations in the tenant (#430)", async () => {
+    db.issueValidation.findMany.mockResolvedValue(standingValidations(EARNED_REVIEWER_VALIDATIONS));
+    expect(await createAgent(ada, { name: "Ada's reviewer", level: "reviewer", projectId: "project_web" })).toMatchObject({ ok: true });
+    expect(db.agent.findMany).toHaveBeenCalledWith({
+      where: { ownerUserId: "ada", tenantId: "tenant_zedu" },
+      select: { id: true },
+    });
+    expect(db.agent.create.mock.calls[0][0].data.level).toBe("reviewer");
+  });
+
+  it("lets a tenant admin register a reviewer without standing validations (#430)", async () => {
+    db.membership.findUnique.mockResolvedValue({ role: "admin" });
+    expect(await createAgent(ada, { name: "Admin's reviewer", level: "reviewer", projectId: "project_web" })).toMatchObject({ ok: true });
+    expect(db.issueValidation.findMany).not.toHaveBeenCalled();
+    expect(db.agent.create.mock.calls[0][0].data.level).toBe("reviewer");
   });
 
   it("names the field when the name is missing", async () => {

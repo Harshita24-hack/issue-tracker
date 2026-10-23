@@ -71,7 +71,9 @@ type DbWithAudit = Db & {
   };
 };
 
-export async function standingValidations(agentId: string, db: Db = prisma): Promise<number> {
+async function standingValidationsForAgents(agentIds: string[], db: Db): Promise<number> {
+  if (agentIds.length === 0) return 0;
+  const agentId = agentIds.length === 1 ? agentIds[0] : { in: agentIds };
   const dbWithAudit = db as DbWithAudit;
   const [rows, undone] = await Promise.all([
     db.issueValidation.findMany({
@@ -100,6 +102,43 @@ export async function standingValidations(agentId: string, db: Db = prisma): Pro
     const reviewed: ReviewedBug = row.bug;
     return reviewerConflict({ id: row.agent.id, ownerUserId: row.agent.ownerUserId }, reviewed) === null;
   }).length;
+}
+
+export async function standingValidations(agentId: string, db: Db = prisma): Promise<number> {
+  return standingValidationsForAgents([agentId], db);
+}
+
+/**
+ * Standing validations earned by the agents a person owns in one tenant.
+ * A newly registered agent has no history of its own, so reviewer at
+ * registration is owner-earned: only work done in the destination tenant
+ * counts, not validations from another tenant or another person's agents (#430).
+ */
+export async function ownerStandingValidations(ownerUserId: string, tenantId: string, db: Db = prisma): Promise<number> {
+  const agents = await db.agent.findMany({
+    where: { ownerUserId, tenantId },
+    select: { id: true },
+  });
+  return standingValidationsForAgents(agents.map((agent) => agent.id), db);
+}
+
+export const REVIEWER_REGISTRATION_ERROR = `Reviewer level requires ${EARNED_REVIEWER_VALIDATIONS} standing validations.`;
+
+/**
+ * Whether someone may register an agent at `level` (#430). Reviewer is earned
+ * at registration too: the owner needs the same standing validations that earn
+ * promotion later, unless a tenant admin is the one registering. Other levels
+ * are unaffected.
+ */
+export async function canRegisterAtLevel(
+  owner: { id: string; isTenantAdmin: boolean },
+  tenantId: string,
+  level: AgentLevel,
+  db: Db = prisma,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (level !== "reviewer" || owner.isTenantAdmin) return { ok: true };
+  const standing = await ownerStandingValidations(owner.id, tenantId, db);
+  return standing >= EARNED_REVIEWER_VALIDATIONS ? { ok: true } : { ok: false, error: REVIEWER_REGISTRATION_ERROR };
 }
 
 // ---------------------------------------------------------------------------

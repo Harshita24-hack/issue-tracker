@@ -8,6 +8,7 @@ import { sealSecret } from "@/lib/secret-box";
 import { CREATION_LEVELS, DEFAULT_AGENT_LEVEL, canSetLevel } from "@/lib/agents/levels";
 import { isTenantAdmin } from "@/lib/agents/membership";
 import { currentTenantIdFor } from "@/lib/tenant-context";
+import { canRegisterAtLevel } from "@/lib/agents/promotion";
 import type { AgentContext } from "@/lib/agents/require-agent";
 import { AGENT_LIMIT_MESSAGE, AGENT_MODEL_MAX, AGENT_NAME_MAX, MAX_ACTIVE_AGENTS_PER_OWNER } from "@/lib/agents/registry-limits";
 import { releaseWorkOfRevokedAgent } from "@/lib/agent-api/revoke-release";
@@ -91,11 +92,14 @@ export async function createAgent(owner: Actor, input: unknown): Promise<CreateA
   if (!tenantId) {
     return { ok: false, error: "Join or create a team before you register agents." };
   }
-  if (!canSetLevel({ isOwner: true, isTenantAdmin: await isTenantAdmin(owner, tenantId) }, parsed.data.level)) {
+  const tenantAdmin = await isTenantAdmin(owner, tenantId);
+  if (!canSetLevel({ isOwner: true, isTenantAdmin: tenantAdmin }, parsed.data.level)) {
     return { ok: false, error: "Only a team admin can assign dispatcher or merger roles.", field: "level" };
   }
   const project = await projectInTenant(tenantId, parsed.data.projectId);
   if (!project) return { ok: false, error: "Choose a project in this workspace.", field: "projectId" };
+  const levelAllowed = await canRegisterAtLevel({ id: owner.id, isTenantAdmin: tenantAdmin }, tenantId, parsed.data.level);
+  if (!levelAllowed.ok) return { ok: false, error: levelAllowed.error, field: "level" };
 
   const key = await prisma.$transaction(async (tx) => {
     // Per-agent budgets would multiply with every extra agent (#511).

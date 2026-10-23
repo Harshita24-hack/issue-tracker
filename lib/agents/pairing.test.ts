@@ -12,9 +12,10 @@ const db = vi.hoisted(() => {
       updateMany: vi.fn(),
       deleteMany: vi.fn(),
     },
-    agent: { create: vi.fn(), delete: vi.fn(), count: vi.fn(async () => 0), findUnique: vi.fn() },
+    agent: { create: vi.fn(), delete: vi.fn(), count: vi.fn(async () => 0), findUnique: vi.fn(), findMany: vi.fn() },
     agentApiKey: { create: vi.fn() },
-    agentAuditEvent: { create: vi.fn() },
+    agentAuditEvent: { create: vi.fn(), findMany: vi.fn() },
+    issueValidation: { findMany: vi.fn() },
     membership: { findMany: vi.fn(), findUnique: vi.fn() },
     project: { findFirst: vi.fn() },
     $transaction: vi.fn(),
@@ -34,6 +35,7 @@ import {
   startPairing,
 } from "./pairing";
 import { DEFAULT_AGENT_LEVEL } from "./levels";
+import { EARNED_REVIEWER_VALIDATIONS, REVIEWER_REGISTRATION_ERROR } from "./promotion";
 import { createAgentSchema } from "./registry";
 import { MAX_ACTIVE_AGENTS_PER_OWNER } from "./registry-limits";
 import { AGENT_INSTRUCTIONS_MAX } from "@/lib/agent-messages";
@@ -50,7 +52,24 @@ beforeEach(() => {
   db.project.findFirst.mockResolvedValue({ id: "project_zedu" });
   db.agent.create.mockResolvedValue({ id: "agent9", name: "Ada's Claude" });
   db.agent.findUnique.mockResolvedValue({ level: "contributor" });
+  db.agent.findMany.mockResolvedValue([{ id: "agent0" }]);
+  db.agentPairing.findFirst.mockResolvedValue(undefined);
+  db.issueValidation.findMany.mockResolvedValue([]);
+  db.agentAuditEvent.findMany.mockResolvedValue([]);
+  db.membership.findUnique.mockResolvedValue({ role: "member" });
 });
+
+function validation(id: string) {
+  return {
+    id,
+    agent: { id: "agent0", ownerUserId: "ada" },
+    bug: { createdByAgentId: null, beneficiaryUserId: "someone-else", createdByAgent: null, claims: [] },
+  };
+}
+
+function standingValidations(count: number) {
+  return Array.from({ length: count }, (_, i) => validation(`val-${i}`));
+}
 
 describe("startPairing (#427)", () => {
   it("stores only hashes of both codes, for 15 minutes", async () => {
@@ -148,8 +167,45 @@ describe("approvePairing (#427)", () => {
 
   it("creates the agent at the requested level stored at pairing start (#425)", async () => {
     db.agentPairing.updateMany.mockResolvedValue({ count: 1 });
+    db.agentPairing.findFirst.mockResolvedValue({ proposedLevel: "reviewer" });
     db.agentPairing.findUnique.mockResolvedValue({ id: "p1", proposedName: "Ada", proposedModel: null, proposedLevel: "reviewer" });
+    db.issueValidation.findMany.mockResolvedValue(standingValidations(EARNED_REVIEWER_VALIDATIONS));
     await approvePairing({ id: "ada" }, "ABCD-2345", NOW, "project_zedu");
+    expect(db.agent.create.mock.calls[0][0].data.level).toBe("reviewer");
+  });
+
+  it("refuses a reviewer pairing when the owner lacks standing validations (#430)", async () => {
+    db.agentPairing.updateMany.mockResolvedValue({ count: 1 });
+    db.agentPairing.findFirst.mockResolvedValue({ proposedLevel: "reviewer" });
+    db.agentPairing.findUnique.mockResolvedValue({ id: "p1", proposedName: "Ada", proposedModel: null, proposedLevel: "reviewer" });
+    db.issueValidation.findMany.mockResolvedValue(standingValidations(EARNED_REVIEWER_VALIDATIONS - 1));
+
+    expect(await approvePairing({ id: "ada" }, "ABCD-2345", NOW, "project_zedu")).toEqual({
+      ok: false,
+      error: REVIEWER_REGISTRATION_ERROR,
+    });
+    expect(db.agentPairing.updateMany).not.toHaveBeenCalled();
+    expect(db.agent.create).not.toHaveBeenCalled();
+  });
+
+  it("approves a reviewer pairing when the owner has 10 standing validations (#430)", async () => {
+    db.agentPairing.updateMany.mockResolvedValue({ count: 1 });
+    db.agentPairing.findFirst.mockResolvedValue({ proposedLevel: "reviewer" });
+    db.agentPairing.findUnique.mockResolvedValue({ id: "p1", proposedName: "Ada", proposedModel: null, proposedLevel: "reviewer" });
+    db.issueValidation.findMany.mockResolvedValue(standingValidations(EARNED_REVIEWER_VALIDATIONS));
+
+    expect(await approvePairing({ id: "ada" }, "ABCD-2345", NOW, "project_zedu")).toEqual({ ok: true, name: "Ada" });
+    expect(db.agent.create.mock.calls[0][0].data.level).toBe("reviewer");
+  });
+
+  it("lets a tenant admin approve a reviewer pairing without standing validations (#430)", async () => {
+    db.membership.findUnique.mockResolvedValue({ role: "admin" });
+    db.agentPairing.updateMany.mockResolvedValue({ count: 1 });
+    db.agentPairing.findFirst.mockResolvedValue({ proposedLevel: "reviewer" });
+    db.agentPairing.findUnique.mockResolvedValue({ id: "p1", proposedName: "Ada", proposedModel: null, proposedLevel: "reviewer" });
+
+    expect(await approvePairing({ id: "ada" }, "ABCD-2345", NOW, "project_zedu")).toEqual({ ok: true, name: "Ada" });
+    expect(db.issueValidation.findMany).not.toHaveBeenCalled();
     expect(db.agent.create.mock.calls[0][0].data.level).toBe("reviewer");
   });
 

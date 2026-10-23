@@ -2,9 +2,10 @@ import type { AgentLevel, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { audit } from "@/lib/agents/audit";
 import { generateApiKey, generateDeviceCode, generateUserCode, hashSecret, normalizeUserCode } from "@/lib/agents/keys";
-import { tenantForOwner } from "@/lib/agents/membership";
+import { isTenantAdmin, tenantForOwner } from "@/lib/agents/membership";
 import { DEFAULT_AGENT_LEVEL, SELF_REGISTRATION_LEVELS } from "@/lib/agents/levels";
 import { agentModelSchema, agentNameSchema, insertAgentWithKey, type Actor, type IssuedKey } from "@/lib/agents/registry";
+import { canRegisterAtLevel } from "@/lib/agents/promotion";
 import { AGENT_LIMIT_MESSAGE, MAX_ACTIVE_AGENTS_PER_OWNER } from "@/lib/agents/registry-limits";
 import { logger } from "@/lib/logger";
 import { AGENT_INSTRUCTIONS_MAX } from "@/lib/agent-messages";
@@ -165,6 +166,21 @@ export async function approvePairing(
   if (!project) return { ok: false, error: PROJECT_REQUIRED };
 
   const codeHash = hashSecret(code);
+  // Reviewer is earned (#430). Checked before the pairing is claimed so an
+  // ineligible request does not burn the code the person already typed.
+  const pending = await prisma.agentPairing.findFirst({
+    where: { codeHash, approvedAt: null, expiresAt: { gt: now } },
+    select: { proposedLevel: true },
+  });
+  if (pending?.proposedLevel === "reviewer") {
+    const levelAllowed = await canRegisterAtLevel(
+      { id: owner.id, isTenantAdmin: await isTenantAdmin(owner, tenant) },
+      tenant,
+      "reviewer",
+    );
+    if (!levelAllowed.ok) return { ok: false, error: levelAllowed.error };
+  }
+
   const result = await prisma.$transaction(async (tx) => {
     // Checked before the pairing is claimed, so hitting the cap does not burn
     // the code the person already typed (#511).
