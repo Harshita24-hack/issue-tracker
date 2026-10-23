@@ -121,6 +121,10 @@
   --color-sidebar-muted: #a9bcdf;
 }
 
+html {
+  /* Keep fragment/focus/scroll-into-view targets clear of the sticky header. */
+  scroll-padding-top: 64px;
+}
 body {
   background: var(--background);
   color: var(--foreground);

@@ -141,7 +141,7 @@ export function AppSidebar({
     <aside
       aria-label="Sidebar"
       data-collapsed={collapsed ? "true" : undefined}
-      className={`flex shrink-0 flex-col gap-4 bg-deep-ocean px-4 py-4 text-sidebar-ink lg:sticky lg:top-0 lg:h-dvh lg:gap-[18px] lg:overflow-y-auto lg:py-[22px] ${
+      className={`w-full flex shrink-0 flex-col gap-4 bg-deep-ocean px-4 py-4 text-sidebar-ink lg:sticky lg:top-0 lg:h-dvh lg:gap-[18px] lg:overflow-y-auto lg:py-[22px] ${
         collapsed ? "lg:w-[76px] lg:px-3" : "lg:w-[248px]"
       }`}
     >
