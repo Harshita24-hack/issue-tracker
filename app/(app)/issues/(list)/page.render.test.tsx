@@ -179,7 +179,8 @@ describe("issue list layout", () => {
     const html = await renderList();
     expect(html).not.toContain("Total issues");
     // The persistent app shell owns the sidebar; this page adds none.
-    expect(html).toMatch(/^<div class="space-y-6">/);
+    // min-w-0 lets the shell shrink the list column instead of widening the page.
+    expect(html).toMatch(/^<div class="min-w-0 space-y-6">/);
     expect(html).not.toContain('aria-label="Sidebar"');
     // The four stats counts are no longer queried.
     const statusOnly = count.mock.calls.filter(([args]) => args?.where?.status === "in_progress");
