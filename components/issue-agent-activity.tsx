@@ -113,6 +113,10 @@ type DecisionVisualConfig = {
   dotClass: string;
 };
 
+/**
+ * Returns distinct visual badge labels, icons, badge colors, and marker dot styles
+ * for an agent decision item based on its decision kind (#455).
+ */
 export function getDecisionConfig(decision: AgentDecision): DecisionVisualConfig {
   switch (decision.kind) {
     case "confirmed":

@@ -69,8 +69,8 @@ describe("ActivityTimeline collapsed by default (#418)", () => {
       <ActivityTimeline
         activities={[
           entry({ type: "created", summary: "Created issue #455" }),
-          entry({ type: "status_changed", summary: "Changed status to in progress" }),
-          entry({ type: "status_changed", summary: "Resolved issue via PR merge" }),
+          entry({ type: "status_changed", summary: "Changed status from open to in progress" }),
+          entry({ type: "status_changed", summary: "Changed status from in progress to resolved" }),
           entry({ type: "assignee_changed", summary: "Assigned to Alice" }),
         ]}
         totalCount={4}

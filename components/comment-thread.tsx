@@ -28,6 +28,10 @@ type OrganizationRoles = Record<string, OrganizationRole>;
 
 type UserOption = { id: string; name: string };
 
+/**
+ * Renders a visual tag badge for typed comments (e.g. bid, review verdict, delivery,
+ * request to merge, or agent indicator) with appropriate icons and color contrasts (#455).
+ */
 function CommentTypeBadge({
   type,
   metadata,

@@ -38,10 +38,16 @@ type ActivityVisualConfig = {
   dotClass: string;
 };
 
+/**
+ * Returns distinct visual badge labels, icons, badge colors, and marker dot styles
+ * for an activity timeline entry based on its activity type and summary (#455).
+ */
 export function getActivityVisualConfig(type: ActivityType, summary: string): ActivityVisualConfig {
   if (type === "status_changed") {
-    const s = summary.toLowerCase();
-    if (s.includes("in progress") || s.includes("in_progress") || s.includes("claimed")) {
+    const lower = summary.toLowerCase();
+    const toIdx = lower.lastIndexOf(" to ");
+    const s = toIdx >= 0 ? lower.slice(toIdx + 4) : lower;
+    if (s.includes("in progress") || s.includes("in_progress") || /\bclaimed\b/.test(s)) {
       return {
         label: "Work Started",
         icon: "⚡",
