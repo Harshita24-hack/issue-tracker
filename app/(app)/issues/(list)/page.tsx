@@ -776,7 +776,11 @@ export default async function BugsPage({
               </div>
             </div>
 
-            <div className="overflow-x-auto">
+            {/* relative: absolutely positioned children (the date column's
+                sr-only label) must be clipped by this scroller, not placed
+                against the page, or the page grows to the row's 860px and a
+                phone zooms out (no sideways scroll, #1070). */}
+            <div className="relative overflow-x-auto">
               <div className="min-w-[860px]">
                 <div className="flex items-center gap-4 rounded-full bg-zk-tint px-4 py-3.5 text-xs font-bold uppercase tracking-[0.05em] text-zk-accent">
                   <span className="w-[52px]">Votes</span>
