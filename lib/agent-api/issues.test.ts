@@ -516,6 +516,7 @@ describe("comment routes accept the readable issue number (#629)", () => {
     const response = await comment(request("POST", { body: "A helpful comment" }), byNumber(ref));
     expect(response.status).toBe(201);
     expect(db.bug.findFirst.mock.calls[0][0].where).toMatchObject({ number: 42, tenantId: "tenant-a", projectId: "project-a" });
+    expect(db.bug.findFirst.mock.calls[0][0].where).not.toHaveProperty("id");
     expect(db.comment.create.mock.calls[0][0].data).toMatchObject({ bugId: issue.id });
     expect(db.bug.update.mock.calls[0][0].where).toEqual({ id: issue.id });
   });
