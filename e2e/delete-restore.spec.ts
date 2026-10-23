@@ -17,10 +17,10 @@ test("deletes an issue, finds it among deleted ones, and restores it", async ({ 
 
   await page.goto(`/issues?deleted=true&q=${encodeURIComponent(title)}`);
   const deletedIssue = page.getByRole("link", { name: new RegExp(title) });
-  // On mobile the sticky navigation can overlap the first row after filtering.
-  // Center the result before clicking so the link is not covered by the header.
-  await deletedIssue.evaluate((element) => element.scrollIntoView({ block: "center" }));
-  await deletedIssue.click();
+  // On mobile the navigation overlaps this row, so activate the focused link
+  // with the keyboard instead of relying on a pointer click through the header.
+  await deletedIssue.focus();
+  await page.keyboard.press("Enter");
   await expect(page).toHaveURL(url);
   await page.getByRole("button", { name: /^Restore/ }).first().click();
   await page.getByRole("dialog").getByRole("button", { name: "Restore issue" }).click();
