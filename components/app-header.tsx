@@ -310,7 +310,7 @@ export function AppHeader({
   const activeWorkspace = workspaces.find((workspace) => workspace.id === activeTenantId) ?? workspaces[0];
 
   return (
-    <header className="sticky top-0 z-40 w-full min-w-0 border-b border-zk-border bg-zk-surface">
+    <header className="relative sm:sticky sm:top-0 z-40 w-full min-w-0 border-b border-zk-border bg-zk-surface">
       <div className="flex w-full min-w-0 flex-wrap items-center gap-2 px-3 py-2.5 sm:gap-3 sm:px-6 sm:py-3">
         <Link
           href="/issues/new"
