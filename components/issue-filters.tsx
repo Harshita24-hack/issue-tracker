@@ -404,7 +404,7 @@ export function IssueFilters({
   return (
     <div className="space-y-3 print:hidden">
       <div className="flex flex-wrap items-center gap-2.5">
-        <div className="min-w-0 flex-1 basis-[240px] max-w-xs">
+        <div className="min-w-0 flex-1 basis-[180px] sm:basis-[240px] max-w-xs">
           <label htmlFor="q" className="sr-only">Search</label>
           <div className="relative" aria-busy={isSearching} data-testid="search-box">
             <div className="flex h-[42px] items-center gap-2 rounded-full border border-zk-border bg-zk-surface px-4">
