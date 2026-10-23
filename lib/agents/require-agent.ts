@@ -76,6 +76,20 @@ export function assertKeyProject(
   }
 }
 
+/**
+ * #529: the same refusal as `assertKeyProject`, as the body and status
+ * `agentErrorResponse` produces. Domain functions that return result objects
+ * use this so a project-scoped key is stopped before any write.
+ */
+export function keyProjectDenial(
+  agent: Pick<AgentContext, "projectId" | "projectSlug">,
+  projectId: string,
+): { status: 403; error: "project_forbidden"; message: string } | null {
+  if (!agent.projectId || agent.projectId === projectId) return null;
+  const error = new AgentProjectError(agent.projectSlug);
+  return { status: 403, error: error.code, message: error.message };
+}
+
 export class AgentAuthError extends Error {
   readonly code: AgentAuthFailure;
 

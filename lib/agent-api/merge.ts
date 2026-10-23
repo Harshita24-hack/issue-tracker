@@ -4,6 +4,7 @@ import { audit } from "@/lib/agents/audit";
 import { reviewerConflict, reviewerCreditConflict, ReviewerNotIndependentError, type ReviewedBug } from "@/lib/agents/independence";
 import { hasLevel } from "@/lib/agents/levels";
 import type { AgentContext } from "@/lib/agents/require-agent";
+import { keyProjectDenial } from "@/lib/agents/require-agent";
 import { IssueApiError } from "@/lib/agent-api/issues";
 import { publish } from "@/lib/agent-api/events";
 import { isConfirmed } from "@/lib/agent-api/validation";
@@ -72,7 +73,7 @@ export type AcceptFixResult =
       solverUserId: string | null;
       rewardedReviewerUserIds: string[];
     }
-  | { status: 403; error: "insufficient_level" | "not_independent"; message: string }
+  | { status: 403; error: "insufficient_level" | "not_independent" | "project_forbidden"; message: string }
   | { status: 404; error: "not_found"; message: string }
   | {
       status: 409;
@@ -91,6 +92,9 @@ export async function acceptFix(agent: AgentContext, bugId: string): Promise<Acc
     select: mergeBugSelect,
   });
   if (!bug) return { status: 404, error: "not_found", message: "No such issue in this agent's tenant." };
+  // #529: a project-scoped key may not accept another project's fix.
+  const projectDenied = keyProjectDenial(agent, bug.projectId);
+  if (projectDenied) return projectDenied;
   // #493: the merger is an independent reviewer too. The same rule that keeps
   // a claim holder's side out of the verdicts keeps it out of the accept —
   // otherwise an owner could accept their own fix and collect the solver

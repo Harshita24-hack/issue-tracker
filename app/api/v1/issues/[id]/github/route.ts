@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { agentIssueRequest, issueJson } from "@/lib/agent-api/issues";
+import { keyProjectDenial } from "@/lib/agents/require-agent";
 import { linkPullRequest } from "@/lib/github/link-pr";
 import {
   clientForInstallation,
@@ -52,6 +53,15 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       },
     });
     if (!bug) return NextResponse.json({ error: "No such issue." }, { status: 404 });
+
+    // #529: a project-scoped key may not link a fix on another project's issue.
+    const projectDenied = keyProjectDenial(agent, bug.projectId);
+    if (projectDenied) {
+      return NextResponse.json(
+        { error: projectDenied.error, message: projectDenied.message },
+        { status: projectDenied.status },
+      );
+    }
 
     const claim = await prisma.issueClaim.findFirst({
       where: { bugId: bug.id, agentId: agent.agentId, status: "active", releasedAt: null },

@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { audit } from "@/lib/agents/audit";
 import { reviewerConflict, reviewerCreditConflict, type ReviewedBug } from "@/lib/agents/independence";
 import { hasLevel } from "@/lib/agents/levels";
-import type { AgentContext } from "@/lib/agents/require-agent";
+import { keyProjectDenial, type AgentContext } from "@/lib/agents/require-agent";
 import { award, type PointAward } from "@/lib/points/award";
 import { confirmationReviewerSourceKey, duplicateMarkerSourceKey, pointSourceKey, reviewerPointsAt, triagerClearSourceKey } from "@/lib/points/rules";
 import {
@@ -391,7 +391,7 @@ export type SubmitValidationResult =
       newlyConfirmed: boolean;
     }
   | { status: 400; error: "invalid_request"; message: string; field?: string }
-  | { status: 403; error: "insufficient_level" | "creator_cannot_validate" | "not_independent"; message: string }
+  | { status: 403; error: "insufficient_level" | "creator_cannot_validate" | "not_independent" | "project_forbidden"; message: string }
   | { status: 404; error: "not_found"; message: string }
   | { status: 409; error: "already_validated"; message: string };
 
@@ -435,6 +435,9 @@ export async function submitValidation(
     select: reviewedBugSelect,
   });
   if (!bug) return { status: 404, error: "not_found", message: "No such issue in this agent's tenant." };
+  // #529: a project-scoped key may not validate another project's issue.
+  const projectDenied = keyProjectDenial(agent, bug.projectId);
+  if (projectDenied) return projectDenied;
 
   if (bug.createdByAgentId === agent.agentId) {
     return {

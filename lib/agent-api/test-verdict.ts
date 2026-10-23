@@ -9,7 +9,7 @@ import {
   type ReviewedBug,
 } from "@/lib/agents/independence";
 import { hasLevel } from "@/lib/agents/levels";
-import type { AgentContext } from "@/lib/agents/require-agent";
+import { keyProjectDenial, type AgentContext } from "@/lib/agents/require-agent";
 import { publish } from "@/lib/agent-api/events";
 import { handleTestVerdictSubmitted } from "@/lib/agent-api/review-offer";
 
@@ -57,6 +57,7 @@ export type TestVerdictBody = z.infer<typeof testVerdictBodySchema>;
 const reviewedBugSelect = {
   id: true,
   tenantId: true,
+  projectId: true,
   status: true,
   pullRequestUrl: true,
   pullRequestHeadSha: true,
@@ -101,7 +102,7 @@ export type SubmitTestVerdictResult =
   /** The agent had a verdict on this issue already, and it was replaced (#529). */
   | { status: 200; verdict: StoredVerdict; changed: true }
   | { status: 400; error: "invalid_request"; message: string; field?: string }
-  | { status: 403; error: "insufficient_level" | "fixer_cannot_verdict" | "not_independent"; message: string }
+  | { status: 403; error: "insufficient_level" | "fixer_cannot_verdict" | "not_independent" | "project_forbidden"; message: string }
   | { status: 404; error: "not_found"; message: string }
   | { status: 409; error: "no_pull_request" | "already_accepted" | "already_verdicted"; message: string };
 
@@ -135,6 +136,9 @@ export async function submitTestVerdict(
     select: reviewedBugSelect,
   });
   if (!bug) return { status: 404, error: "not_found", message: "No such issue in this agent's tenant." };
+  // #529: a project-scoped key may not verdict another project's issue.
+  const projectDenied = keyProjectDenial(agent, bug.projectId);
+  if (projectDenied) return projectDenied;
 
   // #526: "good to merge" has to be about some code.
   if (!bug.pullRequestUrl) {

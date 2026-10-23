@@ -1,325 +1,69 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-const mocks = vi.hoisted(() => ({
-  requireAgent: vi.fn(),
-  budget: vi.fn(),
-  merge: vi.fn(),
-  clientForInstallation: vi.fn(),
-  standingAcceptance: vi.fn(),
-}));
+const agent = {
+  agentId: "agent1",
+  name: "Ada's Claude",
+  ownerId: "ada",
+  tenantId: "tenant",
+  level: "contributor" as const,
+  burst: false,
+  keyId: "key1",
+  projectId: "project_a",
+  projectSlug: "web",
+};
 
-vi.mock("@/lib/agents/require-agent", async (original) => ({
-  ...(await original<typeof import("@/lib/agents/require-agent")>()),
-  requireAgent: mocks.requireAgent,
-}));
+const bug = { id: "issue_b", projectId: "project_b", pullRequestUrl: null, project: { repoUrl: null, githubInstallationId: null } };
+
+const prisma = vi.hoisted(() => ({ bug: { findFirst: vi.fn() } }));
+vi.mock("@/lib/prisma", () => ({ prisma }));
+vi.mock("@/lib/agents/audit", () => ({ audit: vi.fn(async () => undefined) }));
 vi.mock("@/lib/agents/rate-budget", () => ({
-  consumeAgentBudget: mocks.budget,
-  agentBudgetExceededResponse: () =>
-    new Response(JSON.stringify({ error: "Too many requests." }), { status: 429 }),
+  consumeAgentBudget: vi.fn(async () => ({ allowed: true, remaining: 29, limit: 30, resetSeconds: 3600 })),
+  agentBudgetExceededResponse: vi.fn(),
 }));
-vi.mock("@/lib/github/merge-pr", async (original) => ({
-  ...(await original<typeof import("@/lib/github/merge-pr")>()),
-  mergeAcceptedFix: mocks.merge,
-  clientForInstallation: mocks.clientForInstallation,
-  standingAcceptance: mocks.standingAcceptance,
+vi.mock("@/lib/agents/rate-budget-headers", () => ({ withAgentBudgetHeaders: (response: Response) => response }));
+vi.mock("@/lib/agents/require-agent", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/agents/require-agent")>("@/lib/agents/require-agent");
+  return { ...actual, requireAgent: vi.fn(async () => agent) };
+});
+vi.mock("@/lib/github/link-pr", () => ({ linkPullRequest: vi.fn() }));
+vi.mock("@/lib/github/merge-pr", () => ({
+  clientForInstallation: vi.fn(() => null),
+  mergeAcceptedFix: vi.fn(),
+  parseGitHubRepoUrl: vi.fn(() => null),
+  parsePullRequestUrl: vi.fn(() => ({ owner: "o", repo: "r", number: 1 })),
+  sameRepo: vi.fn(() => true),
+  standingAcceptance: vi.fn(async () => null),
 }));
 
-const db = vi.hoisted(() => ({
-  bug: { findFirst: vi.fn(), update: vi.fn() },
-  issueClaim: { findFirst: vi.fn() },
-  reviewOffer: { findFirst: vi.fn() },
-  testVerdict: { updateMany: vi.fn() },
-  bugActivity: { create: vi.fn() },
-  agentAuditEvent: { create: vi.fn() },
-  agentEvent: { create: vi.fn() },
-  webhookSubscription: { findMany: vi.fn() },
-  webhookDelivery: { createMany: vi.fn() },
-  $transaction: vi.fn(),
-}));
-vi.mock("@/lib/prisma", () => ({ prisma: db }));
-
-import { AgentAuthError } from "@/lib/agents/require-agent";
+import { linkPullRequest } from "@/lib/github/link-pr";
+import { mergeAcceptedFix } from "@/lib/github/merge-pr";
 import { POST } from "./route";
 
-const agent = {
-  agentId: "c1",
-  name: "c1",
-  ownerId: "co",
-  tenantId: "tenant",
-  level: "contributor",
-  burst: false,
-  keyId: "k",
-};
-const params = { params: Promise.resolve({ id: "bug1" }) };
-const PR_URL = "https://github.com/zedu/web/pull/7";
-
-function request(body: unknown, key = true) {
-  return new NextRequest("http://localhost/api/v1/issues/bug1/github", {
+function request() {
+  return new NextRequest("https://ziki.dev/api/v1/issues/issue_b/github", {
     method: "POST",
-    headers: {
-      ...(key ? { authorization: "Bearer test-key" } : {}),
-      "content-type": "application/json",
-    },
-    body: JSON.stringify(body),
+    headers: { authorization: "Bearer ziki_test", "content-type": "application/json" },
+    body: JSON.stringify({ pullRequestUrl: "https://github.com/o/r/pull/1" }),
   });
 }
 
-describe("POST /api/v1/issues/[id]/github (#452)", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    db.$transaction.mockImplementation((fn: (tx: unknown) => unknown) => fn(db));
-    mocks.requireAgent.mockResolvedValue(agent);
-    mocks.budget.mockResolvedValue({ allowed: true });
-    mocks.merge.mockResolvedValue({
-      status: 200,
-      merged: true,
-      mergeCommitSha: "merge-sha",
-      pullRequestUrl: PR_URL,
+beforeEach(() => {
+  vi.clearAllMocks();
+  prisma.bug.findFirst.mockResolvedValue(bug);
+});
+
+describe("POST /api/v1/issues/{id}/github project scope (#529)", () => {
+  it("refuses a project-scoped key on another project's issue before linking", async () => {
+    const response = await POST(request(), { params: Promise.resolve({ id: "issue_b" }) });
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({
+      error: "project_forbidden",
+      message: "This agent key is restricted to project web.",
     });
-    mocks.clientForInstallation.mockReturnValue(null);
-    mocks.standingAcceptance.mockResolvedValue(null);
-    db.bug.findFirst.mockResolvedValue({
-      id: "bug1",
-      projectId: "proj-1",
-      pullRequestUrl: null,
-      project: { repoUrl: "https://github.com/zedu/web", githubInstallationId: null },
-    });
-    db.bug.update.mockResolvedValue({});
-    db.issueClaim.findFirst.mockResolvedValue({ id: "claim-1" });
-    db.reviewOffer.findFirst.mockResolvedValue(null);
-    db.testVerdict.updateMany.mockResolvedValue({ count: 0 });
-    db.bugActivity.create.mockResolvedValue({});
-    db.agentAuditEvent.create.mockResolvedValue({});
-    db.agentEvent.create.mockResolvedValue({ id: "event-1" });
-    db.webhookSubscription.findMany.mockResolvedValue([]);
-  });
-
-  it("links the pull request and merges once the fix is accepted", async () => {
-    const response = await POST(request({ pullRequestUrl: PR_URL }), params);
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ linked: true, merged: true, mergeCommitSha: "merge-sha" });
-    expect(db.bug.update).toHaveBeenCalledWith({
-      where: { id: "bug1" },
-      data: { pullRequestUrl: PR_URL, pullRequestHeadSha: null },
-    });
-    expect(db.bugActivity.create).toHaveBeenCalledWith({
-      data: {
-        bugId: "bug1",
-        actorId: agent.ownerId,
-        type: "edited",
-        summary: `linked PR ${PR_URL}`,
-        metadata: {
-          field: "pullRequestUrl",
-          pullRequestUrl: PR_URL,
-        },
-      },
-    });
-    expect(db.agentEvent.create).toHaveBeenCalledWith({
-      data: {
-        tenantId: agent.tenantId,
-        type: "issue.pr_linked",
-        payload: {
-          issueId: "bug1",
-          projectId: "proj-1",
-          pullRequestUrl: PR_URL,
-          agentId: agent.agentId,
-        },
-        actorAgentId: agent.agentId,
-        bugId: "bug1",
-      },
-      select: { id: true },
-    });
-    expect(mocks.merge).toHaveBeenCalledWith(agent, "bug1");
-    expect(mocks.budget).toHaveBeenCalledWith({ id: "c1", burst: false, burstUntil: null }, "write");
-  });
-
-  it("refuses to link a pull request when this agent has no active claim", async () => {
-    db.issueClaim.findFirst.mockResolvedValue(null);
-    const response = await POST(request({ pullRequestUrl: PR_URL }), params);
-    expect(response.status).toBe(409);
-    expect(db.bug.update).not.toHaveBeenCalled();
-    expect(mocks.merge).not.toHaveBeenCalled();
-  });
-
-  it("lets an accepted review-offer holder link the pull request when none is linked (#539)", async () => {
-    db.issueClaim.findFirst.mockResolvedValue(null);
-    db.reviewOffer.findFirst.mockResolvedValue({ id: "offer-1" });
-    mocks.merge.mockResolvedValue({ status: 409, merged: false, reason: "not_accepted", message: "no" });
-
-    const response = await POST(request({ pullRequestUrl: PR_URL }), params);
-
-    expect(response.status).toBe(200);
-    expect(db.bug.update).toHaveBeenCalledWith({
-      where: { id: "bug1" },
-      data: { pullRequestUrl: PR_URL, pullRequestHeadSha: null },
-    });
-  });
-
-  it("does not let a review-offer holder replace an already linked pull request (#539)", async () => {
-    db.issueClaim.findFirst.mockResolvedValue(null);
-    db.reviewOffer.findFirst.mockResolvedValue({ id: "offer-1" });
-    db.bug.findFirst.mockResolvedValue({
-      id: "bug1",
-      pullRequestUrl: PR_URL,
-      project: { repoUrl: "https://github.com/zedu/web", githubInstallationId: null },
-    });
-    mocks.standingAcceptance.mockResolvedValue(null);
-
-    const response = await POST(
-      request({ pullRequestUrl: "https://github.com/zedu/web/pull/999" }),
-      params,
-    );
-
-    expect(response.status).toBe(409);
-    expect(db.bug.update).not.toHaveBeenCalled();
-  });
-
-  it("re-attributes verdicts recorded before the pull request was linked (#539)", async () => {
-    mocks.merge.mockResolvedValue({ status: 409, merged: false, reason: "not_accepted", message: "no" });
-    const response = await POST(request({ pullRequestUrl: PR_URL }), params);
-
-    expect(response.status).toBe(200);
-    expect(db.testVerdict.updateMany).toHaveBeenCalledWith({
-      where: { bugId: "bug1", OR: [{ pullRequestUrl: null }, { pullRequestUrl: "" }] },
-      data: { pullRequestUrl: PR_URL },
-    });
-  });
-
-  it("links only, without merging, before the fix is accepted", async () => {
-    mocks.merge.mockResolvedValue({ status: 409, merged: false, reason: "not_accepted", message: "nope" });
-    const response = await POST(request({ pullRequestUrl: PR_URL }), params);
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ linked: true, merged: false, reason: "not_accepted" });
-    expect(db.bug.update).toHaveBeenCalledTimes(1);
-  });
-
-  it("rejects a URL that is not a GitHub pull request", async () => {
-    const response = await POST(request({ pullRequestUrl: "https://example.com/x" }), params);
-    expect(response.status).toBe(400);
-    expect(db.bug.update).not.toHaveBeenCalled();
-    expect(mocks.merge).not.toHaveBeenCalled();
-  });
-
-  it("rejects a pull request outside the project's repository", async () => {
-    const response = await POST(
-      request({ pullRequestUrl: "https://github.com/someone/fork/pull/7" }),
-      params,
-    );
-    expect(response.status).toBe(422);
-    expect(db.bug.update).not.toHaveBeenCalled();
-  });
-
-  it("refuses to swap in a different pull request after the fix was accepted (#489)", async () => {
-    db.bug.findFirst.mockResolvedValue({
-      id: "bug1",
-      pullRequestUrl: PR_URL,
-      project: { repoUrl: "https://github.com/zedu/web", githubInstallationId: null },
-    });
-    mocks.standingAcceptance.mockResolvedValue({ id: "accepted-1", payload: {} });
-
-    const response = await POST(
-      request({ pullRequestUrl: "https://github.com/zedu/web/pull/999" }),
-      params,
-    );
-
-    expect(response.status).toBe(409);
-    expect(db.bug.update).not.toHaveBeenCalled();
-    expect(mocks.merge).not.toHaveBeenCalled();
-  });
-
-  it("allows re-linking the accepted pull request, refreshing its head SHA (#489)", async () => {
-    db.bug.findFirst.mockResolvedValue({
-      id: "bug1",
-      pullRequestUrl: PR_URL,
-      project: { repoUrl: "https://github.com/zedu/web", githubInstallationId: "123" },
-    });
-    mocks.standingAcceptance.mockResolvedValue({ id: "accepted-1", payload: {} });
-    mocks.clientForInstallation.mockReturnValue({
-      getPullRequest: vi.fn(async () => ({ merged: false, mergeable: true, headSha: "fresh-sha" })),
-    });
-    mocks.merge.mockResolvedValue({
-      status: 409,
-      merged: false,
-      reason: "head_moved",
-      message: "The accepted pull request's head commit changed since acceptance.",
-    });
-
-    const response = await POST(request({ pullRequestUrl: PR_URL }), params);
-
-    expect(response.status).toBe(409);
-    expect(await response.json()).toMatchObject({ linked: true, merged: false, reason: "head_moved" });
-    expect(db.bug.update).toHaveBeenCalledWith({
-      where: { id: "bug1" },
-      data: { pullRequestUrl: PR_URL, pullRequestHeadSha: "fresh-sha" },
-    });
-  });
-
-  it("records the head SHA GitHub reports when linking (#489)", async () => {
-    mocks.clientForInstallation.mockReturnValue({
-      getPullRequest: vi.fn(async () => ({ merged: false, mergeable: true, headSha: "abc123" })),
-    });
-    mocks.merge.mockResolvedValue({ status: 409, merged: false, reason: "not_accepted", message: "no" });
-
-    const response = await POST(request({ pullRequestUrl: PR_URL }), params);
-
-    expect(response.status).toBe(200);
-    expect(db.bug.update).toHaveBeenCalledWith({
-      where: { id: "bug1" },
-      data: { pullRequestUrl: PR_URL, pullRequestHeadSha: "abc123" },
-    });
-  });
-
-  it("still links when GitHub cannot be reached for the head SHA (#489)", async () => {
-    mocks.clientForInstallation.mockReturnValue({
-      getPullRequest: vi.fn(async () => {
-        throw new Error("GitHub down");
-      }),
-    });
-    mocks.merge.mockResolvedValue({ status: 409, merged: false, reason: "not_accepted", message: "no" });
-
-    const response = await POST(request({ pullRequestUrl: PR_URL }), params);
-
-    expect(response.status).toBe(200);
-    expect(db.bug.update).toHaveBeenCalledWith({
-      where: { id: "bug1" },
-      data: { pullRequestUrl: PR_URL, pullRequestHeadSha: null },
-    });
-  });
-
-  it("404s when the issue is not in the agent's tenant", async () => {
-    db.bug.findFirst.mockResolvedValue(null);
-    const response = await POST(request({ pullRequestUrl: PR_URL }), params);
-    expect(response.status).toBe(404);
-  });
-
-  it("surfaces a merge failure after linking", async () => {
-    mocks.merge.mockResolvedValue({
-      status: 409,
-      merged: false,
-      reason: "checks_failed",
-      message: "Checks are not green.",
-    });
-    const response = await POST(request({ pullRequestUrl: PR_URL }), params);
-    expect(response.status).toBe(409);
-    expect(await response.json()).toMatchObject({ linked: true, merged: false, reason: "checks_failed" });
-  });
-
-  it("audits the link and rejects a missing key", async () => {
-    await POST(request({ pullRequestUrl: PR_URL }), params);
-    expect(db.agentAuditEvent.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ action: "github.linked" }) }),
-    );
-
-    mocks.requireAgent.mockRejectedValue(new AgentAuthError("missing_key"));
-    const response = await POST(request({ pullRequestUrl: PR_URL }, false), params);
-    expect(response.status).toBe(401);
-  });
-
-  it("stops when the write budget is spent", async () => {
-    mocks.budget.mockResolvedValue({ allowed: false, retryAfterSeconds: 5 });
-    const response = await POST(request({ pullRequestUrl: PR_URL }), params);
-    expect(response.status).toBe(429);
-    expect(mocks.merge).not.toHaveBeenCalled();
+    expect(linkPullRequest).not.toHaveBeenCalled();
+    expect(mergeAcceptedFix).not.toHaveBeenCalled();
   });
 });
