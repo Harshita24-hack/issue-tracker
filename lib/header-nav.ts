@@ -30,6 +30,7 @@ export function headerNavItems(
 
   const items: HeaderNavItem[] = [
     { href: "/issues", label: "Issues" },
+    { href: "/bids", label: "My bids" },
   ];
 
   if (options?.agentPlatform ?? isAgentPlatformEnabled()) {
