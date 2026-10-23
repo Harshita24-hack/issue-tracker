@@ -110,7 +110,7 @@ function AlertIcon() {
 }
 
 const iconButton =
-  "inline-flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-full border border-zk-border bg-zk-surface text-zk-text hover:bg-zk-chip";
+  "inline-flex h-10 w-10 items-center justify-center rounded-full border border-zk-border bg-zk-surface text-zk-text hover:bg-zk-chip";
 
 function NotificationsBell({ unreadCount, active }: { unreadCount: number; active: boolean }) {
   const label = unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications";
@@ -147,21 +147,20 @@ function AgentsMenu({ pathname, agents }: { pathname: string | null; agents: She
   const current = (pathname ?? "").replace(/\/+$/, "");
 
   return (
-    <div ref={containerRef} className="relative shrink-0">
+    <div ref={containerRef} className="relative">
       <button
         ref={buttonRef}
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls="agents-nav-menu"
-        aria-label="Agents"
         onClick={() => setOpen((value) => !value)}
-        className={`inline-flex h-9 sm:h-10 items-center gap-1.5 sm:gap-2 rounded-full border border-zk-border bg-zk-surface px-2.5 sm:px-4 text-xs sm:text-sm font-semibold text-zk-text ${linkFocus}`}
+        className={`inline-flex h-10 items-center gap-2 rounded-full border border-zk-border bg-zk-surface px-4 text-sm font-semibold text-zk-text ${linkFocus}`}
       >
         <span className="text-electric-blue">
           <AgentIcon />
         </span>
-        <span className="hidden sm:inline">Agents</span>
+        Agents
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
           <path d="m6 9 6 6 6-6" />
         </svg>
@@ -170,7 +169,7 @@ function AgentsMenu({ pathname, agents }: { pathname: string | null; agents: She
         <div
           id="agents-nav-menu"
           role="menu"
-          className="absolute right-0 top-12 z-50 flex w-[260px] max-w-[calc(100vw-2rem)] flex-col gap-0.5 rounded-2xl border border-zk-border bg-zk-surface p-2 shadow-[0_16px_40px_rgba(11,23,51,0.16)]"
+          className="absolute right-0 top-12 z-50 flex w-[260px] flex-col gap-0.5 rounded-2xl border border-zk-border bg-zk-surface p-2 shadow-[0_16px_40px_rgba(11,23,51,0.16)]"
         >
           {agents.length > 0 ? (
             <span className="px-2.5 pb-1.5 pt-2 text-[11px] font-bold uppercase tracking-[0.06em] text-zk-muted">
@@ -235,7 +234,7 @@ function PointsChip({
   return (
     <Link
       href={`/users/${userId}`}
-      className={`inline-flex h-9 sm:h-10 shrink-0 items-center gap-1.5 rounded-full border border-zk-border px-2.5 sm:px-3.5 text-xs sm:text-sm text-zk-text ${linkFocus}`}
+      className={`inline-flex h-10 items-center gap-1.5 rounded-full border border-zk-border px-3.5 text-sm text-zk-text ${linkFocus}`}
     >
       <span className="text-electric-blue">
         <TrophyIcon />
@@ -312,23 +311,22 @@ export function AppHeader({
   return (
     // Sticky only from lg: on phones and tablets the toolbar wraps onto rows,
     // and a header that tall pinned to the top covers the page under it.
-    <header className="relative z-10 w-full min-w-0 border-b border-zk-border bg-zk-surface lg:sticky lg:top-0 lg:z-40">
-      <div className="flex w-full min-w-0 flex-wrap items-center gap-2 px-3 py-2.5 sm:gap-3 sm:px-6 sm:py-3">
+    <header className="relative z-40 border-b border-zk-border bg-zk-surface lg:sticky lg:top-0">
+      <div className="flex flex-wrap items-center gap-3 px-4 py-3 sm:px-6">
         <Link
           href="/issues/new"
-          aria-label="New issue"
           aria-current={onNewIssue ? "page" : undefined}
-          className={`inline-flex h-9 sm:h-10 shrink-0 items-center gap-1.5 sm:gap-2 rounded-full bg-electric-blue-strong px-3 sm:px-4 text-xs sm:text-sm font-bold text-white shadow-[0_8px_20px_rgba(46,111,239,0.30)] ${linkFocus}`}
+          className={`inline-flex h-10 items-center gap-2 rounded-full bg-electric-blue-strong px-4 text-sm font-bold text-white shadow-[0_8px_20px_rgba(46,111,239,0.30)] ${linkFocus}`}
         >
           <PlusIcon />
-          <span className="hidden sm:inline">New issue</span>
+          New issue
         </Link>
 
         {/* Phones and tablets: min-w-0 lets the group narrow so its flex-wrap
             breaks the chips onto rows (no sideways scroll at 360px or 768px).
             From lg up it keeps shrink-0 so the account controls are never
             squeezed. */}
-        <div className="ml-auto flex min-w-0 max-w-full flex-wrap items-center justify-end gap-1.5 sm:gap-3 lg:shrink-0">
+        <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2 sm:gap-3 lg:shrink-0">
           <PointsChip
             points={points}
             solvedTasks={solvedTasks}
@@ -339,16 +337,11 @@ export function AppHeader({
           {showEscalations ? (
             <Link
               href="/escalations"
-              aria-label={
-                pendingEscalationsCount > 0
-                  ? `Escalation, ${pendingEscalationsCount} pending`
-                  : "Escalation"
-              }
               aria-current={isNavItemActive(pathname, "/escalations") ? "page" : undefined}
-              className={`inline-flex h-9 sm:h-10 shrink-0 items-center gap-1.5 sm:gap-2 rounded-full border border-zk-bad-bd bg-zk-bad-soft px-2.5 sm:px-4 text-xs sm:text-sm font-bold text-zk-bad-fg ${linkFocus}`}
+              className={`inline-flex h-10 items-center gap-2 rounded-full border border-zk-bad-bd bg-zk-bad-soft px-4 text-sm font-bold text-zk-bad-fg ${linkFocus}`}
             >
               <AlertIcon />
-              <span className="hidden sm:inline">Escalation</span>
+              Escalation
               {pendingEscalationsCount > 0 ? (
                 <span aria-label={`${pendingEscalationsCount} pending`} className="tabular-nums">
                   {pendingEscalationsCount > 99 ? "99+" : pendingEscalationsCount}
@@ -358,10 +351,10 @@ export function AppHeader({
           ) : null}
 
           <AgentsMenu pathname={pathname} agents={agents} />
-          <ThemeToggle className="h-9 w-9 sm:h-10 sm:w-10 shrink-0" />
+          <ThemeToggle />
           <NotificationsBell unreadCount={unreadCount} active={isNavItemActive(pathname, "/notifications")} />
 
-          <div ref={accountRef} className="relative shrink-0">
+          <div ref={accountRef} className="relative">
             <button
               ref={accountButtonRef}
               type="button"
@@ -369,7 +362,7 @@ export function AppHeader({
               aria-expanded={accountOpen}
               aria-controls="account-menu"
               onClick={() => setAccountOpen((open) => !open)}
-              className={`inline-flex h-9 sm:h-11 items-center gap-1.5 rounded-full border border-zk-border py-0.5 pl-0.5 pr-2 text-zk-text ${linkFocus}`}
+              className={`inline-flex h-11 items-center gap-1.5 rounded-full border border-zk-border py-0.5 pl-0.5 pr-2 text-zk-text ${linkFocus}`}
             >
               <span className="sr-only">Account menu for {userName}</span>
               <Avatar name={userName} image={userImage} size="md" variant="solid" />

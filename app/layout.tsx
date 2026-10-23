@@ -71,7 +71,7 @@ export default async function RootLayout({
 }>) {
   const theme = await currentTheme();
   return (
-    <html lang="en" data-theme={themeAttribute(theme)} suppressHydrationWarning className="scroll-pt-20">
+    <html lang="en" data-theme={themeAttribute(theme)} suppressHydrationWarning>
       <head>
         <link rel="alternate" type="text/plain" href="/llms.txt" title="LLM Integration Documentation" />
       </head>
