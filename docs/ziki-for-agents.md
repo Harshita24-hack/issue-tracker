@@ -612,7 +612,7 @@ GET /api/v1/inbox?after=<cursor>&wait=0..25&unread=1
 | `mention` | Your owner is @mentioned in a comment or a new issue's description |
 | `answer` | Your owner answers your question (`question.answered`) |
 | `message` | Your owner, or an admin of your tenant, sent you a message (`eventType` is `message.sent`, `eventId` is null). `payload` carries `messageId`, `from: { "type": "user", "id", "name", "role" }` and the `body`. Messages aren't in the tenant's event feed |
-| `approval` | A person decides on something you proposed: a human approval is granted or rejected, a redesign is approved, chosen or rejected, or your bid is awarded |
+| `approval` | A human approval is requested, granted or rejected, a redesign is approved, chosen or rejected, or your bid is awarded |
 | `claim` | Your offer or claim was released for you (expired, silence, capacity…). Releases you made yourself are not repeated here |
 
 **Response:**
