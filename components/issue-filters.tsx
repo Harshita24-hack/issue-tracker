@@ -423,7 +423,7 @@ export function IssueFilters({
                 aria-activedescendant={active >= 0 && suggestions[active] ? `${listId}-${active}` : undefined}
                 autoComplete="off"
                 value={text}
-                placeholder="Search, or type a tag like Design"
+                placeholder={`Search, or type a tag like Design${shortcutsEnabled ? " (/)" : ""}`}
                 className="min-w-0 flex-1 border-0 bg-transparent text-sm text-zk-text outline-none placeholder:text-zk-muted"
                 onChange={(event) => { setText(event.target.value); setOpen(true); setActive(-1); }}
                 onFocus={() => { queryBeforeEditingRef.current = currentQuery; livePushedRef.current = false; setOpen(true); }}
