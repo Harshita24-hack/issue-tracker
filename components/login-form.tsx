@@ -153,6 +153,7 @@ export function LoginForm({
         type="submit"
         className="h-11 w-full rounded-full text-sm font-bold"
         disabled={pending}
+        style={{ backgroundColor: "var(--color-electric-blue-strong)" }}
       >
         {pending ? "Signing in…" : needsCode ? "Verify and sign in" : "Sign in"}
       </Button>

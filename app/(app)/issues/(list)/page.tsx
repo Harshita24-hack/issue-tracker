@@ -764,7 +764,7 @@ export default async function BugsPage({
         {isFirstRun ? (
           <FirstRunWelcome isAdmin={canDelete} hasTenant={Boolean(tenantId)} />
         ) : (
-          <section className="flex flex-col gap-3.5 rounded-[20px] border border-line bg-surface p-5">
+          <section className="flex flex-col min-w-0 gap-3.5 rounded-[20px] border border-line bg-surface p-5">
             <div className="flex flex-wrap items-baseline justify-between gap-2.5">
               <div className="flex flex-wrap items-baseline gap-2.5">
                 <h2 className="text-lg font-bold text-ink">
@@ -797,7 +797,7 @@ export default async function BugsPage({
               </div>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto min-w-0">
               <div className="min-w-[900px]">
                 {bugs.length === 0 ? (
                   <div className="flex flex-col items-center gap-1.5 px-4 py-12 text-center">
@@ -885,7 +885,7 @@ export default async function BugsPage({
                               <Link
                                 href={issuePath(bug.number)}
                                 data-issue-link=""
-                                className={`flex min-w-0 items-start gap-3 rounded-lg scroll-my-24 ${focusRing}`}
+                                className={`flex min-w-0 items-start gap-3 rounded-lg scroll-mt-24 ${focusRing}`}
                               >
                                 <IssueGlyph typeName={bug.type?.name} />
                                 <span className="flex min-w-0 flex-col gap-1">

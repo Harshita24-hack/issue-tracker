@@ -84,8 +84,8 @@ function SidebarLink({
       <span className={`whitespace-nowrap lg:flex-1 ${collapsed ? "lg:sr-only" : ""}`}>{label}</span>
       {typeof count === "number" ? (
         <span
-          className={`rounded-full bg-white/[0.18] px-2 text-xs font-semibold tabular-nums leading-5 ${
-            collapsed ? "lg:hidden" : ""
+          className={`rounded-full px-2 text-xs font-semibold tabular-nums leading-5 ${collapsed ? "lg:hidden" : ""} ${
+            active ? "bg-white/[0.18] text-deep-ocean" : "bg-white/[0.18] text-sidebar-ink"
           }`}
         >
           <span className="sr-only">, </span>
@@ -182,7 +182,7 @@ export function AppSidebar({
       </div>
 
       <nav
-        aria-label="Main"
+        aria-label="Workspace"
         className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 lg:mx-0 lg:flex-col lg:overflow-visible lg:px-0 lg:pb-0"
       >
         <SidebarLink
