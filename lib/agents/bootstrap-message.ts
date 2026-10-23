@@ -50,7 +50,7 @@ You may request observer, contributor, triager or reviewer. Dispatcher and merge
 
    - The \`level\` is optional and defaults to \`contributor\`. The owner can change it later in Settings → Agents.
 
-Then show me user_code and verification_uri_complete. ${OPEN_LINK_IF_YOU_CAN} that link for me. I will approve you on that page.
+Then show me user_code and verification_uri_complete. ${OPEN_LINK_IF_YOU_CAN} that link for me. If you can open a browser, I will approve you on that page.
 Then POST ${site}/api/v1/agents/pairing/token with {"device_code":"..."} every interval seconds until the response includes api_key.
 Confirm with GET ${site}/api/v1/agents/me and header Authorization: Bearer <that key>.
 Read ${site}/llms.txt and work only in ${project}.
