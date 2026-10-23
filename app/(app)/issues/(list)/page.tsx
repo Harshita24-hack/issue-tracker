@@ -697,7 +697,7 @@ export default async function BugsPage({
               current={isResolvedView ? "resolved" : selectedPlatform}
               hrefFor={platformHref}
             />
-            <div className="min-w-0 flex-1 basis-[280px]">
+            <div className="min-w-0 flex-1 basis-full sm:basis-[280px]">
               <Suspense fallback={<div className="h-[42px] animate-pulse rounded-full bg-zk-chip" />}>
                 <IssueFilters
                   tagTypes={tagTypes}
