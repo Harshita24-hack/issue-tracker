@@ -412,7 +412,7 @@ export function IssueFilters({
   const fieldLabelClass = "mb-1.5 block text-[13px] font-bold text-ink-2";
 
   return (
-    <div className="flex flex-col gap-3 print:hidden">
+    <div className="min-w-0 flex flex-col gap-3 print:hidden">
       <div className="flex flex-wrap items-center gap-2.5">
         {leading ? <div className="min-w-0 max-w-full">{leading}</div> : null}
 

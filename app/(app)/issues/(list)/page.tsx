@@ -639,7 +639,7 @@ export default async function BugsPage({
 
   // The shell already provides the persistent sidebar; this page is one column.
   const page = (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-6">
       {gettingStarted ? <GettingStarted {...gettingStarted} /> : null}
 
       {activeProject?.goal ? (
