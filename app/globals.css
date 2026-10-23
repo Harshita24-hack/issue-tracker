@@ -125,6 +125,7 @@ html {
   /* Keep fragment/focus/scroll-into-view targets clear of the sticky header,
      which can wrap to two rows on narrow mobile viewports. */
   scroll-padding-top: 128px;
+  overflow-x: hidden;
 }
 body {
   background: var(--background);
