@@ -75,7 +75,9 @@ export function CreateAgentForm({
   const toast = useToast();
   const [name, setName] = useState("");
   const [model, setModel] = useState("");
-  const [level, setLevel] = useState<AgentLevel>(levels[0] ?? "observer");
+  const [chosenLevel, setLevel] = useState<AgentLevel>(levels[0] ?? "observer");
+  // Fall back to the first offered level when the choice is no longer offered.
+  const level = levels.includes(chosenLevel) ? chosenLevel : (levels[0] ?? "observer");
   const [issued, setIssued] = useState<Extract<CreateAgentActionResult, { ok: true }> | null>(null);
   const [result, action, pending] = useActionState<CreateAgentActionResult | undefined, FormData>(
     async (previous, formData) => {
@@ -96,7 +98,6 @@ export function CreateAgentForm({
   }, [issued]);
 
   const selectedLevel = levels.includes(level) ? level : levels[0] ?? "observer";
-
   async function copy() {
     if (!issued) return;
     toast((await copyText(issued.rawKey)) ? "Key copied." : "Couldn't copy. Select the key and copy it.");
