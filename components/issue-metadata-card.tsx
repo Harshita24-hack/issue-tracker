@@ -70,19 +70,19 @@ export function IssueMetadataCard({
   return (
     <div
       data-testid="issue-metadata-card"
-      className="mt-6 rounded-xl border border-slate-200 bg-slate-50/60 p-4 sm:p-5 shadow-2xs"
+      className="mt-6 w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50/60 p-3.5 sm:p-5 shadow-2xs"
     >
-      <div className="border-b border-slate-200/80 pb-3">
+      <div className="border-b border-slate-200/80 pb-2.5">
         <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
           Issue Details & Context
         </h3>
       </div>
 
-      <dl className="mt-3.5 grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-3 lg:grid-cols-4 text-xs">
+      <dl className="mt-3.5 grid grid-cols-1 gap-x-4 gap-y-3.5 sm:grid-cols-2 lg:grid-cols-4 text-xs min-w-0">
         {/* Reporter */}
-        <div className="space-y-1">
+        <div className="min-w-0 space-y-1">
           <dt className="font-medium text-slate-500">Reporter</dt>
-          <dd className="text-slate-800">
+          <dd className="min-w-0 text-slate-800">
             <UserNameWithBadges
               name={bug.reporter.name}
               role={bug.reporter.role}
@@ -97,9 +97,9 @@ export function IssueMetadataCard({
         </div>
 
         {/* Assignee */}
-        <div className="space-y-1">
+        <div className="min-w-0 space-y-1">
           <dt className="font-medium text-slate-500">Assignee</dt>
-          <dd className="flex flex-wrap items-center gap-1.5 text-slate-800">
+          <dd className="flex min-w-0 flex-wrap items-center gap-1.5 text-slate-800">
             {bug.assignee ? (
               <UserNameWithBadges
                 name={bug.assignee.name}
@@ -124,7 +124,7 @@ export function IssueMetadataCard({
         </div>
 
         {/* Created Timestamp */}
-        <div className="space-y-1">
+        <div className="min-w-0 space-y-1">
           <dt className="font-medium text-slate-500">Created</dt>
           <dd className="font-normal text-slate-700">
             <LocalTime date={bug.createdAt} />
@@ -132,7 +132,7 @@ export function IssueMetadataCard({
         </div>
 
         {/* Last Activity / Updated */}
-        <div className="space-y-1">
+        <div className="min-w-0 space-y-1">
           <dt className="font-medium text-slate-500">Last activity</dt>
           <dd className="font-normal text-slate-700">
             <LocalTime date={updatedTimestamp} />
@@ -141,7 +141,7 @@ export function IssueMetadataCard({
 
         {/* Platform / Category */}
         {bug.category ? (
-          <div className="space-y-1">
+          <div className="min-w-0 space-y-1">
             <dt className="font-medium text-slate-500">Platform</dt>
             <dd className="font-medium text-slate-800">{bug.category.name}</dd>
           </div>
@@ -149,7 +149,7 @@ export function IssueMetadataCard({
 
         {/* Area */}
         {bug.area ? (
-          <div className="space-y-1">
+          <div className="min-w-0 space-y-1">
             <dt className="font-medium text-slate-500">Area</dt>
             <dd className="font-medium text-slate-800">{bug.area.name}</dd>
           </div>
@@ -157,7 +157,7 @@ export function IssueMetadataCard({
 
         {/* Issue Type */}
         {bug.type ? (
-          <div className="space-y-1">
+          <div className="min-w-0 space-y-1">
             <dt className="font-medium text-slate-500">Type</dt>
             <dd>
               <span
@@ -173,9 +173,9 @@ export function IssueMetadataCard({
 
         {/* Milestone */}
         {bug.milestone ? (
-          <div className="space-y-1">
+          <div className="min-w-0 space-y-1">
             <dt className="font-medium text-slate-500">Milestone</dt>
-            <dd className="flex flex-wrap items-center gap-1.5 text-slate-800">
+            <dd className="flex min-w-0 flex-wrap items-center gap-1.5 text-slate-800">
               <Link
                 href={milestoneIssuesHref(bug.milestone.id)}
                 className="font-medium text-teal-700 hover:underline truncate max-w-[130px]"

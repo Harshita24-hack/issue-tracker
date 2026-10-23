@@ -443,7 +443,7 @@ export function CreateIssueForm({
           ) : null}
         </div>
       ) : null}
-      <Button type="submit" className="w-full sm:w-auto" disabled={pending || isUploading}>
+      <Button type="submit" disabled={pending || isUploading}>
         {pending ? "Creating…" : isUploading ? "Uploading…" : "Create issue"}
       </Button>
     </form>

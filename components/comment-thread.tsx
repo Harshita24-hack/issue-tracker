@@ -379,7 +379,7 @@ function CommentItem({
 
       {comment.children.length > 0 ? (
         <ul className="ml-2.5 space-y-3 border-l border-zk-divider pl-2.5 sm:ml-6 sm:pl-4">
-          {comment.children.map((child: CommentNode) => (
+          {comment.children.map((child) => (
             <CommentItem
               key={child.id}
               comment={child}
@@ -425,7 +425,7 @@ export function CommentThread({
 } & ViewerProps) {
   const [typeFilter, setTypeFilter] = useState<string>("all");
 
-  const filteredComments = comments.filter((comment: CommentNode) => {
+  const filteredComments = comments.filter((comment) => {
     if (typeFilter === "all") return true;
     const cType = comment.type || "comment";
     return cType === typeFilter;
@@ -484,7 +484,7 @@ export function CommentThread({
         </div>
       ) : (
         <ul className="space-y-4">
-          {filteredComments.map((comment: CommentNode) => (
+          {filteredComments.map((comment) => (
             <CommentItem
               key={comment.id}
               comment={comment}
