@@ -27,10 +27,10 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
   const tenantId = await currentTenantIdFor(user.id);
   if (!tenantId) {
     return (
-      <div className="mx-auto max-w-4xl space-y-3">
-        <h1 className="text-2xl font-semibold text-slate-900">Team</h1>
-        <p className="text-sm text-slate-600">Join or create a workspace to see its team directory.</p>
-        <Link href="/tenants" className="text-sm font-medium text-teal-700 underline">Create or join a workspace</Link>
+      <div className="mx-auto flex max-w-4xl flex-col gap-3 pb-10">
+        <h1 className="text-[28px] font-extrabold tracking-[-0.02em] text-zk-text">Team</h1>
+        <p className="text-sm text-zk-muted">Join or create a workspace to see its team directory.</p>
+        <Link href="/tenants" className="text-sm font-bold text-zk-accent underline">Create or join a workspace</Link>
       </div>
     );
   }
@@ -117,39 +117,39 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
   });
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="mx-auto flex max-w-4xl flex-col gap-5 pb-10">
       <div className="space-y-1">
-        <Link href="/settings" className="text-sm text-teal-700 hover:underline">
-          ← Back to settings
+        <Link href="/settings?section=agents" className="inline-flex min-h-8 items-center gap-1.5 self-start text-sm font-semibold text-zk-accent hover:underline">
+          Back to settings
         </Link>
       </div>
       <header className="space-y-2">
-        <h1 className="text-2xl font-semibold text-slate-900">Team</h1>
-        <p className="text-sm text-slate-600">
+        <h1 className="text-[28px] font-extrabold tracking-[-0.02em] text-zk-text">Team</h1>
+        <p className="text-sm text-zk-muted">
           Members of this workspace. View member details, contribution points over the last 30 days, and current claim capacity.
         </p>
       </header>
 
-      <form action="/settings/team" method="get" className="rounded-xl border border-slate-200 bg-card p-4">
+      <form action="/settings/team" method="get" className="rounded-[20px] border border-zk-border bg-zk-surface p-4">
         <fieldset>
-          <legend className="text-sm font-semibold text-slate-900">Filter team</legend>
+          <legend className="text-sm font-bold text-zk-text">Filter team</legend>
           <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
-            <label className="flex items-center gap-2 text-sm text-slate-700">
+            <label className="flex items-center gap-2 text-sm text-zk-text2">
               <input
                 type="checkbox"
                 name="capacity"
                 value="1"
                 defaultChecked={showCapacityOnly}
-                className="size-4 accent-teal-700"
+                className="size-4 accent-electric-blue-strong"
               />
               Has capacity
             </label>
-            <label className="flex flex-col gap-1 text-sm text-slate-700">
+            <label className="flex flex-col gap-1 text-sm text-zk-text2">
               Role
               <select
                 name="role"
                 defaultValue={selectedRole}
-                className="min-h-10 rounded-md border border-slate-300 bg-white px-3 text-slate-900"
+                className="min-h-11 rounded-xl border border-zk-border bg-zk-surface px-3 text-zk-text"
               >
                 <option value="">All roles</option>
                 <option value="owner">Owner</option>
@@ -159,12 +159,12 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
             </label>
             <button
               type="submit"
-              className="min-h-10 rounded-md bg-teal-700 px-4 text-sm font-medium text-white hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
+              className="min-h-11 rounded-full bg-electric-blue-strong px-5 text-sm font-bold text-white hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-electric-blue focus-visible:ring-offset-2"
             >
               Apply filters
             </button>
             {(showCapacityOnly || selectedRole) ? (
-              <Link href="/settings/team" className="text-sm font-medium text-teal-700 underline">
+              <Link href="/settings/team" className="text-sm font-bold text-zk-accent underline">
                 Clear filters
               </Link>
             ) : null}
@@ -173,7 +173,7 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
       </form>
 
       {visibleMembers.length === 0 ? (
-        <p className="rounded-xl border border-slate-200 bg-card p-6 text-sm text-slate-600">
+        <p className="rounded-[20px] border border-zk-border bg-zk-surface p-6 text-sm text-zk-muted">
           {members.length === 0
             ? "This workspace has no members yet."
             : "No team members match these filters."}
@@ -181,34 +181,34 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
       ) : (
         <ul aria-label="Workspace members" className="grid gap-4 md:grid-cols-2">
           {visibleMembers.map(({ user: member, role, points: memberPoints, activeClaims: claimCount }) => (
-            <li key={member.id} className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+            <li key={member.id} className="flex flex-col justify-between rounded-[20px] border border-zk-border bg-zk-surface p-4 sm:p-5">
               <div className="space-y-3">
                 <div className="flex items-start gap-3">
                   <Avatar name={member.name} image={member.image} size="md" />
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="min-w-0 break-words text-lg font-semibold text-slate-900">
-                        <Link href={`/users/${member.id}`} className="hover:text-teal-800 hover:underline">
+                      <h2 className="min-w-0 break-words text-lg font-bold text-zk-text">
+                        <Link href={`/users/${member.id}`} className="hover:text-zk-accent hover:underline">
                           {member.name}
                         </Link>
                       </h2>
-                      <Badge className="bg-slate-100 text-slate-700">
+                      <Badge className="rounded-full bg-zk-chip text-zk-text2">
                         {role === "owner" ? "Owner" : role === "admin" ? "Admin" : "Member"}
                       </Badge>
                     </div>
                     {member.email ? (
-                      <p className="truncate text-xs text-slate-500">{member.email}</p>
+                      <p className="truncate text-xs text-zk-muted">{member.email}</p>
                     ) : null}
                   </div>
                 </div>
-                <p className="text-sm text-slate-600">
+                <p className="text-sm text-zk-muted">
                   {memberPoints} points in the last 30 days · {claimCount}/{maxActiveClaims} active claims in the {capacityScope}
                 </p>
               </div>
-              <div className="mt-3 pt-3 border-t border-slate-100">
+              <div className="mt-3 pt-3 border-t border-zk-border">
                 <Link
                   href={`/users/${member.id}`}
-                  className="text-xs font-medium text-teal-700 hover:underline"
+                  className="text-xs font-bold text-zk-accent hover:underline"
                 >
                   View profile →
                 </Link>
