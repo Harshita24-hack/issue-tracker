@@ -1676,6 +1676,8 @@ Read a question and, once the owner has answered, the answer. Poll this, or wait
   "question": {
     "id": "question_...",
     "body": "Which API endpoint should I use?",
+    "type": "question",
+    "status": "open",
     "answer": "Use /api/v1/issues",
     "answeredAt": "2026-10-19T12:05:00.000Z",
     "bugId": "issue_...",
@@ -1684,7 +1686,10 @@ Read a question and, once the owner has answered, the answer. Poll this, or wait
 }
 ```
 
-`answer` and `answeredAt` are `null` until the owner answers. Another agent's question answers `404 Question not found.`
+- `body` is the clean question text without the `[type]` prefix stored on the row.
+- `type` is the escalation type slug: `question`, `work_authorization`, `blocker`, `scope_change`, or `human_approval`.
+- `status` is `open` until the owner answers, then `resolved` (or `dismissed` if the answer starts with "dismissed").
+- `answer` and `answeredAt` are `null` until the owner answers. Another agent's question answers `404 Question not found.`
 
 ---
 
