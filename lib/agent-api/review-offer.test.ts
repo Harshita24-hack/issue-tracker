@@ -7,8 +7,10 @@ import {
   acceptReviewOffer,
   expireReviewOffer,
   handleTestVerdictSubmitted,
+  reofferReview,
   REVIEW_OFFER_TTL_MS,
   REVIEW_DEADLINE_MS,
+  REVIEW_REOFFER_COOLDOWN_MS,
 } from "./review-offer";
 import { IssueApiError } from "@/lib/agent-api/issues";
 
@@ -317,7 +319,7 @@ describe("expireReviewOffer moves to next eligible reviewer (#597)", () => {
 
     // Currently only Bob had an offer (which expired), so Dave is next
     db.reviewOffer.findMany.mockResolvedValue([
-      { beneficiaryUserId: "bob", status: "expired", offeredAt: past, deadlineAt: null },
+      { beneficiaryUserId: "bob", status: "expired", offeredAt: past, expiredAt: past, deadlineAt: null },
     ]);
 
     db.membership.findMany.mockResolvedValue([
@@ -431,5 +433,128 @@ describe("handleTestVerdictSubmitted and review.completed (#597)", () => {
         }),
       }),
     }));
+  });
+});
+
+describe("reofferReview loop prevention (#550)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    db.issueClaim.groupBy.mockResolvedValue([]);
+    db.reviewOffer.groupBy.mockResolvedValue([]);
+    db.agentEvent.create.mockResolvedValue({ id: "evt-reoffer" });
+    db.webhookSubscription.findMany.mockResolvedValue([]);
+  });
+
+  const prUrl = "https://github.com/zedu/web/pull/1";
+
+  function makeOpenBug() {
+    return {
+      id: "bug-550",
+      tenantId: "tenant-zedu",
+      projectId: "proj-1",
+      title: "Inbox flood bug",
+      status: "open",
+      pullRequestUrl: prUrl,
+      beneficiaryUserId: "solver",
+      reporterId: "solver",
+      createdByAgentId: null,
+      createdByAgent: null,
+      claims: [{ status: "active", releasedAt: null, agentId: "agent-solver", agent: { ownerUserId: "solver" } }],
+    };
+  }
+
+  it("does not re-offer to the same agent immediately after their offer expires (#550)", async () => {
+    const justNow = new Date(Date.now() - 5_000); // expired 5 s ago — within cooldown
+    db.bug.findFirst.mockResolvedValue(makeOpenBug());
+
+    // Bob's offer just expired; only Bob and Carol are candidates.
+    db.reviewOffer.findMany.mockResolvedValue([
+      { beneficiaryUserId: "bob", status: "expired", offeredAt: justNow, expiredAt: justNow, deadlineAt: null },
+    ]);
+    db.membership.findMany.mockResolvedValue([
+      { userId: "bob", user: { agents: [{ id: "agent-bob" }] } },
+      { userId: "carol", user: { agents: [{ id: "agent-carol" }] } },
+    ]);
+    db.reviewOffer.create.mockResolvedValue({
+      id: "offer-carol",
+      bugId: "bug-550",
+      agentId: "agent-carol",
+      beneficiaryUserId: "carol",
+      status: "offered",
+      offeredAt: new Date(),
+    });
+
+    const result = await reofferReview("bug-550", prUrl, null, db as never);
+
+    // Carol should receive the offer — NOT Bob again
+    expect(result).not.toBeNull();
+    expect(db.reviewOffer.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ beneficiaryUserId: "carol", agentId: "agent-carol" }) }),
+    );
+    expect(db.reviewOffer.create).not.toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ beneficiaryUserId: "bob" }) }),
+    );
+  });
+
+  it("allows the same agent to be re-offered after the cooldown expires (#550)", async () => {
+    const longAgo = new Date(Date.now() - REVIEW_REOFFER_COOLDOWN_MS - 5_000); // past cooldown
+    db.bug.findFirst.mockResolvedValue(makeOpenBug());
+
+    // Bob's offer expired long ago — cooldown is over; Bob is the only candidate.
+    db.reviewOffer.findMany.mockResolvedValue([
+      { beneficiaryUserId: "bob", status: "expired", offeredAt: longAgo, expiredAt: longAgo, deadlineAt: null },
+    ]);
+    db.membership.findMany.mockResolvedValue([
+      { userId: "bob", user: { agents: [{ id: "agent-bob" }] } },
+    ]);
+    db.reviewOffer.create.mockResolvedValue({
+      id: "offer-bob-retry",
+      bugId: "bug-550",
+      agentId: "agent-bob",
+      beneficiaryUserId: "bob",
+      status: "offered",
+      offeredAt: new Date(),
+    });
+
+    const result = await reofferReview("bug-550", prUrl, null, db as never);
+
+    // Bob becomes eligible again after the cooldown.
+    expect(result).not.toBeNull();
+    expect(db.reviewOffer.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ beneficiaryUserId: "bob" }) }),
+    );
+  });
+
+  it("returns null when all candidates are within cooldown and no others are available (#550)", async () => {
+    const justNow = new Date(Date.now() - 5_000);
+    db.bug.findFirst.mockResolvedValue(makeOpenBug());
+
+    // Both reviewers have recently-expired offers — nobody is eligible yet.
+    db.reviewOffer.findMany.mockResolvedValue([
+      { beneficiaryUserId: "bob", status: "expired", offeredAt: justNow, expiredAt: justNow, deadlineAt: null },
+      { beneficiaryUserId: "carol", status: "expired", offeredAt: justNow, expiredAt: justNow, deadlineAt: null },
+    ]);
+    db.membership.findMany.mockResolvedValue([
+      { userId: "bob", user: { agents: [{ id: "agent-bob" }] } },
+      { userId: "carol", user: { agents: [{ id: "agent-carol" }] } },
+    ]);
+
+    const result = await reofferReview("bug-550", prUrl, null, db as never);
+
+    // No new offer should be created — avoids the inbox flood.
+    expect(result).toBeNull();
+    expect(db.reviewOffer.create).not.toHaveBeenCalled();
+  });
+
+  it("never offers to contributor-level agents (non-reviewer roles are ineligible) (#550)", async () => {
+    db.bug.findFirst.mockResolvedValue(makeOpenBug());
+    db.reviewOffer.findMany.mockResolvedValue([]);
+    // No members returned means no reviewer-level agents in the tenant.
+    db.membership.findMany.mockResolvedValue([]);
+
+    const result = await reofferReview("bug-550", prUrl, null, db as never);
+
+    expect(result).toBeNull();
+    expect(db.reviewOffer.create).not.toHaveBeenCalled();
   });
 });

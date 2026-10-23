@@ -15,6 +15,12 @@ import { DEFAULT_PROJECT_WORKFLOW } from "@/lib/workflow-config";
 export const REVIEW_OFFER_TTL_MS = 60_000; // 60 seconds to accept
 export const REVIEW_DEADLINE_MS = 30 * 60_000; // 30 minutes to review after acceptance
 export const DEFAULT_REVIEW_VERDICTS_NEEDED = DEFAULT_PROJECT_WORKFLOW.verdictsNeeded;
+/**
+ * How long after a review offer expires before the same person can be re-offered
+ * the same issue (#550). Prevents the one-per-minute inbox flood when the only
+ * candidate keeps letting offers lapse.
+ */
+export const REVIEW_REOFFER_COOLDOWN_MS = 10 * 60_000; // 10 minutes
 
 type Db = typeof prisma | Prisma.TransactionClient;
 
@@ -387,9 +393,9 @@ export async function reofferReview(
   const existingOffers = await db.reviewOffer.findMany({
     where: {
       bugId,
-      status: { in: ["offered", "accepted", "completed"] },
+      status: { in: ["offered", "accepted", "completed", "expired"] },
     },
-    select: { beneficiaryUserId: true, status: true, offeredAt: true, deadlineAt: true },
+    select: { beneficiaryUserId: true, status: true, offeredAt: true, deadlineAt: true, expiredAt: true },
   });
 
   const now = Date.now();
@@ -397,10 +403,22 @@ export async function reofferReview(
 
   for (const o of existingOffers) {
     if (o.status === "offered" && !isReviewOfferExpired(o.offeredAt, now)) {
+      // Active pending offer — exclude until it expires or is accepted.
       excludeUserIds.add(o.beneficiaryUserId);
     } else if (o.status === "accepted" && !isReviewDeadlineExpired(o.deadlineAt, now)) {
+      // Accepted offer still within deadline — exclude.
       excludeUserIds.add(o.beneficiaryUserId);
     } else if (o.status === "completed") {
+      // Already reviewed — permanently exclude for this issue.
+      excludeUserIds.add(o.beneficiaryUserId);
+    } else if (
+      o.status === "expired" &&
+      o.expiredAt instanceof Date &&
+      now - o.expiredAt.getTime() < REVIEW_REOFFER_COOLDOWN_MS
+    ) {
+      // Recently expired (#550): exclude during cooldown so the same person is not
+      // re-offered every 60 seconds, flooding their inbox. After the cooldown the
+      // slot opens again, allowing a retry when all other candidates are exhausted.
       excludeUserIds.add(o.beneficiaryUserId);
     }
   }
