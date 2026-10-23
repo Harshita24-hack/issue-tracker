@@ -110,10 +110,17 @@ describe("project-scoped keys on questions and escalations (#412)", () => {
 
 describe("readAgentQuestion (#446)", () => {
   it("returns the answer to the asking agent", async () => {
-    const row = { id: "q1", body: "?", answer: "Yes", answeredAt: new Date(), bugId: null, createdAt: new Date() };
+    const answeredAt = new Date();
+    const createdAt = new Date();
+    const row = { id: "q1", body: "?", answer: "Yes", answeredAt, bugId: null, createdAt };
     db.agentQuestion.findFirst.mockResolvedValue(row);
 
-    await expect(readAgentQuestion(agent, "q1")).resolves.toEqual(row);
+    await expect(readAgentQuestion(agent, "q1")).resolves.toEqual({
+      ...row,
+      body: "?",
+      type: "question",
+      status: "resolved",
+    });
     expect(db.agentQuestion.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: "q1", agentId: "a1" } }),
     );

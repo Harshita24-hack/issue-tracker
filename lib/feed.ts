@@ -45,19 +45,18 @@ export async function feedProject(tenantId: string, requested?: string | null) {
   return prisma.project.findFirst({ where: { id, tenantId }, select: { id: true, name: true } });
 }
 
-export async function readFeed(tenantId: string, projectId: string, cursor: FeedCursor | null, area: string | null = null, limit: number = FEED_PAGE_SIZE) {
-  const pageSize = limit || FEED_PAGE_SIZE;
+export async function readFeed(tenantId: string, projectId: string, cursor: FeedCursor | null, area: string | null = null) {
   const rows = await prisma.bug.findMany({
     where: feedWhere(tenantId, projectId, cursor, area),
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-    take: pageSize + 1,
+    take: FEED_PAGE_SIZE + 1,
     select: { id: true, number: true, title: true, status: true, severity: true, createdAt: true, projectId: true, areaId: true },
   });
-  const issues = rows.slice(0, pageSize);
+  const issues = rows.slice(0, FEED_PAGE_SIZE);
   const last = issues.at(-1);
   return {
     issues,
     nextCursor: last ? { after: last.createdAt.toISOString(), afterId: last.id } : cursor,
-    hasMore: rows.length > pageSize,
+    hasMore: rows.length > FEED_PAGE_SIZE,
   };
 }
