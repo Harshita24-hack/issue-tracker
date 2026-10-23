@@ -13,7 +13,7 @@ type VerdictRow = {
 
 const state = vi.hoisted(() => ({
   verdicts: [] as VerdictRow[],
-  confirmations: [] as { agentId: string; agent: { id: string; ownerUserId: string; level?: string } }[],
+  confirmations: [] as { agentId: string; onBehalfOfUserId: string; agent: { id: string; ownerUserId: string; level?: string } }[],
 }));
 
 const db = vi.hoisted(() => ({
@@ -65,16 +65,16 @@ function bugRow(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function merger(id: string, ownerId: string, level: "observer" | "contributor" | "reviewer" | "merger" = "merger") {
+function merger(id: string, ownerId: string, level: "observer" | "contributor" | "reviewer" | "dispatcher" | "merger" = "merger") {
   return { agentId: id, name: id, ownerId, tenantId: "tenant_zedu", level, burst: false, keyId: `key-${id}` };
 }
 
 /** The two independent accepts plus a triage clear that confirm an issue. */
 function confirmWith(ownerA: string, ownerB: string) {
   state.confirmations = [
-    { agentId: `a-${ownerA}`, agent: { id: `a-${ownerA}`, ownerUserId: ownerA } },
-    { agentId: `a-${ownerB}`, agent: { id: `a-${ownerB}`, ownerUserId: ownerB } },
-    { agentId: "a-tia", agent: { id: "a-tia", ownerUserId: "tia", level: "triager" } },
+    { agentId: `a-${ownerA}`, onBehalfOfUserId: ownerA, agent: { id: `a-${ownerA}`, ownerUserId: ownerA } },
+    { agentId: `a-${ownerB}`, onBehalfOfUserId: ownerB, agent: { id: `a-${ownerB}`, ownerUserId: ownerB } },
+    { agentId: "a-tia", onBehalfOfUserId: "tia", agent: { id: "a-tia", ownerUserId: "tia", level: "triager" } },
   ];
 }
 
@@ -123,6 +123,13 @@ beforeEach(() => {
 });
 
 describe("acceptFix: who may merge (#434)", () => {
+  it("rejects a dispatcher without merger level before touching the issue", async () => {
+    expect(await acceptFix(merger("d1", "dan", "dispatcher"), "bug1")).toMatchObject({
+      status: 403,
+      error: "insufficient_level",
+    });
+    expect(db.bug.findFirst).not.toHaveBeenCalled();
+  });
   it("rejects a contributor and a reviewer before touching the issue", async () => {
     expect(await acceptFix(merger("c1", "cara", "contributor"), "bug1")).toMatchObject({
       status: 403,
@@ -142,6 +149,15 @@ describe("acceptFix: who may merge (#434)", () => {
 });
 
 describe("acceptFix: the merger must be independent too (#493)", () => {
+  it("refuses the assigned solver's merger even if a different agent holds the claim", async () => {
+    confirmWith("rob", "sam");
+    verdict("r1", "rob");
+    verdict("r2", "sam");
+    db.bug.findFirst.mockResolvedValue(bugRow({ assigneeId: "mo" }));
+    expect(await acceptFix(merger("m1", "mo"), "bug1")).toMatchObject({ status: 403, error: "not_independent" });
+    expect(db.bug.update).not.toHaveBeenCalled();
+    expect(db.pointEntry.createMany).not.toHaveBeenCalled();
+  });
   it("refuses a merger whose owner is the claim's beneficiary, even with every other gate met", async () => {
     confirmWith("rob", "sam");
     verdict("r1", "rob");
