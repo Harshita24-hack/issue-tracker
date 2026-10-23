@@ -8,7 +8,7 @@ describe("Bug detail header responsive layout (#698)", () => {
   it("renders a compact mobile action row pinned directly under the title before badges and votes", () => {
     // Mobile action row must be directly under the title
     expect(pageSource).toMatch(
-      /<h1[\s\S]*?<\/h1>[\s\S]*?data-testid="mobile-actions-row"[\s\S]*?Badge[\s\S]*?<VoteButton/
+      /<h1[\s\S]*?<\/h1>[\s\S]*?data-testid="mobile-actions-row"[\s\S]*?<Pill[\s\S]*?<VoteButton/
     );
 
     // Mobile action row has horizontal scroll and is hidden on desktop (sm:hidden)
@@ -32,7 +32,7 @@ describe("Bug detail header responsive layout (#698)", () => {
   it("keeps status and severity visible at every width, folding only supplementary workflow badges into +N", () => {
     // Workflow row leads with status then severity, both unconditionally visible.
     expect(pageSource).toMatch(
-      /statusClass\[bug\.status\][\s\S]*?severityClass\[bug\.severity\]/
+      /statusTone\[bug\.status\][\s\S]*?severityTone\[bug\.severity\]/
     );
 
     // The +N control still exists for mobile, and now counts only boost/volunteer.
@@ -71,10 +71,10 @@ describe("Bug detail header responsive layout (#698)", () => {
 });
 
 describe("Bug detail header hierarchy (#687)", () => {
-  it("keeps workflow badges and taxonomy on separate rows", () => {
-    // The workflow row closes, then a muted taxonomy line follows it.
+  it("keeps status, severity and taxonomy in one meta row under the title", () => {
+    // One wrapped row carries the workflow pills and the taxonomy together.
     expect(pageSource).toMatch(
-      /flex flex-wrap items-center gap-2[\s\S]*?severityClass\[bug\.severity\][\s\S]*?<\/div>[\s\S]*?text-xs text-slate-500[\s\S]*?bug\.type\.name[\s\S]*?bug\.category\.name/
+      /flex flex-wrap items-center gap-2 text-xs font-bold[\s\S]*?severityTone\[bug\.severity\][\s\S]*?bug\.type\.name[\s\S]*?bug\.category\.name[\s\S]*?Opened <LocalTime/
     );
   });
 

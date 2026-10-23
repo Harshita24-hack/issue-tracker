@@ -13,12 +13,12 @@ import type { EscalationType } from "@/lib/agent-questions";
 
 export function EscalationTypeBadge({ type }: { type: EscalationType | string }) {
   const styles: Record<string, string> = {
-    Blocker: "bg-rose-50 text-rose-800 border-rose-200",
-    "Work Authorization": "bg-amber-50 text-amber-800 border-amber-200",
-    "Human Approval": "bg-purple-50 text-purple-800 border-purple-200",
-    "Scope Expansion": "bg-sky-50 text-sky-800 border-sky-200",
-    Question: "bg-slate-100 text-slate-800 border-slate-200",
-    Redesign: "bg-violet-50 text-violet-800 border-violet-200",
+    Blocker: "border-bad-bd bg-bad-bg text-bad-fg",
+    "Work Authorization": "border-warn-bd bg-warn-bg text-warn-fg",
+    "Human Approval": "border-sec-fg/30 bg-sec-bg text-sec-fg",
+    "Scope Expansion": "border-info-fg/30 bg-info-bg text-info-fg",
+    Question: "border-line bg-chip text-ink-2",
+    Redesign: "border-line bg-tint text-accent",
   };
 
   const icons: Record<string, string> = {
@@ -35,7 +35,7 @@ export function EscalationTypeBadge({ type }: { type: EscalationType | string })
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs font-medium ${badgeStyle}`}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-bold ${badgeStyle}`}
     >
       <span aria-hidden="true">{icon}</span>
       <span>{type}</span>

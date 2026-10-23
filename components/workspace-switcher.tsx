@@ -32,10 +32,14 @@ export function WorkspaceSwitcher({
   activeTenantId: string | null;
   className?: string;
   fullWidth?: boolean;
-  /** "chrome" paints the control for the navy app header. */
-  tone?: "default" | "chrome";
+  /**
+   * "chrome" paints the control for navy chrome; "sidebar" is the redesign's
+   * full-width workspace card at the top of the app sidebar.
+   */
+  tone?: "default" | "chrome" | "sidebar";
 }) {
-  const chrome = tone === "chrome";
+  const sidebar = tone === "sidebar";
+  const chrome = tone === "chrome" || sidebar;
   const listId = useId();
   const formRef = useRef<HTMLFormElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -70,11 +74,13 @@ export function WorkspaceSwitcher({
     return (
       <Link
         href="/tenants"
-        className={`inline-flex h-8 items-center rounded-lg px-2 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 ${
-          chrome
-            ? "border border-surface-border bg-[#132347] text-porcelain hover:bg-[#1a2d57]"
-            : "text-slate-700 hover:bg-slate-100 hover:text-slate-900"
-        } ${fullWidth ? "w-full" : ""} ${className}`}
+        className={`inline-flex items-center px-2 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 ${
+          sidebar
+            ? "min-h-12 rounded-[14px] border border-sidebar-line bg-sidebar-card px-3 text-sm text-white hover:bg-[#2d4572] focus-visible:ring-sky-tint focus-visible:ring-offset-deep-ocean"
+            : chrome
+              ? "h-8 rounded-lg border border-surface-border bg-[#132347] text-xs text-porcelain hover:bg-[#1a2d57]"
+              : "h-8 rounded-lg text-xs text-slate-700 hover:bg-slate-100 hover:text-slate-900"
+        } ${fullWidth || sidebar ? "w-full" : ""} ${className}`}
       >
         Workspaces
       </Link>
@@ -94,9 +100,38 @@ export function WorkspaceSwitcher({
   }
 
   return (
-    <div ref={rootRef} className={`relative ${fullWidth ? "w-full" : "w-max max-w-40"} ${className}`}>
+    <div ref={rootRef} className={`relative ${fullWidth || sidebar ? "w-full" : "w-max max-w-40"} ${className}`}>
       <form ref={formRef} action={selectTenantAction}>
         <input type="hidden" name="tenantId" defaultValue={selected.id} />
+        {sidebar ? (
+          <button
+            type="button"
+            aria-haspopup="listbox"
+            aria-expanded={open}
+            aria-controls={listId}
+            onClick={() => setOpen((current) => !current)}
+            className="flex min-h-12 w-full items-center gap-2.5 rounded-[14px] border border-sidebar-line bg-sidebar-card px-3 py-2 text-left text-white transition-colors hover:bg-[#2d4572] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-tint focus-visible:ring-offset-2 focus-visible:ring-offset-deep-ocean"
+          >
+            <span
+              aria-hidden="true"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white text-xs font-extrabold text-primary"
+            >
+              {selected.name.trim().slice(0, 2) || "?"}
+            </span>
+            <span className="flex min-w-0 flex-1 flex-col">
+              <span aria-hidden="true" className="text-[11px] text-sidebar-muted">
+                Workspace
+              </span>
+              <span className="truncate font-bold">
+                <span className="sr-only">Active workspace, </span>
+                {selectedLabel}
+              </span>
+            </span>
+            <svg className="h-4 w-4 shrink-0 text-sidebar-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="m7 15 5 5 5-5M7 9l5-5 5 5" />
+            </svg>
+          </button>
+        ) : (
         <button
           type="button"
           aria-haspopup="listbox"
@@ -122,6 +157,7 @@ export function WorkspaceSwitcher({
             />
           </svg>
         </button>
+        )}
         {open ? (
           <ul
             id={listId}
@@ -129,7 +165,7 @@ export function WorkspaceSwitcher({
             aria-label="Workspaces"
             className={`absolute left-0 top-full z-50 mt-1 max-h-64 overflow-y-auto rounded-lg border p-1 shadow-sm ${
               chrome ? "border-surface-border bg-[#142343]" : "border-slate-200 bg-card"
-            } ${fullWidth ? "w-full" : "w-max min-w-full max-w-56"}`}
+            } ${fullWidth || sidebar ? "w-full" : "w-max min-w-full max-w-56"}`}
           >
             {workspaces.map((workspace) => {
               const label = visibleName(workspace, shared(workspace.name));

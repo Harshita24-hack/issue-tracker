@@ -28,10 +28,10 @@ const statusMeta: Record<
   DashboardAgentStatus,
   { label: string; dot: string; text: string }
 > = {
-  waiting: { label: "Waiting on you", dot: "bg-sky-tint", text: "text-sky-700" },
-  working: { label: "Working", dot: "bg-amber-400", text: "text-amber-700" },
-  idle: { label: "Idle", dot: "bg-emerald-400", text: "text-emerald-700" },
-  offline: { label: "Offline", dot: "bg-slate-400", text: "text-slate-500" },
+  waiting: { label: "Waiting on you", dot: "bg-sky-tint", text: "text-accent" },
+  working: { label: "Working", dot: "bg-warn-fg", text: "text-warn-fg" },
+  idle: { label: "Idle", dot: "bg-ok-fg", text: "text-ok-fg" },
+  offline: { label: "Offline", dot: "bg-chip-2", text: "text-muted" },
 };
 
 export function DashboardAgents({
@@ -74,16 +74,16 @@ export function DashboardAgents({
   return (
     <section
       aria-labelledby="agents-heading"
-      className="overflow-hidden rounded-xl border border-slate-200 bg-card shadow-sm"
+      className="overflow-hidden rounded-[20px] border border-line bg-surface"
     >
-      <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+      <div className="flex items-center justify-between border-b border-divider px-5 py-4">
         <div className="flex items-center gap-2.5">
-          <h2 id="agents-heading" className="text-base font-bold text-slate-900 sm:text-lg">
+          <h2 id="agents-heading" className="text-base font-bold text-ink sm:text-lg">
             Your agents
           </h2>
           <span
             aria-label={`${agents.length} agent${agents.length === 1 ? "" : "s"}`}
-            className="rounded-full border border-teal-200 bg-teal-50 px-2 py-0.5 text-xs font-semibold text-teal-800"
+            className="rounded-full bg-tint px-2 py-0.5 text-xs font-bold text-accent"
           >
             {agents.length}
           </span>
@@ -94,7 +94,7 @@ export function DashboardAgents({
           aria-controls="agents-body"
           aria-label="Toggle Your agents section"
           onClick={() => setOpen((value) => !value)}
-          className="rounded-md p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
+          className="rounded-full p-1 text-muted transition hover:bg-tint hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
         >
           <svg
             className={`h-5 w-5 transition-transform motion-safe:duration-200 ${open ? "rotate-180" : ""}`}
@@ -113,13 +113,13 @@ export function DashboardAgents({
         <div id="agents-body">
           {agents.length === 0 ? (
             <div className="px-5 py-10 text-center">
-              <p className="font-medium text-slate-800">No agents yet</p>
-              <p className="mt-1 text-sm text-slate-600">
+              <p className="font-bold text-ink">No agents yet</p>
+              <p className="mt-1 text-sm text-muted">
                 Pair an agent to let it work on your issues and report back here.
               </p>
               <Link
                 href="/settings/agents/pair"
-                className="mt-4 inline-flex items-center justify-center rounded-lg bg-electric-blue-strong px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-[#2552af]"
+                className="mt-4 inline-flex h-10 items-center justify-center rounded-full bg-primary px-4 text-sm font-bold text-white transition hover:bg-electric-blue-strong"
               >
                 Pair your first agent
               </Link>
@@ -128,19 +128,19 @@ export function DashboardAgents({
             <div className="overflow-x-auto">
               <table className="w-full border-collapse text-left text-sm">
                 <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50/70 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  <tr className="border-b border-divider bg-tint text-xs font-bold uppercase tracking-wider text-accent">
                     <th scope="col" className="px-5 py-3">Agent</th>
                     <th scope="col" className="px-5 py-3">Status</th>
                     <th scope="col" className="px-5 py-3">Current activity</th>
                     <th scope="col" className="px-5 py-3 text-right">Last seen</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-divider">
                   {agents.map((agent) => {
                     const meta = statusMeta[agent.status];
                     return (
-                      <tr key={agent.id} className="transition hover:bg-slate-50/60">
-                        <td className="px-5 py-3.5 font-semibold text-slate-900">
+                      <tr key={agent.id} className="transition hover:bg-row-sel">
+                        <td className="px-5 py-3.5 font-semibold text-ink">
                           <span className="flex items-center gap-2">
                             <span
                               className={`h-2.5 w-2.5 shrink-0 rounded-full ${meta.dot}`}
@@ -148,7 +148,7 @@ export function DashboardAgents({
                             />
                             <span className="truncate">{agent.name}</span>
                             {agent.model ? (
-                              <span className="truncate text-xs font-normal text-slate-500">
+                              <span className="truncate text-xs font-normal text-muted">
                                 {agent.model}
                               </span>
                             ) : null}
@@ -157,10 +157,10 @@ export function DashboardAgents({
                         <td className={`whitespace-nowrap px-5 py-3.5 font-medium ${meta.text}`}>
                           {meta.label}
                         </td>
-                        <td className="max-w-[22rem] truncate px-5 py-3.5 text-slate-600">
+                        <td className="max-w-[22rem] truncate px-5 py-3.5 text-ink-2">
                           {agent.activity}
                         </td>
-                        <td className="whitespace-nowrap px-5 py-3.5 text-right font-mono text-xs text-slate-500">
+                        <td className="whitespace-nowrap px-5 py-3.5 text-right font-mono text-xs text-muted">
                           {agent.lastSeenAt ? (
                             <RelativeTime date={agent.lastSeenAt} />
                           ) : (

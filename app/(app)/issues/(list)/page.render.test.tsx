@@ -102,18 +102,21 @@ describe("issue list layout", () => {
     expect(html).toMatch(/<h1[^>]*>(<!-- -->)?Acme Web<\/h1>/);
   });
 
-  it("has no second New issue button; the header has it (#1057)", async () => {
+  it("offers New issue once, in the page header", async () => {
     const html = await renderList();
-    expect(html).not.toContain('href="/issues/new"');
+    expect(html.match(/href="\/issues\/new"/g)).toHaveLength(1);
+    expect(html).toMatch(/href="\/issues\/new"[^>]*>[\s\S]*?New issue/);
+    const listCard = html.match(/<section[^>]*>[\s\S]*All issues[\s\S]*<\/section>/)?.[0] ?? "";
+    expect(listCard).not.toContain('href="/issues/new"');
   });
 
-  it("keeps the empty state free of a second New issue button (#1057)", async () => {
+  it("keeps the empty filtered state free of a second New issue button", async () => {
     // The search matches nothing, but the tracker itself isn't empty.
     count.mockImplementation(async (args: { where?: { OR?: unknown } }) => (args?.where?.OR ? 0 : 5));
     findMany.mockResolvedValue([]);
     const html = await renderList({ q: "nothing matches" });
     expect(html).toContain("No issues match these filters.");
-    expect(html).not.toContain('href="/issues/new"');
+    expect(html.match(/href="\/issues\/new"/g)).toHaveLength(1);
   });
 
   it("welcomes a new, empty project even when the workspace has issues elsewhere", async () => {
@@ -172,10 +175,12 @@ describe("issue list layout", () => {
     expect(listQuery.where.id).toEqual({ in: ["bug-1"] });
   });
 
-  it("is one centred list column without the stats card (#1056)", async () => {
+  it("is one full-width list column without its own shell (#1056)", async () => {
     const html = await renderList();
     expect(html).not.toContain("Total issues");
-    expect(html).toMatch(/^<div class="mx-auto flex w-full max-w-5xl items-start gap-6">/);
+    // The persistent app shell owns the sidebar; this page adds none.
+    expect(html).toMatch(/^<div class="space-y-6">/);
+    expect(html).not.toContain('aria-label="Sidebar"');
     // The four stats counts are no longer queried.
     const statusOnly = count.mock.calls.filter(([args]) => args?.where?.status === "in_progress");
     expect(statusOnly).toHaveLength(0);

@@ -82,16 +82,16 @@ export function EditableIssueDescription({
   const mentionUsers = users.map((u) => ({ id: u.id, name: u.name }));
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-card p-4 sm:p-6">
+    <section className="rounded-[20px] border border-line bg-surface p-5 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+          <h2 className="text-xs font-bold uppercase tracking-[0.08em] text-muted">
             {isEditing ? "Edit issue" : "Description"}
           </h2>
           {!isEditing && lastEditedAt && historyHref ? (
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-muted">
               edited <LocalTime date={lastEditedAt} /> ·{" "}
-              <Link href={historyHref} className="font-medium text-teal-700 hover:underline">
+              <Link href={historyHref} className="font-bold text-accent hover:underline">
                 view history
               </Link>
             </p>
@@ -99,7 +99,7 @@ export function EditableIssueDescription({
         </div>
         <div className="ml-auto flex items-center gap-2">
           {!isEditing && createdAt ? (
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-muted">
               <span className="sr-only">Created </span>
               <LocalTime date={createdAt} />
             </p>
@@ -107,7 +107,7 @@ export function EditableIssueDescription({
           {canEdit && !isEditing ? (
             <Button
               variant="ghost"
-              className="px-2.5 py-1 text-xs text-slate-600 hover:text-slate-900"
+              className="px-2.5 py-1 text-xs text-ink-2 hover:text-ink"
               onClick={handleStartEdit}
             >
               Edit
@@ -120,7 +120,7 @@ export function EditableIssueDescription({
         <form onSubmit={handleSave} className="mt-4 space-y-4">
           {error ? (
             <div
-              className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700"
+              className="rounded-xl border border-bad-bd bg-bad-bg p-3 text-sm text-bad-fg"
               role="alert"
             >
               {error}
@@ -130,7 +130,7 @@ export function EditableIssueDescription({
           <div className="space-y-1.5">
             <label
               htmlFor="edit-issue-title"
-              className="text-xs font-medium text-slate-700"
+              className="text-xs font-bold text-ink-2"
             >
               Title
             </label>
@@ -151,7 +151,7 @@ export function EditableIssueDescription({
             <label
               id="edit-issue-description-label"
               htmlFor="edit-issue-description"
-              className="text-xs font-medium text-slate-700"
+              className="text-xs font-bold text-ink-2"
             >
               Description
             </label>

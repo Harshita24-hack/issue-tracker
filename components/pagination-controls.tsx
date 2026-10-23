@@ -14,6 +14,13 @@ export interface PaginationControlsProps {
   itemLabel?: string;
 }
 
+const focusRing =
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface";
+
+const linkClass = `inline-flex h-9 min-w-9 items-center justify-center rounded-full border border-line bg-surface px-3 text-xs font-bold text-ink transition-colors hover:bg-tint ${focusRing}`;
+const disabledClass =
+  "inline-flex h-9 min-w-9 cursor-not-allowed items-center justify-center rounded-full border border-line bg-chip px-3 text-xs font-bold text-muted";
+
 export function PaginationControls({
   page,
   totalPages,
@@ -34,12 +41,12 @@ export function PaginationControls({
   return (
     <nav
       aria-label="Pagination"
-      className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-card px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+      className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
     >
-      <div className="text-xs text-slate-600">
-        Showing <span className="font-medium text-slate-900">{from}</span>–
-        <span className="font-medium text-slate-900">{to}</span> of{" "}
-        <span className="font-medium text-slate-900">{totalCount}</span>{" "}
+      <div className="text-[13px] text-muted">
+        Showing <span className="font-bold text-ink">{from}</span>–
+        <span className="font-bold text-ink">{to}</span> of{" "}
+        <span className="font-bold text-ink">{totalCount}</span>{" "}
         {itemLabel}
         {totalCount === 1 ? "" : "s"}
       </div>
@@ -47,17 +54,11 @@ export function PaginationControls({
       {totalPages > 1 && (
         <div className="flex flex-wrap items-center gap-1.5">
           {prevUrl ? (
-            <Link
-              href={prevUrl}
-              className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-card px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:outline-none"
-            >
+            <Link href={prevUrl} className={linkClass}>
               Previous
             </Link>
           ) : (
-            <span
-              aria-disabled="true"
-              className="inline-flex cursor-not-allowed items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-400"
-            >
+            <span aria-disabled="true" className={disabledClass}>
               Previous
             </span>
           )}
@@ -66,10 +67,7 @@ export function PaginationControls({
             {range.map((item, index) => {
               if (item === "...") {
                 return (
-                  <span
-                    key={`ellipsis-${index}`}
-                    className="px-1.5 text-xs text-slate-500"
-                  >
+                  <span key={`ellipsis-${index}`} className="px-1.5 text-xs text-muted">
                     …
                   </span>
                 );
@@ -82,16 +80,12 @@ export function PaginationControls({
                 <span
                   key={item}
                   aria-current="page"
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-teal-700 text-xs font-medium text-white"
+                  className="inline-flex h-9 min-w-9 items-center justify-center rounded-full bg-primary px-2 text-xs font-bold text-white"
                 >
                   {item}
                 </span>
               ) : (
-                <Link
-                  key={item}
-                  href={url}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 bg-card text-xs font-medium text-slate-700 transition hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:outline-none"
-                >
+                <Link key={item} href={url} className={linkClass}>
                   {item}
                 </Link>
               );
@@ -99,17 +93,11 @@ export function PaginationControls({
           </div>
 
           {nextUrl ? (
-            <Link
-              href={nextUrl}
-              className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-card px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:outline-none"
-            >
+            <Link href={nextUrl} className={linkClass}>
               Next
             </Link>
           ) : (
-            <span
-              aria-disabled="true"
-              className="inline-flex cursor-not-allowed items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-400"
-            >
+            <span aria-disabled="true" className={disabledClass}>
               Next
             </span>
           )}
@@ -118,4 +106,3 @@ export function PaginationControls({
     </nav>
   );
 }
-

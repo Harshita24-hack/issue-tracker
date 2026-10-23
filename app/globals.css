@@ -3,13 +3,14 @@
 @import "./theme-dark.css";
 /* Ziki brand re-seed: accent families + surfaces, both themes. */
 @import "./theme-brand.css";
+/* Redesign tokens (light + dark), named as in the handoff. */
+@import "./theme-ziki.css";
 
 :root {
-  /* Light canvas: the reference export's exact light-mode surface. */
-  --background: #f8f9ff;
-  --foreground: #0f172a;
-  /* Card surface. Dark mode reassigns this in theme-brand.css; white stays white. */
-  --card: #ffffff;
+  /* Canvas and card follow the redesign tokens in both themes. */
+  --background: var(--bg);
+  --foreground: var(--text);
+  --card: var(--surface);
   color-scheme: light;
 }
 
@@ -17,8 +18,36 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
-  --font-sans: var(--font-inter);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-manrope);
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* Redesign tokens as utilities: bg-surface, text-ink, border-line, ... */
+  --color-surface: var(--surface);
+  --color-ink: var(--text);
+  --color-ink-2: var(--text2);
+  --color-muted: var(--muted);
+  --color-line: var(--border);
+  --color-divider: var(--divider);
+  --color-tint: var(--tint);
+  --color-row-sel: var(--rowSel);
+  --color-chip: var(--chip);
+  --color-chip-2: var(--chip2);
+  --color-seg: var(--seg);
+  --color-accent: var(--accentText);
+  --color-ok-bg: var(--okBg);
+  --color-ok-fg: var(--okFg);
+  --color-bad-bg: var(--badBg);
+  --color-bad-fg: var(--badFg);
+  --color-bad-bd: var(--badBd);
+  --color-bad-soft: var(--badSoft);
+  --color-warn-bg: var(--warnBg);
+  --color-warn-fg: var(--warnFg);
+  --color-warn-bd: var(--warnBd);
+  --color-info-bg: var(--infoBg);
+  --color-info-fg: var(--infoFg);
+  --color-sec-bg: var(--secBg);
+  --color-sec-fg: var(--secFg);
+  --shadow-pop: var(--popShadow);
 }
 
 /* Ziki brand utilities. Chrome navy is theme-independent in the reference
@@ -35,12 +64,20 @@
   --color-porcelain: #f5f7fc;
   --color-surface-border: rgba(143, 201, 255, 0.12);
   --color-surface-hover: rgba(57, 120, 246, 0.08);
+  /* Filled buttons with white text in the redesign: Electric Blue darkened
+     to 4.5:1 against white. */
+  --color-primary: #2e6fef;
+  /* Sidebar chrome (navy in both themes). */
+  --color-sidebar-line: #34507f;
+  --color-sidebar-card: #263b63;
+  --color-sidebar-ink: #dce5f5;
+  --color-sidebar-muted: #a9bcdf;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
 }
 
 /* Header account menu opening (respects reduced motion via motion-safe:). */

@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { copyText } from "@/lib/clipboard";
 import type { AgentTemplates } from "@/lib/agents/templates";
@@ -13,6 +12,89 @@ import {
 
 type TabId = "claude" | "chatgpt" | "script" | "mcp";
 type ScriptLang = "node" | "python";
+
+const focusRing =
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface";
+
+const ASSISTANTS: {
+  id: TabId;
+  label: string;
+  hint: string;
+  icon: string;
+}[] = [
+  {
+    id: "claude",
+    label: "Claude Code / Desktop",
+    hint: "Paste a prompt",
+    icon: "m4 17 6-6-6-6M12 19h8",
+  },
+  {
+    id: "chatgpt",
+    label: "ChatGPT / Other Assistants",
+    hint: "Paste a prompt",
+    icon: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z",
+  },
+  {
+    id: "script",
+    label: "Script (Node & Python)",
+    hint: "Run a snippet",
+    icon: "M16 18l6-6-6-6M8 6l-6 6 6 6",
+  },
+  {
+    id: "mcp",
+    label: "Claude Desktop (MCP)",
+    hint: "Add a server config",
+    icon: "M12 2v6M12 16v6M4.9 4.9l4.2 4.2M14.9 14.9l4.2 4.2M2 12h6M16 12h6M4.9 19.1l4.2-4.2M14.9 9.1l4.2-4.2",
+  },
+];
+
+const HOW_TO: Record<TabId, string[]> = {
+  claude: [
+    "Copy the prompt block below.",
+    "Paste it into your Claude Code session or Claude Desktop prompt.",
+    "Claude will ask for an agent name, request a pairing code, and show you an approval link.",
+    "Open the approval link in your browser to approve the pairing.",
+    "Once Claude calls /agents/me, click Test connection below.",
+  ],
+  chatgpt: [
+    "Copy the prompt block below.",
+    "Paste it into ChatGPT or your assistant with web/curl access.",
+    "Follow the assistant's prompt to approve the pairing code.",
+    "Click Test connection below once your assistant has verified.",
+  ],
+  script: [
+    "Pick your language, save the file locally, and run it.",
+    "The script pairs automatically, saves the key locally, and long-polls /api/v1/events.",
+    "Approve the pairing in your browser when the script prints the link.",
+    "Click Test connection below once the script calls /agents/me.",
+  ],
+  mcp: [
+    "In a clone of this repo, pair once with the command below.",
+    "Build the server, then paste the config into claude_desktop_config.json.",
+    "Restart Claude Desktop. Ziki's tools appear in the tools menu.",
+    "Ask Claude to pair, approve the link, then test the connection.",
+  ],
+};
+
+const STEP_LABELS = ["Choose assistant", "Copy setup", "Approve pairing", "Test connection"];
+
+function InfoIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="mt-0.5 h-4 w-4 shrink-0 text-accent"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 8v4M12 16h.01" />
+    </svg>
+  );
+}
 
 export function ConnectAgentView({
   templates,
@@ -66,6 +148,8 @@ export function ConnectAgentView({
         ? "agent.mjs"
         : "agent.py";
 
+  const progress = connectionStatus.connected ? 4 : copied ? 3 : 1;
+
   async function handleCopy() {
     const ok = await copyText(currentSnippet);
     if (!ok) {
@@ -96,156 +180,167 @@ export function ConnectAgentView({
   }
 
   return (
-    <div className="space-y-6">
-      {/* Project context header */}
-      <div className="flex flex-col gap-1 rounded-xl border border-slate-200 bg-card p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-        <div>
-          <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-            Active Project
-          </span>
-          <p className="text-sm font-medium text-slate-900">
-            {projectName ? `${projectName}` : "Default project"}{" "}
-            {projectId ? (
-              <span className="font-mono text-xs text-slate-500">({projectId})</span>
-            ) : null}
-          </p>
-        </div>
-        <div className="text-xs text-slate-500">
-          Target origin:{" "}
-          <span className="font-mono font-medium text-slate-700">{siteUrl}</span>
-        </div>
-      </div>
+    <div className="flex flex-col gap-5">
+      <ol
+        aria-label="Progress"
+        className="m-0 grid list-none gap-2.5 p-0 [grid-template-columns:repeat(auto-fit,minmax(180px,1fr))]"
+      >
+        {STEP_LABELS.map((label, index) => {
+          const step = index + 1;
+          const done = step < progress || (step === 4 && connectionStatus.connected);
+          const active = !done && step === progress;
+          return (
+            <li
+              key={label}
+              aria-current={active ? "step" : undefined}
+              className={`flex items-center gap-3 rounded-2xl border p-3.5 ${
+                active ? "border-primary bg-row-sel" : "border-line bg-surface"
+              }`}
+            >
+              <span
+                aria-hidden="true"
+                className={`flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full text-[13px] font-extrabold ${
+                  done
+                    ? "bg-ok-bg text-ok-fg"
+                    : active
+                      ? "bg-primary text-white"
+                      : "bg-chip text-muted"
+                }`}
+              >
+                {done ? "âœ“" : step}
+              </span>
+              <span className="flex min-w-0 flex-col gap-0.5">
+                <span className="text-xs font-semibold text-muted">Step {step}</span>
+                <span className="text-sm font-bold text-ink">{label}</span>
+              </span>
+            </li>
+          );
+        })}
+      </ol>
 
-      {/* Main Tab Navigation */}
-      <div className="rounded-xl border border-slate-200 bg-card overflow-hidden shadow-xs">
-        <div className="border-b border-slate-200 bg-slate-50/70 px-4 pt-3 sm:px-6">
-          <div
-            role="tablist"
-            aria-label="Agent connection methods"
-            className="-mb-px flex space-x-6 overflow-x-auto text-sm font-medium"
+      <section className="flex flex-wrap items-center justify-between gap-3.5 rounded-[20px] border border-line bg-surface px-5 py-[18px]">
+        <div className="flex items-center gap-3">
+          <span
+            aria-hidden="true"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-deep-ocean text-primary"
           >
-            <button
-              role="tab"
-              id="tab-claude"
-              aria-controls="panel-claude"
-              aria-selected={activeTab === "claude"}
-              onClick={() => setActiveTab("claude")}
-              type="button"
-              className={`border-b-2 pb-3 transition-colors ${
-                activeTab === "claude"
-                  ? "border-teal-600 font-semibold text-teal-800"
-                  : "border-transparent text-slate-600 hover:border-slate-300 hover:text-slate-900"
-              }`}
+            <svg
+              className="h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
             >
-              Claude Code / Desktop
-            </button>
-            <button
-              role="tab"
-              id="tab-chatgpt"
-              aria-controls="panel-chatgpt"
-              aria-selected={activeTab === "chatgpt"}
-              onClick={() => setActiveTab("chatgpt")}
-              type="button"
-              className={`border-b-2 pb-3 transition-colors ${
-                activeTab === "chatgpt"
-                  ? "border-teal-600 font-semibold text-teal-800"
-                  : "border-transparent text-slate-600 hover:border-slate-300 hover:text-slate-900"
-              }`}
-            >
-              ChatGPT / Other Assistants
-            </button>
-            <button
-              role="tab"
-              id="tab-script"
-              aria-controls="panel-script"
-              aria-selected={activeTab === "script"}
-              onClick={() => setActiveTab("script")}
-              type="button"
-              className={`border-b-2 pb-3 transition-colors ${
-                activeTab === "script"
-                  ? "border-teal-600 font-semibold text-teal-800"
-                  : "border-transparent text-slate-600 hover:border-slate-300 hover:text-slate-900"
-              }`}
-            >
-              Script (Node & Python)
-            </button>
-            <button
-              role="tab"
-              id="tab-mcp"
-              aria-controls="panel-mcp"
-              aria-selected={activeTab === "mcp"}
-              onClick={() => setActiveTab("mcp")}
-              type="button"
-              className={`border-b-2 pb-3 transition-colors ${
-                activeTab === "mcp"
-                  ? "border-teal-600 font-semibold text-teal-800"
-                  : "border-transparent text-slate-600 hover:border-slate-300 hover:text-slate-900"
-              }`}
-            >
-              Claude Desktop (MCP)
-            </button>
+              <rect x="4" y="8" width="16" height="12" rx="2" />
+              <path d="M12 4v4M9 14h.01M15 14h.01" />
+            </svg>
+          </span>
+          <div className="flex flex-col gap-0.5">
+            <span className="text-xs font-bold uppercase tracking-[0.06em] text-muted">
+              Active project
+            </span>
+            <span className="text-[15px] font-bold text-ink">
+              {projectName ?? "Default project"}{" "}
+              {projectId ? (
+                <span className="font-mono text-xs font-medium text-muted">({projectId})</span>
+              ) : null}
+            </span>
           </div>
         </div>
+        <span className="inline-flex items-center gap-2 rounded-full bg-chip px-3 py-1.5 text-[13px] text-ink-2">
+          Target origin{" "}
+          <strong className="font-mono font-semibold text-ink">{siteUrl}</strong>
+        </span>
+      </section>
 
-        {/* Tab Content Panels */}
-        <div className="p-4 sm:p-6 space-y-4">
-          {activeTab === "claude" && (
+      <div className="flex flex-wrap items-start gap-5">
+        <div className="flex min-w-0 flex-[999_1_620px] flex-col gap-4">
+          <section
+            aria-label="Choose your assistant"
+            className="flex flex-col gap-4 rounded-[20px] border border-line bg-surface p-[22px]"
+          >
+            <h2 className="text-lg font-bold text-ink">1. Choose your assistant</h2>
             <div
-              id="panel-claude"
-              role="tabpanel"
-              aria-labelledby="tab-claude"
-              className="space-y-3"
+              role="tablist"
+              aria-label="Assistant"
+              className="grid gap-2.5 [grid-template-columns:repeat(auto-fit,minmax(150px,1fr))]"
             >
-              <div className="text-sm text-slate-600">
-                <ol className="list-decimal pl-5 space-y-1">
-                  <li>Copy the prompt block below.</li>
-                  <li>Paste it into your Claude Code session or Claude Desktop prompt.</li>
-                  <li>Claude will ask for an agent name, request a pairing code, and show you an approval link.</li>
-                  <li>Open the approval link in your browser to approve the pairing.</li>
-                  <li>Once Claude calls <code className="font-mono text-xs text-slate-800">/agents/me</code>, click <strong>Test connection</strong> below!</li>
-                </ol>
-              </div>
+              {ASSISTANTS.map((assistant) => {
+                const active = activeTab === assistant.id;
+                return (
+                  <button
+                    key={assistant.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => {
+                      setActiveTab(assistant.id);
+                      setCopied(false);
+                    }}
+                    className={`flex flex-col gap-2 rounded-2xl p-3.5 text-left transition-colors ${focusRing} ${
+                      active
+                        ? "border-2 border-primary bg-row-sel"
+                        : "m-px border border-line bg-surface hover:bg-tint"
+                    }`}
+                  >
+                    <span
+                      className={`flex h-9 w-9 items-center justify-center rounded-xl ${
+                        active ? "bg-primary text-white" : "bg-tint text-accent"
+                      }`}
+                    >
+                      <svg
+                        aria-hidden="true"
+                        className="h-[18px] w-[18px]"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d={assistant.icon} />
+                      </svg>
+                    </span>
+                    <span className="text-sm font-bold text-ink">{assistant.label}</span>
+                    <span className="text-xs text-muted">{assistant.hint}</span>
+                  </button>
+                );
+              })}
             </div>
-          )}
+          </section>
 
-          {activeTab === "chatgpt" && (
-            <div
-              id="panel-chatgpt"
-              role="tabpanel"
-              aria-labelledby="tab-chatgpt"
-              className="space-y-3"
-            >
-              <div className="text-sm text-slate-600">
-                <ol className="list-decimal pl-5 space-y-1">
-                  <li>Copy the prompt block below.</li>
-                  <li>Paste it into ChatGPT or your assistant with web/curl access.</li>
-                  <li>Follow the assistant&apos;s prompt to approve the pairing code.</li>
-                  <li>Click <strong>Test connection</strong> below once your assistant has verified.</li>
-                </ol>
-              </div>
-            </div>
-          )}
+          <section
+            aria-label="Setup"
+            className="flex flex-col gap-4 rounded-[20px] border border-line bg-surface p-[22px]"
+          >
+            <h2 className="text-lg font-bold text-ink">2. Copy the setup block</h2>
+            <ol className="m-0 flex list-none flex-col gap-2.5 p-0">
+              {HOW_TO[activeTab].map((text, index) => (
+                <li
+                  key={text}
+                  className="flex items-start gap-3 text-sm leading-relaxed text-ink-2"
+                >
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-tint text-xs font-extrabold text-accent">
+                    {index + 1}
+                  </span>
+                  {text}
+                </li>
+              ))}
+            </ol>
 
-          {activeTab === "script" && (
-            <div
-              id="panel-script"
-              role="tabpanel"
-              aria-labelledby="tab-script"
-              className="space-y-3"
-            >
-              <div className="flex items-center justify-between">
-                <div className="text-sm text-slate-600">
-                  Pick your language, save the file locally, and run it. The script pairs automatically, saves the key locally, and long-polls <code className="font-mono text-xs text-slate-800">/api/v1/events</code>.
-                </div>
-                {/* Language Switcher */}
-                <div className="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-0.5 text-xs font-medium">
+            {activeTab === "script" ? (
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-xs font-semibold text-muted">Script language</span>
+                <div className="inline-flex rounded-full bg-seg p-0.5 text-xs font-semibold">
                   <button
                     type="button"
                     onClick={() => setScriptLang("node")}
-                    className={`rounded-md px-2.5 py-1 transition ${
+                    className={`rounded-full px-2.5 py-1 transition-colors ${focusRing} ${
                       scriptLang === "node"
-                        ? "bg-card text-slate-900 shadow-xs"
-                        : "text-slate-600 hover:text-slate-900"
+                        ? "bg-surface font-bold text-ink shadow-sm"
+                        : "text-ink-2 hover:text-ink"
                     }`}
                   >
                     Node.js
@@ -253,154 +348,202 @@ export function ConnectAgentView({
                   <button
                     type="button"
                     onClick={() => setScriptLang("python")}
-                    className={`rounded-md px-2.5 py-1 transition ${
+                    className={`rounded-full px-2.5 py-1 transition-colors ${focusRing} ${
                       scriptLang === "python"
-                        ? "bg-card text-slate-900 shadow-xs"
-                        : "text-slate-600 hover:text-slate-900"
+                        ? "bg-surface font-bold text-ink shadow-sm"
+                        : "text-ink-2 hover:text-ink"
                     }`}
                   >
                     Python 3
                   </button>
                 </div>
               </div>
-            </div>
-          )}
+            ) : null}
 
-          {activeTab === "mcp" && (
-            <div
-              id="panel-mcp"
-              role="tabpanel"
-              aria-labelledby="tab-mcp"
-              className="space-y-3"
-            >
-              <div className="text-sm text-slate-600">
-                <ol className="list-decimal pl-5 space-y-1">
-                  <li>
-                    In a clone of this repo, pair once:{" "}
-                    <code className="font-mono text-xs text-slate-800">node scripts/ziki-agent.mjs pair --url {siteUrl}</code>
-                  </li>
-                  <li>
-                    Build the server:{" "}
-                    <code className="font-mono text-xs text-slate-800">cd packages/mcp-server &amp;&amp; pnpm install &amp;&amp; pnpm build</code>
-                  </li>
-                  <li>
-                    Paste the config below into{" "}
-                    <code className="font-mono text-xs text-slate-800">claude_desktop_config.json</code>, replacing the path with where you cloned the repo.
-                  </li>
-                  <li>Restart Claude Desktop. Ziki&apos;s tools appear in the tools menu.</li>
-                </ol>
-                <p className="mt-2 text-xs text-slate-500">
-                  The config holds no key. The server reads the one saved by <code className="font-mono">pair</code>.
-                </p>
-              </div>
-            </div>
-          )}
+            {activeTab === "mcp" ? (
+              <p className="text-xs text-muted">
+                The config holds no key. The server reads the one saved by{" "}
+                <code className="font-mono">pair</code>.
+              </p>
+            ) : null}
 
-          {/* Snippet display with copy button */}
-          <div className="relative group">
-            <div className="absolute right-3 top-3 z-10">
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={handleCopy}
-                className="text-xs py-1 px-2.5 shadow-xs"
-              >
-                {copied ? "✓ Copied" : `Copy ${currentFilename}`}
-              </Button>
-            </div>
-            <pre className="max-h-96 overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-4 font-mono text-xs leading-relaxed text-slate-800 [scrollbar-width:thin]">
-              {currentSnippet}
-            </pre>
-          </div>
-        </div>
-      </div>
-
-      {/* Connection Verification Section */}
-      <section
-        className={`rounded-xl border p-4 sm:p-6 transition-colors shadow-xs ${
-          connectionStatus.connected
-            ? "border-emerald-300 bg-emerald-50/40"
-            : "border-slate-200 bg-card"
-        }`}
-        aria-labelledby="test-connection-heading"
-      >
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="space-y-1">
-            <h2
-              id="test-connection-heading"
-              className="text-base font-semibold text-slate-900"
-            >
-              Connection status
-            </h2>
-            <p className="text-sm text-slate-600">
-              {connectionStatus.connected ? (
-                <span className="font-medium text-emerald-800">
-                  ✓ Connected: Agent &quot;{connectionStatus.agent?.name ?? "Agent"}&quot; successfully made contact with <code className="font-mono text-xs">/api/v1/agents/me</code>.
-                </span>
-              ) : (
-                "After your agent connects and makes its verification call to /api/v1/agents/me, click to verify."
-              )}
-            </p>
-          </div>
-
-          <div className="shrink-0">
-            <button
-              type="button"
-              onClick={handleTestConnection}
-              disabled={isPending}
-              data-testid="test-connection-btn"
-              className={`inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold transition shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${
-                connectionStatus.connected
-                  ? "bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:ring-emerald-600"
-                  : "bg-teal-700 text-white hover:bg-teal-800 focus-visible:ring-teal-600"
-              } disabled:opacity-50`}
-            >
-              {isPending ? (
-                <span className="flex items-center gap-2">
+            <div className="overflow-hidden rounded-2xl bg-deep-ocean">
+              <div className="flex flex-wrap items-center justify-between gap-2.5 border-b border-[#1E2E52] px-4 py-2.5">
+                <span className="inline-flex min-w-0 items-center gap-2 font-mono text-xs font-bold text-sidebar-muted">
                   <svg
-                    className="h-4 w-4 animate-spin text-white"
+                    aria-hidden="true"
+                    className="h-3.5 w-3.5 shrink-0"
                     fill="none"
                     viewBox="0 0 24 24"
-                    aria-hidden="true"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
                   >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    />
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8v8H4z"
-                    />
+                    <path d="m4 17 6-6-6-6M12 19h8" />
                   </svg>
-                  Checking...
+                  <span className="truncate">{currentFilename}</span>
                 </span>
-              ) : connectionStatus.connected ? (
-                "✓ Connected"
-              ) : (
-                "Test connection"
-              )}
-            </button>
-          </div>
+                <button
+                  type="button"
+                  onClick={handleCopy}
+                  className={`inline-flex h-[34px] items-center gap-1.5 rounded-full px-3.5 text-[13px] font-bold text-white transition-colors ${
+                    copied ? "bg-ok-fg" : "bg-primary hover:bg-electric-blue-strong"
+                  } ${focusRing}`}
+                >
+                  {copied ? "âœ“ Copied" : `Copy ${currentFilename}`}
+                </button>
+              </div>
+              <pre className="m-0 max-h-[300px] overflow-auto whitespace-pre-wrap p-4 font-mono text-[13px] leading-[1.7] text-sidebar-ink [scrollbar-width:thin]">
+                {currentSnippet}
+              </pre>
+            </div>
+          </section>
+
+          <section
+            aria-labelledby="test-connection-heading"
+            className={`flex flex-wrap items-center justify-between gap-4 rounded-[20px] border p-[22px] transition-colors ${
+              connectionStatus.connected
+                ? "border-ok-fg bg-ok-bg"
+                : "border-line bg-surface"
+            }`}
+          >
+            <div className="flex min-w-0 flex-[1_1_320px] flex-col gap-1">
+              <h2 id="test-connection-heading" className="text-lg font-bold text-ink">
+                3. Approve, then test
+              </h2>
+              <span className="text-[13px] leading-relaxed text-muted">
+                After you approve the pairing link and your agent calls{" "}
+                <code className="rounded bg-chip px-1.5 py-0.5 font-mono text-xs text-ink">
+                  /agents/me
+                </code>
+                , check the connection here.
+              </span>
+              {connectionStatus.connected ? (
+                <span className="mt-1 inline-flex items-center gap-1.5 self-start rounded-full bg-ok-bg px-3 py-1 text-xs font-bold text-ok-fg">
+                  <svg
+                    aria-hidden="true"
+                    className="h-[13px] w-[13px]"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={3}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M20 6 9 17l-5-5" />
+                  </svg>
+                  Connected â€” {connectionStatus.agent?.name ?? "Agent"} reached /agents/me
+                </span>
+              ) : null}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Link
+                href="/settings/agents/pair"
+                className={`inline-flex h-11 items-center rounded-full border border-line bg-surface px-[18px] text-sm font-bold text-ink transition-colors hover:bg-tint ${focusRing}`}
+              >
+                Approve code
+              </Link>
+              <button
+                type="button"
+                onClick={handleTestConnection}
+                disabled={isPending}
+                data-testid="test-connection-btn"
+                className={`inline-flex h-11 items-center gap-2 rounded-full px-5 text-sm font-bold text-white shadow-[0_8px_20px_rgba(46,111,239,0.30)] transition-colors disabled:opacity-60 ${focusRing} ${
+                  connectionStatus.connected
+                    ? "bg-ok-fg hover:opacity-90"
+                    : "bg-primary hover:bg-electric-blue-strong"
+                }`}
+              >
+                {isPending ? (
+                  <>
+                    <svg
+                      className="h-4 w-4 animate-spin"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                    </svg>
+                    Checking...
+                  </>
+                ) : connectionStatus.connected ? (
+                  "Connected — test again"
+                ) : (
+                  "Test connection"
+                )}
+              </button>
+            </div>
+          </section>
         </div>
 
-        {/* Helpful navigation links */}
-        <div className="mt-4 border-t border-slate-200/60 pt-3 flex flex-wrap gap-4 text-xs font-medium text-teal-700">
-          <Link href="/settings/agents/pair" className="hover:underline">
-            Approve a pending pairing code →
-          </Link>
-          <Link href="/settings/agents" className="hover:underline">
-            Manage registered agents →
-          </Link>
-          <Link href="/settings/audit" className="hover:underline">
-            View agent audit log →
-          </Link>
-        </div>
-      </section>
+        <aside className="flex min-w-0 flex-[1_1_300px] flex-col gap-4">
+          <section className="flex flex-col gap-3 rounded-[20px] border border-line bg-surface p-5">
+            <h2 className="text-base font-bold text-ink">Good to know</h2>
+            <div className="flex items-start gap-2.5 text-[13px] leading-relaxed text-ink-2">
+              <InfoIcon />
+              Connect one agent per level â€” observer, contributor, reviewer and so on.
+            </div>
+            <div className="flex items-start gap-2.5 text-[13px] leading-relaxed text-ink-2">
+              <InfoIcon />
+              Pairing codes last 15 minutes and work once.
+            </div>
+            <div className="flex items-start gap-2.5 text-[13px] leading-relaxed text-ink-2">
+              <InfoIcon />
+              The key goes straight to the agent â€” it never appears on this page.
+            </div>
+          </section>
+
+          <section className="flex flex-col gap-2.5 rounded-[20px] border border-line bg-tint p-5">
+            <span className="text-[15px] font-bold text-ink">Need the full API?</span>
+            <span className="text-[13px] leading-relaxed text-ink-2">
+              The handbook covers pairing, keys and every endpoint.
+            </span>
+            <a
+              href="/llms.txt"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`inline-flex min-h-8 items-center gap-1.5 self-start font-mono text-[13px] font-bold text-accent hover:underline ${focusRing}`}
+            >
+              /llms.txt
+              <svg
+                aria-hidden="true"
+                className="h-[13px] w-[13px]"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2.5}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M7 17 17 7M8 7h9v9" />
+              </svg>
+            </a>
+            <div className="mt-1 flex flex-col gap-1 border-t border-line pt-2 text-xs font-semibold text-accent">
+              <Link href="/settings/agents/pair" className="hover:underline">
+                Approve a pending pairing code â†’
+              </Link>
+              <Link href="/settings/agents" className="hover:underline">
+                Manage registered agents â†’
+              </Link>
+              <Link href="/settings/audit" className="hover:underline">
+                View agent audit log â†’
+              </Link>
+              <Link href="/docs" className="hover:underline">
+                Read the API docs â†’
+              </Link>
+            </div>
+          </section>
+        </aside>
+      </div>
     </div>
   );
 }

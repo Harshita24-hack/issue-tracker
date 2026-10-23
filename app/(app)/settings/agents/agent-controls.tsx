@@ -22,6 +22,9 @@ function expiryHours(choice: BurstExpiryChoice): number | null {
   return null;
 }
 
+const focusRing =
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface";
+
 /** Change an agent's level or revoke it, as its owner or a team admin (#427). */
 export function AgentControls({
   agentId,
@@ -38,6 +41,7 @@ export function AgentControls({
   areaPreferences = [],
   revoked = false,
   personal = false,
+  compact = false,
 }: {
   agentId: string;
   agentName: string;
@@ -61,6 +65,8 @@ export function AgentControls({
   revoked?: boolean;
   /** The automatic personal agent is created again on the next visit. */
   personal?: boolean;
+  /** A tighter layout for the team list. */
+  compact?: boolean;
 }) {
   const toast = useToast();
   const confirm = useConfirm();
@@ -258,18 +264,16 @@ export function AgentControls({
     );
   }
 
-  return (
-    <div className="flex flex-col gap-2 sm:items-end">
-      <div className="flex flex-wrap items-center gap-2">
-        <label htmlFor={`level-${agentId}`} className="sr-only">
-          Level for {agentName}
-        </label>
+  const fields = (
+    <div className={`grid gap-2.5 ${compact ? "sm:max-w-sm" : "sm:max-w-[440px]"} sm:grid-cols-2`}>
+      <label className="flex flex-col gap-1.5 text-xs font-semibold text-muted">
+        Role
         <Select
           id={`level-${agentId}`}
           value={current}
           disabled={pending}
           onChange={(event) => changeLevel(event.target.value as AgentLevel)}
-          className="w-auto"
+          className="font-semibold"
         >
           {/* The current level stays listed even if this person can't set it. */}
           {[...new Set([current, ...levels])].map((option) => (
@@ -278,15 +282,15 @@ export function AgentControls({
             </option>
           ))}
         </Select>
-        <label htmlFor={`project-${agentId}`} className="sr-only">
-          Project for the new key
-        </label>
+      </label>
+      <label className="flex flex-col gap-1.5 text-xs font-semibold text-muted">
+        Project
         <Select
           id={`project-${agentId}`}
           value={projectId}
           disabled={pending || projects.length === 0}
           onChange={(event) => setProjectId(event.target.value)}
-          className="w-auto"
+          className="font-semibold"
         >
           {projects.map((project) => (
             <option key={project.id} value={project.id}>
@@ -294,148 +298,244 @@ export function AgentControls({
             </option>
           ))}
         </Select>
-        {canSetBurst ? (
-          <>
-            <label className="flex items-center gap-1.5 text-xs text-slate-600">
-              <input
-                type="checkbox"
-                checked={burstOn}
-                disabled={pending}
-                onChange={(event) => saveBurst(event.target.checked)}
-              />
-              High-volume
-            </label>
-            {burstOn ? (
-              <>
-                <label htmlFor={`burst-expiry-${agentId}`} className="sr-only">
-                  High-volume expiry for {agentName}
-                </label>
-                <Select
-                  id={`burst-expiry-${agentId}`}
-                  value={expiryChoice}
-                  disabled={pending}
-                  onChange={(event) => changeExpiry(event.target.value as BurstExpiryChoice)}
-                  className="w-auto"
-                >
-                  {savedUntil ? <option value="keep">Keep current expiry</option> : null}
-                  <option value="none">No expiry</option>
-                  <option value="2h">2 hours</option>
-                  <option value="8h">8 hours</option>
-                  <option value="24h">24 hours</option>
-                  <option value="custom">Custom…</option>
-                </Select>
-                {expiryChoice === "custom" ? (
-                  <>
-                    <label htmlFor={`burst-custom-${agentId}`} className="sr-only">
-                      Custom high-volume expiry for {agentName}
-                    </label>
-                    <Input
-                      id={`burst-custom-${agentId}`}
-                      type="datetime-local"
-                      value={customUntil}
-                      disabled={pending}
-                      onChange={(event) => setCustomUntil(event.target.value)}
-                      className="w-auto text-xs"
-                    />
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      disabled={pending || !customUntil}
-                      onClick={() => saveBurst(true, "custom")}
-                    >
-                      Save expiry
-                    </Button>
-                  </>
-                ) : null}
-              </>
-            ) : null}
-          </>
-        ) : burstOn ? (
-          <span className="text-xs text-slate-500">High-volume</span>
-        ) : null}
-        <Button type="button" variant="secondary" onClick={regenerate} disabled={pending || !projectId}>
-          Regenerate key
-        </Button>
-        <Button type="button" variant="danger-secondary" onClick={revoke} disabled={pending}>
-          Revoke
-        </Button>
-        <Button type="button" variant="danger-secondary" onClick={remove} disabled={pending}>
-          Delete
-        </Button>
-      </div>
-      {canSetBurst || burstOn ? (
-        <p className="text-xs text-slate-500" suppressHydrationWarning>
-          {!burstOn ? (
-            "Standard budget: 30 writes an hour."
-          ) : burstExpired ? (
-            "High-volume expired; standard budget: 30 writes an hour."
-          ) : savedUntil ? (
-            <>
-              High-volume until <LocalTime date={savedUntil} /> (400 writes an hour).
-            </>
-          ) : (
-            "High-volume active with no expiry (400 writes an hour)."
-          )}
-        </p>
-      ) : null}
-      {issued ? (
-        <div className="w-full space-y-2 rounded-lg border border-amber-300 bg-amber-50 p-3 sm:max-w-md" role="status">
-          <p className="text-sm font-medium text-slate-900">
-            New key for {agentName} ({issued.prefix}…). Copy it now. It stays on this agent&apos;s row.
-          </p>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <Input
-              readOnly
-              value={issued.rawKey}
-              aria-label={`New key for ${agentName}`}
-              className="font-mono text-xs"
-              onFocus={(event) => event.currentTarget.select()}
-            />
-            <Button type="button" onClick={copyIssued}>
-              Copy key
-            </Button>
-          </div>
-        </div>
-      ) : null}
-      <details className="w-full text-left sm:max-w-md">
-        <summary className="cursor-pointer text-xs font-medium text-teal-800 hover:underline">
-          Preferred areas{selectedAreaIds.length ? ` (${selectedAreaIds.length})` : ""}
-        </summary>
-        <div className="mt-2 space-y-2 rounded-md border border-slate-200 p-3">
-          <label className="block text-xs font-medium text-slate-700" htmlFor={`area-project-${agentId}`}>
-            Project
+      </label>
+    </div>
+  );
+
+  const burstControls = canSetBurst ? (
+    <div className="flex flex-wrap items-center gap-2.5 rounded-xl bg-chip px-3 py-2">
+      <label className="flex items-center gap-2 text-xs font-semibold text-ink-2">
+        <input
+          type="checkbox"
+          checked={burstOn}
+          disabled={pending}
+          onChange={(event) => saveBurst(event.target.checked)}
+          className="h-4 w-4 rounded border-line text-primary focus:ring-primary"
+        />
+        High-volume
+      </label>
+      {burstOn ? (
+        <>
+          <label htmlFor={`burst-expiry-${agentId}`} className="sr-only">
+            High-volume expiry for {agentName}
           </label>
           <Select
-            id={`area-project-${agentId}`}
-            value={preferenceProjectId}
-            disabled={pending || projects.length === 0}
-            onChange={(event) => setPreferenceProjectId(event.target.value)}
+            id={`burst-expiry-${agentId}`}
+            value={expiryChoice}
+            disabled={pending}
+            onChange={(event) => changeExpiry(event.target.value as BurstExpiryChoice)}
+            className="w-auto py-1 text-xs"
           >
-            {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+            {savedUntil ? <option value="keep">Keep current expiry</option> : null}
+            <option value="none">No expiry</option>
+            <option value="2h">2 hours</option>
+            <option value="8h">8 hours</option>
+            <option value="24h">24 hours</option>
+            <option value="custom">Custom…</option>
           </Select>
-          {projectAreas.length ? (
-            <fieldset className="space-y-1">
-              <legend className="text-xs font-medium text-slate-700">Prefer this agent for</legend>
-              {projectAreas.map((area) => (
-                <label key={area.id} className="flex items-center gap-2 text-sm text-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={selectedAreaIds.includes(area.id)}
-                    disabled={pending}
-                    onChange={(event) => toggleArea(area.id, event.target.checked)}
-                  />
-                  {area.name}
-                </label>
-              ))}
-            </fieldset>
-          ) : (
-            <p className="text-xs text-slate-500">This project has no areas yet.</p>
-          )}
-          <Button type="button" variant="secondary" disabled={pending || !areaPreferencesChanged} onClick={saveAreaPreferences}>
-            {pending ? "Saving…" : "Save area preferences"}
+          {expiryChoice === "custom" ? (
+            <>
+              <label htmlFor={`burst-custom-${agentId}`} className="sr-only">
+                Custom high-volume expiry for {agentName}
+              </label>
+              <Input
+                id={`burst-custom-${agentId}`}
+                type="datetime-local"
+                value={customUntil}
+                disabled={pending}
+                onChange={(event) => setCustomUntil(event.target.value)}
+                className="w-auto py-1 text-xs"
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={pending || !customUntil}
+                onClick={() => saveBurst(true, "custom")}
+                className="h-8 px-3 text-xs"
+              >
+                Save expiry
+              </Button>
+            </>
+          ) : null}
+        </>
+      ) : null}
+    </div>
+  ) : null;
+
+  const burstNote =
+    canSetBurst || burstOn ? (
+      <p className="text-xs text-muted" suppressHydrationWarning>
+        {!burstOn ? (
+          "Standard budget: 30 writes an hour."
+        ) : burstExpired ? (
+          "High-volume expired; standard budget: 30 writes an hour."
+        ) : savedUntil ? (
+          <>
+            High-volume until <LocalTime date={savedUntil} /> (400 writes an hour).
+          </>
+        ) : (
+          "High-volume active with no expiry (400 writes an hour)."
+        )}
+      </p>
+    ) : null;
+
+  const issuedBox = issued ? (
+    <div className="w-full space-y-2 rounded-xl border border-warn-bd bg-warn-bg p-3" role="status">
+      <p className="text-sm font-semibold text-ink">
+        New key for {agentName} ({issued.prefix}…). Copy it now. It stays on this agent&apos;s row.
+      </p>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Input
+          readOnly
+          value={issued.rawKey}
+          aria-label={`New key for ${agentName}`}
+          className="font-mono text-xs"
+          onFocus={(event) => event.currentTarget.select()}
+        />
+        <Button type="button" onClick={copyIssued}>
+          Copy key
+        </Button>
+      </div>
+    </div>
+  ) : null;
+
+  const areaPanel = (
+    <details className="group w-full">
+      <summary
+        className={`inline-flex min-h-8 cursor-pointer list-none items-center gap-1.5 text-[13px] font-bold text-accent transition-colors hover:text-electric-blue-strong ${focusRing}`}
+      >
+        <svg
+          aria-hidden="true"
+          className="h-3.5 w-3.5 transition-transform group-open:rotate-90"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2.5}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="m9 18 6-6-6-6" />
+        </svg>
+        Preferred areas{selectedAreaIds.length ? ` (${selectedAreaIds.length})` : ""}
+      </summary>
+      <div className="mt-2 space-y-3 rounded-xl border border-dashed border-line p-3.5">
+        <p className="text-[13px] text-ink-2">Pick the areas this agent should look at first.</p>
+        <label className="block text-xs font-semibold text-muted" htmlFor={`area-project-${agentId}`}>
+          Project
+        </label>
+        <Select
+          id={`area-project-${agentId}`}
+          value={preferenceProjectId}
+          disabled={pending || projects.length === 0}
+          onChange={(event) => setPreferenceProjectId(event.target.value)}
+        >
+          {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+        </Select>
+        {projectAreas.length ? (
+          <fieldset className="space-y-1.5">
+            <legend className="text-xs font-semibold text-muted">Prefer this agent for</legend>
+            <div className="flex flex-wrap gap-2">
+              {projectAreas.map((area) => {
+                const checked = selectedAreaIds.includes(area.id);
+                return (
+                  <label
+                    key={area.id}
+                    className={`inline-flex h-[34px] cursor-pointer items-center rounded-full border px-3.5 text-[13px] font-semibold transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-primary has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-surface ${
+                      checked
+                        ? "border-primary bg-primary text-white"
+                        : "border-line bg-surface text-ink hover:bg-tint"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      className="sr-only"
+                      checked={checked}
+                      disabled={pending}
+                      onChange={(event) => toggleArea(area.id, event.target.checked)}
+                    />
+                    {area.name}
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
+        ) : (
+          <p className="text-xs text-muted">This project has no areas yet.</p>
+        )}
+        <Button type="button" variant="secondary" disabled={pending || !areaPreferencesChanged} onClick={saveAreaPreferences}>
+          {pending ? "Saving…" : "Save area preferences"}
+        </Button>
+      </div>
+    </details>
+  );
+
+  return (
+    <div className={`flex w-full flex-col gap-3 ${compact ? "" : "pt-0.5"}`}>
+      {fields}
+      {burstControls}
+      {burstNote}
+      {issuedBox}
+      <div
+        className={`flex flex-wrap items-center justify-between gap-3 border-t border-divider pt-3 ${
+          compact ? "sm:flex-nowrap" : ""
+        }`}
+      >
+        {areaPanel}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={regenerate}
+            disabled={pending || !projectId}
+            className="h-10 px-4 text-[13px] font-bold"
+          >
+            <svg
+              aria-hidden="true"
+              className="mr-1.5 h-[15px] w-[15px]"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M21 12a9 9 0 1 1-3-6.7L21 8" />
+              <path d="M21 3v5h-5" />
+            </svg>
+            Regenerate key
           </Button>
+          <Button
+            type="button"
+            variant="danger-secondary"
+            onClick={revoke}
+            disabled={pending}
+            className="h-10 px-4 text-[13px] font-bold"
+          >
+            Revoke
+          </Button>
+          <button
+            type="button"
+            onClick={remove}
+            disabled={pending}
+            aria-label={`Delete ${agentName}`}
+            title="Delete agent"
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-bad-bd bg-bad-soft text-bad-fg transition-colors hover:bg-bad-bg disabled:opacity-50 ${focusRing}`}
+          >
+            <svg
+              aria-hidden="true"
+              className="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" />
+            </svg>
+          </button>
         </div>
-      </details>
+      </div>
     </div>
   );
 }

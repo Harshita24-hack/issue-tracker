@@ -15,6 +15,17 @@ function showTheme(theme: Theme) {
   } catch {}
 }
 
+/** The little window sketched inside each theme card. */
+const previews: Record<Theme, { background: string; bar: string; line: string }> = {
+  system: {
+    background: "linear-gradient(90deg, #FFFFFF 50%, #0E1A33 50%)",
+    bar: "#3978F6",
+    line: "#8FA3C4",
+  },
+  light: { background: "#FFFFFF", bar: "#3978F6", line: "#E3E8F2" },
+  dark: { background: "#0E1A33", bar: "#3978F6", line: "#22324F" },
+};
+
 /** Settings → Appearance (#277): System / Light / Dark. */
 export function ThemeSettings({ initialTheme }: { initialTheme: Theme }) {
   const [theme, setTheme] = useState<Theme>(initialTheme);
@@ -40,35 +51,66 @@ export function ThemeSettings({ initialTheme }: { initialTheme: Theme }) {
   };
 
   return (
-    <fieldset className="mt-4" disabled={pending}>
+    <fieldset className="min-w-0" disabled={pending}>
       <legend className="sr-only">Appearance</legend>
-      <div className="grid gap-2 sm:grid-cols-3">
-        {THEMES.map((option) => (
-          <label
-            key={option}
-            className={`flex cursor-pointer items-start gap-2 rounded-lg border p-3 text-sm transition ${
-              theme === option
-                ? "border-teal-600 bg-teal-50 ring-1 ring-teal-600"
-                : "border-slate-200 hover:bg-slate-50"
-            }`}
-          >
-            <input
-              type="radio"
-              name="theme"
-              value={option}
-              checked={theme === option}
-              onChange={() => apply(option)}
-              className="mt-0.5 h-4 w-4 border-slate-300 text-teal-600 focus:ring-teal-500"
-            />
-            <span>
-              <span className="block font-medium text-slate-900">{themeLabels[option]}</span>
-              <span className="block text-xs text-slate-600">{themeDescriptions[option]}</span>
-            </span>
-          </label>
-        ))}
+      <div
+        role="radiogroup"
+        aria-label="Theme"
+        className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(170px,1fr))]"
+      >
+        {THEMES.map((option) => {
+          const current = theme === option;
+          const preview = previews[option];
+          return (
+            <button
+              key={option}
+              type="button"
+              role="radio"
+              aria-checked={current}
+              onClick={() => apply(option)}
+              className={`flex flex-col gap-3 rounded-2xl p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
+                current
+                  ? "border-2 border-primary bg-row-sel"
+                  : "m-px border border-line bg-surface hover:bg-tint"
+              }`}
+            >
+              <span
+                aria-hidden="true"
+                className="flex h-[72px] w-full flex-col gap-1.5 rounded-[10px] border border-line p-2.5"
+                style={{ background: preview.background }}
+              >
+                <span
+                  className="h-2 w-2/5 rounded-full"
+                  style={{ background: preview.bar }}
+                />
+                <span
+                  className="h-1.5 w-4/5 rounded-full"
+                  style={{ background: preview.line }}
+                />
+                <span
+                  className="h-1.5 w-3/5 rounded-full"
+                  style={{ background: preview.line }}
+                />
+              </span>
+              <span className="flex w-full items-center justify-between gap-2">
+                <span className="flex flex-col gap-0.5">
+                  <span className="text-sm font-bold text-ink">{themeLabels[option]}</span>
+                  <span className="text-xs text-muted">{themeDescriptions[option]}</span>
+                </span>
+                <span
+                  aria-hidden="true"
+                  className={`h-[18px] w-[18px] shrink-0 rounded-full ${
+                    current
+                      ? "border-[5px] border-primary bg-white"
+                      : "border-2 border-line"
+                  }`}
+                />
+              </span>
+            </button>
+          );
+        })}
       </div>
-      <p className="mt-2 text-xs text-slate-500">Saved to your account, so it follows you to every device.</p>
-      <p role="status" aria-live="polite" className="mt-1 text-sm text-emerald-700 empty:hidden">
+      <p role="status" aria-live="polite" className="mt-3 text-sm font-semibold text-ok-fg empty:hidden">
         {message ?? ""}
       </p>
     </fieldset>

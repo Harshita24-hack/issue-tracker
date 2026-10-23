@@ -3,10 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import type { AgentLevel } from "@prisma/client";
 import { SignOutButton } from "@/components/sign-out-button";
-import { BrandLockup } from "@/components/brand-lockup";
-import { WorkspaceSwitcher, type WorkspaceChoice } from "@/components/workspace-switcher";
-import { PAGE_CONTAINER_CLASS } from "@/components/page-container";
+import type { WorkspaceChoice } from "@/components/workspace-switcher";
 import { RoleSwitcher } from "@/components/role-switcher";
 import {
   AGENT_MENU_LINKS,
@@ -15,20 +14,27 @@ import {
   isNavItemActive,
   realRoleOf,
   roleViewLabels,
-  type HeaderNavItem,
 } from "@/lib/header-nav";
 import { isAdmin, type AppRole } from "@/lib/roles";
-import { FOCUSABLE, wrapFocusIndex } from "@/lib/focus-trap";
 import { Avatar } from "@/components/avatar";
 import { ThemeToggle, AccountThemeSelector } from "@/components/theme-toggle";
-import { pointsProgress, TARGET_POINTS } from "@/lib/points/rules";
+import { TARGET_POINTS } from "@/lib/points/rules";
+import { AGENT_LEVEL_LABELS } from "@/lib/agents/levels";
+import { AGENT_LEVEL_TONE } from "@/lib/agents/level-tone";
 
-const linkFocus =
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2";
+/** Focus ring for controls on the top bar and its menus. */
+const focusRing =
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface";
 
-/** Focus ring for controls painted on the navy chrome. */
-const chromeLinkFocus =
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-tint focus-visible:ring-offset-2 focus-visible:ring-offset-deep-ocean";
+/** A round 40px top-bar button (theme, bell). */
+const roundButton = `relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-line bg-surface text-ink transition-colors hover:bg-tint ${focusRing}`;
+
+/** One of this person's agents, for the Agents dropdown. */
+export type HeaderAgent = {
+  id: string;
+  name: string;
+  level: AgentLevel;
+};
 
 /** Closes a popover on outside click or Escape, returning focus to its trigger. */
 function useDismiss(
@@ -57,69 +63,42 @@ function useDismiss(
   }, [open, close, containerRef, triggerRef]);
 }
 
-/**
- * While the mobile menu is open it behaves like a modal (#308): Tab cycles
- * between the toggle and the panel's controls, everything outside the header
- * is inert — unreachable by keyboard and hidden from screen readers — and
- * the page behind stops scrolling. Escape and outside clicks are handled by
- * useDismiss, which returns focus to the toggle.
- */
-function useMenuFocusTrap(
-  open: boolean,
-  headerRef: React.RefObject<HTMLElement | null>,
-  panelRef: React.RefObject<HTMLElement | null>,
-  triggerRef: React.RefObject<HTMLElement | null>,
-) {
-  useEffect(() => {
-    const header = headerRef.current;
-    const panel = panelRef.current;
-    if (!open || !header || !panel) return;
-
-    // Everything beside the header — main content, the skip link, the
-    // floating report button — goes inert for as long as the menu is open.
-    const siblings = Array.from(header.parentElement?.children ?? []).filter(
-      (el): el is HTMLElement => el !== header && el instanceof HTMLElement,
-    );
-    const wasInert = siblings.map((el) => el.inert);
-    siblings.forEach((el) => (el.inert = true));
-
-    const scroll = document.documentElement.style.overflow;
-    document.documentElement.style.overflow = "hidden";
-
-    const stops = () => [
-      ...(triggerRef.current ? [triggerRef.current] : []),
-      ...Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE)),
-    ];
-
-    // Start on the first link, so the first Tab is already inside the menu.
-    panel.querySelector<HTMLElement>(FOCUSABLE)?.focus();
-
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key !== "Tab") return;
-      const list = stops();
-      const index = list.indexOf(document.activeElement as HTMLElement);
-      const next = wrapFocusIndex(index, list.length, event.shiftKey);
-      if (next === null) return;
-      event.preventDefault();
-      list[next].focus();
-    };
-    document.addEventListener("keydown", onKey);
-
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      siblings.forEach((el, i) => (el.inert = wasInert[i]));
-      document.documentElement.style.overflow = scroll;
-    };
-  }, [open, headerRef, panelRef, triggerRef]);
-}
-
-function PlusIcon({ className = "h-4 w-4" }: { className?: string }) {
+function Icon({ path, className = "h-4 w-4" }: { path: string; className?: string }) {
   return (
-    <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-      <path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z" />
+    <svg
+      className={`shrink-0 ${className}`}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d={path} />
     </svg>
   );
 }
+
+const ICONS = {
+  trophy:
+    "M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16M10 14.7V17c0 .6-.5 1-1 1.2-1.2.5-2 2-2 3.8M14 14.7V17c0 .6.5 1 1 1.2 1.2.5 2 2 2 3.8M18 2H6v7a6 6 0 0 0 12 0V2Z",
+  warning: "m21.7 18-8-14a2 2 0 0 0-3.4 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3ZM12 9v4M12 17h.01",
+  robot: "M4 8h16v12H4zM12 4v4M9 14h.01M15 14h.01",
+  chevronDown: "m6 9 6 6 6-6",
+  chevronUp: "m18 15-6-6-6 6",
+  bell: "M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0",
+  plus: "M12 5v14M5 12h14",
+  swap: "m16 3 4 4-4 4M20 7H4M8 21l-4-4 4-4M4 17h16",
+  user: "M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z",
+  settings:
+    "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z",
+  docs: "M4 19.5A2.5 2.5 0 0 1 6.5 17H20V2H6.5A2.5 2.5 0 0 0 4 4.5v15zM6.5 17A2.5 2.5 0 0 0 4 19.5 2.5 2.5 0 0 0 6.5 22H20v-5",
+  dashboard: "M3 3h7v9H3zM14 3h7v5h-7zM14 12h7v9h-7zM3 16h7v5H3z",
+  flag: "M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1zM4 22v-7",
+  external: "M7 17 17 7M8 7h9v9",
+  signOut: "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9",
+} as const;
 
 /** Bell linking to the notification feed, with the unread count (#216). */
 function NotificationsBell({ unreadCount, active }: { unreadCount: number; active: boolean }) {
@@ -131,150 +110,97 @@ function NotificationsBell({ unreadCount, active }: { unreadCount: number; activ
       aria-label={label}
       aria-current={active ? "page" : undefined}
       title={label}
-      className={`relative inline-flex h-9 w-9 items-center justify-center rounded-lg transition-colors hover:bg-white/5 hover:text-porcelain ${chromeLinkFocus} ${
-        active ? "bg-white/10 text-porcelain" : "text-slate-300"
-      }`}
+      className={`${roundButton} ${active ? "border-primary" : ""}`}
     >
-      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0"
-        />
-      </svg>
+      <Icon path={ICONS.bell} className="h-[18px] w-[18px]" />
       {unreadCount > 0 ? (
         <span
           aria-hidden="true"
-          className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-electric-blue ring-2 ring-deep-ocean"
-        />
+          className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full border-2 border-surface bg-primary px-1 text-[11px] font-bold leading-none text-white"
+        >
+          {unreadCount > 99 ? "99+" : unreadCount}
+        </span>
       ) : null}
     </Link>
   );
 }
 
-function CountBadge({ count }: { count: number }) {
-  return (
-    <span
-      aria-label={`${count} pending`}
-      className="inline-flex items-center justify-center rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white"
-    >
-      {count > 99 ? "99+" : count}
-    </span>
-  );
-}
-
-function tabClass(active: boolean) {
-  return `relative inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm transition-colors ${chromeLinkFocus} ${
-    active
-      ? "bg-white/10 font-medium text-porcelain"
-      : "text-slate-300 hover:bg-white/5 hover:text-porcelain"
-  }`;
-}
-
-function NavTab({ item, pathname }: { item: HeaderNavItem; pathname: string | null }) {
-  const active = isNavItemActive(pathname, item.href);
-  return (
-    <Link href={item.href} aria-current={active ? "page" : undefined} className={tabClass(active)}>
-      <span>{item.label}</span>
-      {typeof item.badge === "number" && item.badge > 0 ? <CountBadge count={item.badge} /> : null}
-    </Link>
-  );
-}
-
-function NavMenu({
-  item,
-  pathname,
-  open,
-  onToggle,
-  onClose,
+/** This person's points in the open workspace, linking to their profile. */
+function PointsPill({
+  points,
+  solvedTasks,
+  userId,
 }: {
-  item: HeaderNavItem;
-  pathname: string | null;
-  open: boolean;
-  onToggle: () => void;
-  onClose: () => void;
+  points: number;
+  solvedTasks: number;
+  userId?: string | null;
 }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  useDismiss(open, onClose, ref, buttonRef);
-  const active = item.children?.some((sub) => isNavItemActive(pathname, sub.href)) ?? false;
-  const menuId = `nav-menu-${item.label.toLowerCase().replace(/\s+/g, "-")}`;
-
+  if (!userId) return null;
+  const label = `${points} pts of ${TARGET_POINTS}, ${solvedTasks} solved`;
   return (
-    <div ref={ref} className="relative flex items-stretch">
-      <button
-        ref={buttonRef}
-        type="button"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-controls={menuId}
-        onClick={onToggle}
-        className={tabClass(active)}
-      >
-        <span>{item.label}</span>
-        {typeof item.badge === "number" && item.badge > 0 ? <CountBadge count={item.badge} /> : null}
-        <svg
-          className={`h-4 w-4 text-sky-tint/70 ${open ? "rotate-180" : ""}`}
-          viewBox="0 0 20 20"
-          fill="currentColor"
-          aria-hidden="true"
-        >
-          <path
-            fillRule="evenodd"
-            d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z"
-            clipRule="evenodd"
-          />
-        </svg>
-      </button>
-      {open ? (
-        <div
-          id={menuId}
-          role="menu"
-          aria-label={item.label}
-          className="absolute left-0 top-full z-50 mt-1 w-72 rounded-xl border border-slate-200 bg-card p-1.5 shadow-sm"
-        >
-          {item.children?.map((sub) => {
-            const subActive = isNavItemActive(pathname, sub.href);
-            return (
-              <Link
-                key={sub.href}
-                href={sub.href}
-                role="menuitem"
-                onClick={onClose}
-                className={`flex flex-col rounded-lg px-3 py-2 text-sm transition-colors ${linkFocus} ${
-                  subActive
-                    ? "bg-teal-50 font-medium text-teal-900"
-                    : "text-slate-700 hover:bg-slate-50 hover:text-slate-900"
-                }`}
-              >
-                <span className="flex items-center justify-between gap-3">
-                  <span className="font-medium">{sub.label}</span>
-                  {typeof sub.badge === "number" && sub.badge > 0 ? <CountBadge count={sub.badge} /> : null}
-                </span>
-                {sub.description ? (
-                  <span className="font-normal text-xs text-slate-500">{sub.description}</span>
-                ) : null}
-              </Link>
-            );
-          })}
-        </div>
-      ) : null}
-    </div>
+    <Link
+      href={`/users/${userId}`}
+      title={label}
+      className={`inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full border border-line bg-surface px-3.5 text-sm text-ink transition-colors hover:bg-tint ${focusRing}`}
+    >
+      <span className="text-primary">
+        <Icon path={ICONS.trophy} />
+      </span>
+      <span className="font-extrabold tabular-nums">{points}</span>
+      <span className="text-muted">pts</span>
+      <span className="sr-only"> of {TARGET_POINTS}, {solvedTasks} solved</span>
+    </Link>
   );
 }
 
-/** Dropdown targeting the real agent pages: pairing and management. */
-function AgentsMenu({ pathname }: { pathname: string | null }) {
+/** The red-tinted Escalations button, with the number waiting on this person (#763). */
+function EscalationsButton({
+  href,
+  label,
+  badge,
+  active,
+}: {
+  href: string;
+  label: string;
+  badge?: number;
+  active: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      aria-current={active ? "page" : undefined}
+      className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-full border border-bad-bd bg-bad-soft px-3 text-sm font-bold text-bad-fg transition-colors hover:bg-bad-bg sm:px-4 ${focusRing}`}
+    >
+      <Icon path={ICONS.warning} />
+      <span>{label}</span>
+      {typeof badge === "number" && badge > 0 ? (
+        <span
+          aria-label={`${badge} pending`}
+          className="inline-flex min-w-5 items-center justify-center rounded-full bg-bad-fg px-1.5 py-0.5 text-[11px] font-bold leading-none text-surface"
+        >
+          {badge > 99 ? "99+" : badge}
+        </span>
+      ) : null}
+    </Link>
+  );
+}
+
+/**
+ * The Agents dropdown: this person's agents in the open workspace, then
+ * Create agent, Manage agents and the pairing approval.
+ */
+function AgentsMenu({ agents, pathname }: { agents: HeaderAgent[]; pathname: string | null }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   useDismiss(open, () => setOpen(false), containerRef, buttonRef);
-  // The two agent pages nest, so match the exact path rather than a prefix;
-  // otherwise both entries would claim to be the current page.
+  // The agent pages nest, so match the exact path rather than a prefix;
+  // otherwise every entry would claim to be the current page.
   const current = (pathname ?? "").replace(/\/+$/, "");
+  const [createLink, ...otherLinks] = AGENT_MENU_LINKS;
 
   return (
-    <div ref={containerRef} className="relative flex items-center">
+    <div ref={containerRef} className="relative shrink-0">
       <button
         ref={buttonRef}
         type="button"
@@ -282,29 +208,66 @@ function AgentsMenu({ pathname }: { pathname: string | null }) {
         aria-expanded={open}
         aria-controls="agents-nav-menu"
         onClick={() => setOpen((value) => !value)}
-        className={`inline-flex h-9 items-center gap-1 rounded-full px-3 text-sm text-slate-300 transition-colors hover:bg-white/5 hover:text-porcelain ${chromeLinkFocus}`}
+        className={`inline-flex h-10 items-center gap-2 rounded-full border border-line bg-surface pl-4 pr-3.5 text-sm font-semibold text-ink transition-colors hover:bg-tint ${focusRing}`}
       >
+        <span className="text-primary">
+          <Icon path={ICONS.robot} />
+        </span>
         <span>Agents</span>
-        <svg className="h-3.5 w-3.5 text-sky-tint/70" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-          <path
-            fillRule="evenodd"
-            d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z"
-            clipRule="evenodd"
-          />
-        </svg>
+        <Icon path={ICONS.chevronDown} className={`h-3.5 w-3.5 ${open ? "rotate-180" : ""}`} />
       </button>
       {open ? (
         <div
           id="agents-nav-menu"
-          className="absolute left-0 top-full z-50 mt-2 w-44 rounded-lg border border-surface-border bg-[#142343] py-1 text-sm text-slate-200 shadow-xl"
+          className="absolute right-0 top-12 z-50 flex w-[260px] max-w-[calc(100vw-32px)] flex-col gap-0.5 rounded-2xl border border-line bg-surface p-2 shadow-pop motion-safe:animate-[header-pop_120ms_ease-out]"
         >
-          {AGENT_MENU_LINKS.map((link) => (
+          <p className="px-2.5 pb-1.5 pt-2 text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
+            Your agents
+          </p>
+          {agents.length === 0 ? (
+            <p className="px-2.5 pb-2 text-sm text-muted">No agents yet.</p>
+          ) : (
+            <ul className="flex flex-col gap-0.5">
+              {agents.map((agent) => (
+                <li key={agent.id}>
+                  <Link
+                    href={`/settings/agents#agent-${agent.id}`}
+                    onClick={() => setOpen(false)}
+                    className={`flex min-h-11 items-center gap-2.5 rounded-[10px] px-2.5 py-1.5 text-sm text-ink transition-colors hover:bg-tint ${focusRing}`}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full bg-tint text-xs font-extrabold text-accent"
+                    >
+                      {agent.name.trim().charAt(0).toUpperCase() || "?"}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate font-semibold">{agent.name}</span>
+                    <span
+                      className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${AGENT_LEVEL_TONE[agent.level]}`}
+                    >
+                      {AGENT_LEVEL_LABELS[agent.level]}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div aria-hidden="true" className="my-1 h-px bg-divider" />
+          <Link
+            href={createLink.href}
+            onClick={() => setOpen(false)}
+            className={`flex min-h-11 items-center gap-2 rounded-[10px] px-2.5 text-sm font-bold text-accent transition-colors hover:bg-tint ${focusRing}`}
+          >
+            <Icon path={ICONS.plus} />
+            {createLink.label}
+          </Link>
+          {otherLinks.map((link) => (
             <Link
               key={link.href}
               href={link.href}
               onClick={() => setOpen(false)}
               aria-current={current === link.href ? "page" : undefined}
-              className={`block px-4 py-2 text-slate-200 transition hover:bg-electric-blue/20 hover:text-white ${chromeLinkFocus}`}
+              className={`flex min-h-10 items-center rounded-[10px] px-2.5 text-sm font-semibold text-ink-2 transition-colors hover:bg-tint hover:text-ink ${focusRing}`}
             >
               {link.label}
             </Link>
@@ -315,31 +278,55 @@ function AgentsMenu({ pathname }: { pathname: string | null }) {
   );
 }
 
-function PointsChip({
-  points,
-  solvedTasks,
-  userId,
+function MenuLink({
+  href,
+  active,
+  icon,
+  trailing,
+  external = false,
+  onClick,
+  children,
 }: {
-  points: number;
-  solvedTasks: number;
-  userId?: string | null;
+  href: string;
+  active: boolean;
+  icon: string;
+  trailing?: React.ReactNode;
+  external?: boolean;
+  onClick?: () => void;
+  children: React.ReactNode;
 }) {
-  if (!userId) return null;
-  const progress = pointsProgress(points, solvedTasks);
-  const label = `${points} pts of ${TARGET_POINTS}, ${solvedTasks} solved`;
-  return (
-    <Link
-      href={`/users/${userId}`}
-      title={label}
-      className={`inline-flex h-9 items-center gap-2 rounded-full border border-surface-border bg-[#152649] px-3 text-slate-200 hover:border-sky-tint/40 hover:text-white ${chromeLinkFocus}`}
-    >
-      <span className="text-sm font-semibold tabular-nums text-white">{points}</span>
-      <span className="text-xs text-sky-tint">pts</span>
-      <span className="sr-only"> of {TARGET_POINTS}, {solvedTasks} solved</span>
-      <span className="hidden h-1.5 w-12 overflow-hidden rounded-full bg-white/15 md:block" aria-hidden="true">
-        <span className="block h-full rounded-full bg-electric-blue" style={{ width: `${progress.pointsPercent}%` }} />
+  const className = `flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-semibold transition-colors ${focusRing} ${
+    active ? "bg-tint text-accent" : "text-ink hover:bg-tint"
+  }`;
+  const content = (
+    <>
+      <span className={active ? "text-accent" : "text-ink-2"}>
+        <Icon path={icon} className="h-[18px] w-[18px]" />
       </span>
+      <span className="flex-1">{children}</span>
+      {trailing}
+    </>
+  );
+  if (external) {
+    return (
+      <a href={href} target="_blank" rel="noopener noreferrer" onClick={onClick} className={className}>
+        {content}
+      </a>
+    );
+  }
+  return (
+    <Link href={href} aria-current={active ? "page" : undefined} onClick={onClick} className={className}>
+      {content}
     </Link>
+  );
+}
+
+function OnlineDot({ ring }: { ring: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 bg-[#22c55e] ${ring}`}
+    />
   );
 }
 
@@ -356,6 +343,9 @@ export function AppHeader({
   activeTenantId = null,
   points = 0,
   solvedTasks = 0,
+  rank = null,
+  agents = [],
+  reportFormUrl,
 }: {
   userName?: string | null;
   /** Their picture, if their sign-in provider gave one (#290). */
@@ -374,351 +364,185 @@ export function AppHeader({
   /** This person's points in the open workspace. */
   points?: number;
   solvedTasks?: number;
+  /** Their place on the workspace leaderboard; null when they have no points yet. */
+  rank?: number | null;
+  /** Their own agents in the open workspace, for the Agents dropdown. */
+  agents?: HeaderAgent[];
+  /** The external "Report issue" form, when configured (REPORT_FORM_URL). */
+  reportFormUrl?: string;
 }) {
   const pathname = usePathname();
-  const [menuOpen, setMenuOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
-  const [openMenu, setOpenMenu] = useState<string | null>(null);
 
   const accountRef = useRef<HTMLDivElement>(null);
   const accountButtonRef = useRef<HTMLButtonElement>(null);
-  const headerRef = useRef<HTMLElement>(null);
-  const menuButtonRef = useRef<HTMLButtonElement>(null);
-  const menuPanelRef = useRef<HTMLDivElement>(null);
 
   const closeAccount = () => setAccountOpen(false);
-  const closeMenu = () => setMenuOpen(false);
   useDismiss(accountOpen, closeAccount, accountRef, accountButtonRef);
-  useDismiss(menuOpen, closeMenu, headerRef, menuButtonRef);
-  useMenuFocusTrap(menuOpen, headerRef, menuPanelRef, menuButtonRef);
 
   // Close menus when the page changes (state adjusted during render, not in an effect).
   const [lastPath, setLastPath] = useState(pathname);
   if (pathname !== lastPath) {
     setLastPath(pathname);
-    setMenuOpen(false);
     setAccountOpen(false);
-    setOpenMenu(null);
   }
 
-  const items = headerNavItems(role, {
+  // The bar keeps only Escalations; the rest of the nav lives in the sidebar.
+  const escalations = headerNavItems(role, {
     pendingEscalations: pendingEscalationsCount,
-  });
+  }).find((item) => item.href === "/escalations");
   const canSwitchRole = Boolean((isRealSuperAdmin || isRealAdmin) && role);
   const realRole = realRoleOf({ isRealSuperAdmin, isRealAdmin });
-  const onNewIssue =
-    pathname?.replace(/\/+$/, "") === "/issues/new" ||
-    pathname?.replace(/\/+$/, "") === "/bugs/new";
   const effectiveRole: AppRole = role ?? "user";
+  const activeWorkspace =
+    workspaces.find((workspace) => workspace.id === activeTenantId) ?? null;
 
   return (
-    <header ref={headerRef} className="sticky top-0 z-40">
-      {/* Chrome is navy in both themes, per the reference exports
-          ("Preserved Deep Blue"); no backdrop blur is needed on a solid bar. */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 -z-10 border-b border-surface-border bg-deep-ocean"
-      />
-      <div className={`relative flex h-14 items-center gap-4 sm:gap-6 ${PAGE_CONTAINER_CLASS}`}>
-        <div className="shrink-0">
-          <BrandLockup href="/dashboard" size="sm" tone="chrome" showWordmark={false} />
-        </div>
+    <header className="sticky top-0 z-40 border-b border-line bg-surface">
+      <div className="flex flex-wrap items-center justify-end gap-2 px-4 py-3 sm:gap-3 sm:px-6">
+        <PointsPill points={points} solvedTasks={solvedTasks} userId={userId} />
 
-        {/* Active workspace. Below lg it moves into the menu. */}
-        <div className="hidden shrink-0 lg:block">
-          <WorkspaceSwitcher workspaces={workspaces} activeTenantId={activeTenantId} tone="chrome" />
-        </div>
-
-        <nav aria-label="Main" className="hidden h-full min-w-0 items-center lg:flex">
-          {items
-            .filter(
-              (item) =>
-                item.href === "/dashboard" ||
-                item.href === "/issues" ||
-                item.href === "/escalations" ||
-                item.href === "/docs",
-            )
-            .map((item) =>
-              item.children && item.children.length > 0 ? (
-                <NavMenu
-                  key={item.label}
-                  item={item}
-                  pathname={pathname}
-                  open={openMenu === item.label}
-                  onToggle={() => setOpenMenu((current) => (current === item.label ? null : item.label))}
-                  onClose={() => setOpenMenu(null)}
-                />
-              ) : (
-                <NavTab key={item.href} item={item} pathname={pathname} />
-              ),
-            )}
-          <AgentsMenu pathname={pathname} />
-        </nav>
-
-        <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-1.5">
-          <PointsChip points={points} solvedTasks={solvedTasks} userId={userId} />
-
-          <NotificationsBell
-            unreadCount={unreadCount}
-            active={isNavItemActive(pathname, "/notifications")}
+        {escalations ? (
+          <EscalationsButton
+            href={escalations.href}
+            label={escalations.label}
+            badge={escalations.badge}
+            active={isNavItemActive(pathname, escalations.href)}
           />
+        ) : null}
 
-          <ThemeToggle />
+        <AgentsMenu agents={agents} pathname={pathname} />
 
-          <Link
-            href="/issues/new"
-            aria-current={onNewIssue ? "page" : undefined}
-            aria-label="New issue"
-            className={`inline-flex h-9 items-center gap-1.5 rounded-lg bg-electric-blue-strong px-2.5 text-sm font-semibold text-white shadow-xs transition-colors hover:bg-[#2552af] active:bg-[#1f4693] sm:px-3.5 ${chromeLinkFocus}`}
+        <ThemeToggle />
+
+        <NotificationsBell
+          unreadCount={unreadCount}
+          active={isNavItemActive(pathname, "/notifications")}
+        />
+
+        <div ref={accountRef} className="relative shrink-0">
+          <button
+            ref={accountButtonRef}
+            type="button"
+            aria-haspopup="true"
+            aria-expanded={accountOpen}
+            aria-controls="account-menu"
+            onClick={() => setAccountOpen((open) => !open)}
+            className={`flex h-11 items-center gap-1.5 rounded-full border py-0.5 pl-0.5 pr-2 text-ink transition-colors hover:bg-tint ${focusRing} ${
+              accountOpen ? "border-primary" : "border-transparent"
+            }`}
           >
-            <PlusIcon />
-            <span className="hidden sm:inline">New issue</span>
-          </Link>
+            <span className="sr-only">Account menu for {userName}</span>
+            <span className="relative inline-flex">
+              <Avatar name={userName} image={userImage} size="lg" variant="brand" className="h-[38px]! w-[38px]!" />
+              <OnlineDot ring="border-surface" />
+            </span>
+            <Icon path={accountOpen ? ICONS.chevronUp : ICONS.chevronDown} className="h-3.5 w-3.5" />
+          </button>
 
-          {/* Desktop account menu */}
-          <div ref={accountRef} className="relative hidden lg:block">
-            <button
-              ref={accountButtonRef}
-              type="button"
-              aria-haspopup="true"
-              aria-expanded={accountOpen}
-              aria-controls="account-menu"
-              onClick={() => setAccountOpen((open) => !open)}
-              className={`relative flex items-center gap-1 rounded-full p-0.5 pr-1.5 text-slate-300 transition-colors hover:bg-white/5 hover:text-porcelain ${chromeLinkFocus}`}
+          {accountOpen ? (
+            <div
+              id="account-menu"
+              className="absolute right-0 top-[54px] z-50 flex w-[300px] max-w-[calc(100vw-32px)] flex-col gap-1 rounded-[20px] border border-line bg-surface p-2 shadow-pop motion-safe:animate-[header-pop_120ms_ease-out]"
             >
-              <span className="sr-only">Account menu for {userName}</span>
-              <Avatar name={userName} image={userImage} size="md" variant="solid" />
-              <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                <path
-                  fillRule="evenodd"
-                  d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            </button>
-
-            {accountOpen ? (
-              <div
-                id="account-menu"
-                className="absolute right-0 top-full z-50 mt-2 w-64 origin-top-right rounded-xl border border-slate-200 bg-card p-1.5 shadow-sm motion-safe:animate-[header-pop_120ms_ease-out]"
-              >
-                <AccountSummary userName={userName} userImage={userImage} realRole={realRole} />
-                {canSwitchRole ? (
-                  <div className="border-t border-slate-100 px-2 py-2.5">
-                    <RoleSwitcher activeRole={effectiveRole} isSuperAdmin={isRealSuperAdmin} />
-                  </div>
-                ) : null}
-                <div className="border-t border-slate-100 pt-1.5">
-                  <AccountThemeSelector />
-                  {isAdmin(effectiveRole) ? (
-                    <MenuLink
-                      href="/admin/dashboard"
-                      active={isNavItemActive(pathname, "/admin/dashboard")}
-                    >
-                      Dashboard
-                    </MenuLink>
-                  ) : null}
-                  <MenuLink
-                    href={SWITCH_TENANT_LINK.href}
-                    active={isNavItemActive(pathname, SWITCH_TENANT_LINK.href)}
-                  >
-                    {SWITCH_TENANT_LINK.label}
-                  </MenuLink>
-                  <MenuLink href="/settings/profile" active={isNavItemActive(pathname, "/settings/profile")}>
-                    Profile
-                  </MenuLink>
-                  <MenuLink href="/settings" active={isNavItemActive(pathname, "/settings")}>
-                    Settings
-                  </MenuLink>
-                  <MenuLink href="/docs" active={isNavItemActive(pathname, "/docs")}>
-                    Docs & /llms.txt
-                  </MenuLink>
-                  <SignOutButton userId={userId} className={linkFocus} />
+              <div className="flex items-center gap-3 rounded-[14px] bg-tint p-3">
+                <span className="relative inline-flex">
+                  <Avatar name={userName} image={userImage} size="lg" variant="brand" className="h-12! w-12! text-base!" />
+                  <OnlineDot ring="border-tint" />
+                </span>
+                <div className="flex min-w-0 flex-1 flex-col gap-1">
+                  <p className="truncate text-base font-extrabold text-ink">{userName}</p>
+                  <p className="flex flex-wrap items-center gap-1.5">
+                    <span className="rounded-full bg-surface px-2 py-0.5 text-[11px] font-bold text-ink-2">
+                      {realRole === "user" ? "Member" : roleViewLabels[realRole]}
+                    </span>
+                    <span className="text-xs font-semibold text-accent">
+                      {points} pts{typeof rank === "number" ? ` · #${rank}` : ""}
+                    </span>
+                  </p>
                 </div>
               </div>
-            ) : null}
-          </div>
 
-          {/* Mobile menu toggle */}
-          <button
-            ref={menuButtonRef}
-            type="button"
-            onClick={() => setMenuOpen((open) => !open)}
-            aria-expanded={menuOpen}
-            aria-controls="mobile-menu"
-            aria-label={menuOpen ? "Close menu" : "Open menu"}
-            className={`relative inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-300 hover:bg-white/5 hover:text-porcelain lg:hidden ${chromeLinkFocus}`}
-          >
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
-              {menuOpen ? (
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-              ) : (
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 7h16M4 12h16M4 17h16" />
-              )}
-            </svg>
-          </button>
-        </div>
-      </div>
+              {canSwitchRole ? (
+                <div className="px-3 py-2">
+                  <RoleSwitcher activeRole={effectiveRole} isSuperAdmin={isRealSuperAdmin} />
+                </div>
+              ) : null}
 
-      {/* Mobile menu */}
-      {menuOpen ? (
-        <div
-          id="mobile-menu"
-          ref={menuPanelRef}
-          className="relative max-h-[calc(100dvh-3.5rem)] overflow-y-auto border-t border-slate-200 bg-card px-4 pb-4 pt-2 lg:hidden"
-        >
-          <div className="border-b border-slate-200 pb-3">
-            <WorkspaceSwitcher
-              workspaces={workspaces}
-              activeTenantId={activeTenantId}
-              fullWidth
-            />
-          </div>
-          <nav aria-label="Main" className="flex flex-col py-1">
-            {items.map((item) => {
-              if (item.children && item.children.length > 0) {
-                return (
-                  <div key={item.label} className="py-1">
-                    <div className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400">
-                      {item.label}
-                    </div>
-                    <div className="space-y-0.5 pl-2">
-                      {item.children.map((sub) => (
-                        <MenuLink
-                          key={sub.href}
-                          href={sub.href}
-                          active={isNavItemActive(pathname, sub.href)}
-                          badge={sub.badge}
-                          large
-                        >
-                          {sub.label}
-                        </MenuLink>
-                      ))}
-                    </div>
-                  </div>
-                );
-              }
-              return (
-                <MenuLink
-                  key={item.href}
-                  href={item.href}
-                  active={isNavItemActive(pathname, item.href)}
-                  badge={item.badge}
-                  large
-                >
-                  {item.label}
-                </MenuLink>
-              );
-            })}
-            {AGENT_MENU_LINKS.map((link) => (
-              <MenuLink
-                key={link.href}
-                href={link.href}
-                active={(pathname ?? "").replace(/\/+$/, "") === link.href}
-                large
-              >
-                {link.label}
-              </MenuLink>
-            ))}
-            {isAdmin(effectiveRole) ? (
-              <MenuLink
-                href="/admin/dashboard"
-                active={isNavItemActive(pathname, "/admin/dashboard")}
-                large
-              >
-                Dashboard
-              </MenuLink>
-            ) : null}
-            <MenuLink
-              href={SWITCH_TENANT_LINK.href}
-              active={isNavItemActive(pathname, SWITCH_TENANT_LINK.href)}
-              large
-            >
-              {SWITCH_TENANT_LINK.label}
-            </MenuLink>
-            <MenuLink href="/settings/profile" active={isNavItemActive(pathname, "/settings/profile")} large>
-              Profile
-            </MenuLink>
-            <MenuLink href="/settings" active={isNavItemActive(pathname, "/settings")} large>
-              Settings
-            </MenuLink>
-            <MenuLink href="/docs" active={isNavItemActive(pathname, "/docs")} large>
-              Docs & /llms.txt
-            </MenuLink>
-          </nav>
-
-          <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50/60">
-            <AccountSummary userName={userName} userImage={userImage} realRole={realRole} />
-            {canSwitchRole ? (
-              <div className="border-t border-slate-200 px-3 py-3">
-                <RoleSwitcher activeRole={effectiveRole} isSuperAdmin={isRealSuperAdmin} />
-              </div>
-            ) : null}
-            <div className="border-t border-slate-200 p-2">
               <AccountThemeSelector />
-              <SignOutButton userId={userId} className={linkFocus} />
+
+              <div aria-hidden="true" className="mx-2 my-0.5 h-px bg-divider" />
+
+              <MenuLink
+                href={SWITCH_TENANT_LINK.href}
+                active={isNavItemActive(pathname, SWITCH_TENANT_LINK.href)}
+                icon={ICONS.swap}
+                trailing={
+                  activeWorkspace ? (
+                    <span className="max-w-24 truncate rounded-full bg-chip px-2 py-0.5 text-xs font-bold text-ink-2">
+                      {activeWorkspace.name}
+                    </span>
+                  ) : null
+                }
+              >
+                {SWITCH_TENANT_LINK.label}
+              </MenuLink>
+              <MenuLink
+                href="/leaderboard"
+                active={isNavItemActive(pathname, "/leaderboard")}
+                icon={ICONS.trophy}
+              >
+                Leaderboard
+              </MenuLink>
+              <MenuLink
+                href="/settings/profile"
+                active={isNavItemActive(pathname, "/settings/profile")}
+                icon={ICONS.user}
+              >
+                Profile
+              </MenuLink>
+              <MenuLink href="/settings" active={isNavItemActive(pathname, "/settings")} icon={ICONS.settings}>
+                Settings
+              </MenuLink>
+              {isAdmin(effectiveRole) ? (
+                <MenuLink
+                  href="/admin/dashboard"
+                  active={isNavItemActive(pathname, "/admin/dashboard")}
+                  icon={ICONS.dashboard}
+                >
+                  Dashboard
+                </MenuLink>
+              ) : null}
+              {reportFormUrl ? (
+                <MenuLink href={reportFormUrl} active={false} icon={ICONS.flag} external onClick={closeAccount}>
+                  Report issue
+                </MenuLink>
+              ) : null}
+              <MenuLink
+                href="/docs"
+                active={isNavItemActive(pathname, "/docs")}
+                icon={ICONS.docs}
+                trailing={
+                  <span className="text-muted">
+                    <Icon path={ICONS.external} className="h-3.5 w-3.5" />
+                  </span>
+                }
+              >
+                Docs & /llms.txt
+              </MenuLink>
+
+              <div aria-hidden="true" className="mx-2 my-0.5 h-px bg-divider" />
+
+              <SignOutButton
+                userId={userId}
+                tone="danger"
+                className={focusRing}
+                icon={<Icon path={ICONS.signOut} className="h-[18px] w-[18px]" />}
+              />
             </div>
-          </div>
+          ) : null}
         </div>
-      ) : null}
-    </header>
-  );
-}
-
-function AccountSummary({
-  userName,
-  userImage,
-  realRole,
-}: {
-  userName?: string | null;
-  userImage?: string | null;
-  realRole: AppRole;
-}) {
-  return (
-    <div className="flex items-center gap-3 px-2 py-2.5">
-      <Avatar name={userName} image={userImage} size="lg" />
-      <div className="min-w-0">
-        <p className="truncate text-sm font-medium text-slate-900">{userName}</p>
-        <p className="truncate text-xs text-slate-500">
-          {realRole === "user" ? "Member" : roleViewLabels[realRole]}
-        </p>
       </div>
-    </div>
-  );
-}
-
-function MenuLink({
-  href,
-  active,
-  large = false,
-  badge,
-  children,
-}: {
-  href: string;
-  active: boolean;
-  large?: boolean;
-  badge?: number;
-  children: React.ReactNode;
-}) {
-  return (
-    <Link
-      href={href}
-      aria-current={active ? "page" : undefined}
-      className={`flex items-center justify-between rounded-md ${large ? "px-3 py-2.5 text-[15px]" : "px-2 py-1.5 text-sm"} ${linkFocus} ${
-        active
-          ? "bg-teal-50 font-medium text-teal-900"
-          : "text-slate-700 hover:bg-slate-50"
-      }`}
-    >
-      <span>{children}</span>
-      {typeof badge === "number" && badge > 0 ? (
-        <span
-          aria-label={`${badge} pending`}
-          className="inline-flex items-center justify-center rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white ring-1 ring-white"
-        >
-          {badge > 99 ? "99+" : badge}
-        </span>
-      ) : null}
-    </Link>
+    </header>
   );
 }

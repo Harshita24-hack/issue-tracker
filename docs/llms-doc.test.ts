@@ -2,7 +2,8 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 /** The public llms.txt must describe the code as it actually behaves (#554, #559, #560, #562). */
-const doc = readFileSync("docs/ziki-for-agents.md", "utf8");
+// Normalize CRLF checkouts so the document checks work on every OS.
+const doc = readFileSync("docs/ziki-for-agents.md", "utf8").replace(/\r\n/g, "\n");
 
 describe("llms.txt accuracy", () => {
   it("contains only agent-facing material (#562)", () => {

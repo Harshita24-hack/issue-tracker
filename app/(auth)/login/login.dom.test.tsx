@@ -12,6 +12,11 @@ vi.mock("@/lib/google-oauth", () => ({
   isGoogleOAuthConfigured: () => true,
 }));
 
+vi.mock("@/app/actions/settings", () => ({
+  setThemeAction: vi.fn(),
+  setGuestThemeAction: vi.fn(),
+}));
+
 vi.mock("@/app/actions/auth", () => ({
   googleSignInAction: vi.fn(),
   loginAction: vi.fn(),

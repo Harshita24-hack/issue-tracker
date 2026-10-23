@@ -116,9 +116,11 @@ export function VoteButton({
   // The large button shows "Upvote 2" / "Upvoted 3", so its name has to start
   // with that text (WCAG 2.5.3, axe label-content-name-mismatch).
   const mdLabel = `${upvoted ? "Upvoted" : "Upvote"} ${count} ${voteWord}${upvoted ? ", click to remove your vote" : ""}`;
+  const focusRing =
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface";
   const tone = upvoted
-    ? "border-blue-200 bg-blue-50 text-blue-600 hover:border-blue-300 hover:bg-blue-100"
-    : "border-slate-200 bg-card text-slate-600 hover:border-slate-300 hover:bg-slate-50 hover:text-blue-600";
+    ? "border-primary bg-primary text-white hover:bg-electric-blue-strong"
+    : "border-line bg-surface text-ink-2 hover:border-primary/40 hover:bg-tint hover:text-accent";
 
   const errorLine = error ? (
     <p
@@ -143,13 +145,13 @@ export function VoteButton({
             title={upvoted ? "Remove your upvote" : "Upvote"}
             aria-describedby={error ? errorId : undefined}
             onClick={handleVote}
-            className={`group inline-flex items-center justify-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-semibold shadow-xs transition-all duration-150 active:scale-95 disabled:opacity-50 ${tone}`}
+            className={`group inline-flex items-center justify-center gap-2 rounded-full border px-4 py-2 text-sm font-bold transition-all duration-150 active:scale-95 disabled:opacity-50 motion-reduce:transition-none ${focusRing} ${tone}`}
           >
-            <ThumbsUp filled={upvoted} className="h-4 w-4 transition-transform group-hover:scale-110" />
+            <ThumbsUp filled={upvoted} className="h-4 w-4 transition-transform group-hover:scale-110 motion-reduce:transition-none" />
             <span>{upvoted ? "Upvoted" : "Upvote"}</span>{" "}
             <span
               className={`rounded-full px-2 py-0.5 text-xs font-bold tabular-nums ${
-                upvoted ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-600"
+                upvoted ? "bg-white/20 text-white" : "bg-chip text-ink-2"
               }`}
             >
               {count}
@@ -160,7 +162,7 @@ export function VoteButton({
           {showReadinessGate ? (
             <p
               data-testid="readiness-gate-indicator"
-              className={`text-xs font-medium ${unlocked ? "text-emerald-700" : "text-slate-500"}`}
+              className={`text-xs font-bold ${unlocked ? "text-ok-fg" : "text-muted"}`}
             >
               {unlocked
                 ? "Work unlocked"
@@ -183,10 +185,10 @@ export function VoteButton({
         title={upvoted ? "Remove your upvote" : "Upvote"}
         aria-describedby={error ? errorId : undefined}
         onClick={handleVote}
-        className={`group inline-flex min-w-[2.75rem] flex-col items-center justify-center rounded-lg border px-2 py-1 text-xs font-semibold shadow-xs transition-all duration-150 active:scale-95 disabled:opacity-50 ${tone}`}
+        className={`group inline-flex h-9 min-w-[52px] items-center justify-center gap-1 rounded-full border px-2.5 text-xs font-bold transition-all duration-150 active:scale-95 disabled:opacity-50 motion-reduce:transition-none ${focusRing} ${tone}`}
       >
-        <ThumbsUp filled={upvoted} className="h-3.5 w-3.5 transition-transform group-hover:scale-110" />
-        <span className="mt-0.5 tabular-nums leading-tight">{count}</span>
+        <ThumbsUp filled={upvoted} className="h-3.5 w-3.5 transition-transform group-hover:scale-110 motion-reduce:transition-none" />
+        <span className="tabular-nums leading-none">{count}</span>
       </button>
       {errorLine}
     </div>

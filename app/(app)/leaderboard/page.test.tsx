@@ -16,6 +16,8 @@ vi.mock("@/lib/prisma", () => ({ prisma: {} }));
 vi.mock("@/lib/points/leaderboard", () => ({
   DEFAULT_LEADERBOARD_LIMIT: 50,
   paginatedTenantLeaderboard: leaderboard,
+  pointTotals: vi.fn(async () => ({ points: 0, solvedTasks: 0 })),
+  tenantRankFor: vi.fn(async () => null),
 }));
 
 import LeaderboardPage from "./page";

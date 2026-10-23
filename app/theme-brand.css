@@ -28,8 +28,8 @@
 
 /* The Electric Blue ramp. Anchor: #3978F6 (500, identical in both themes). */
 :root {
-  /* Light canvas — the light-mode export's exact value (body, lines 411/454). */
-  --background: #f8f9ff;
+  /* Canvas and card follow the redesign tokens in theme-ziki.css. */
+  --background: var(--bg);
 
   --color-teal-50: #edf3fe;
   --color-teal-100: #dbe7fd;
@@ -73,16 +73,16 @@
    badge pairs keep their AA contrast when the palette flips. */
 @media screen and (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --background: #0b1733;
+    --background: var(--bg);
 
     /* Cards sit one step above the dark canvas via --card (bg-card).
        --color-white stays white so text-white, rings, and white/opacity
        chrome keep their contrast. bg-slate-50 page wrappers and slate-100
        chips follow the export's stacking. */
     --color-white: #fff;
-    --card: #263b63;
-    --color-slate-50: #0b1733;
-    --color-slate-100: #1d2e52;
+    --card: var(--surface);
+    --color-slate-50: var(--bg);
+    --color-slate-100: var(--chip);
 
     --color-teal-50: #0f2549;
     --color-teal-100: #16356f;
@@ -124,12 +124,12 @@
 
 @media screen {
   :root[data-theme="dark"] {
-    --background: #0b1733;
+    --background: var(--bg);
 
     --color-white: #fff;
-    --card: #263b63;
-    --color-slate-50: #0b1733;
-    --color-slate-100: #1d2e52;
+    --card: var(--surface);
+    --color-slate-50: var(--bg);
+    --color-slate-100: var(--chip);
 
     --color-teal-50: #0f2549;
     --color-teal-100: #16356f;

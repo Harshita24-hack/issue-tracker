@@ -47,17 +47,62 @@ function timeOf(decision: AgentDecision): number {
   return new Date(decision.at).getTime();
 }
 
+/** The chip and icon tone for each kind of decision, in the redesign palette. */
+function decisionTone(decision: AgentDecision): string {
+  switch (decision.kind) {
+    case "confirmed":
+      return "bg-ok-bg text-ok-fg";
+    case "rejected":
+      return "bg-bad-bg text-bad-fg";
+    case "claimed":
+      return "bg-info-bg text-info-fg";
+    case "verdict":
+      return decision.goodToMerge ? "bg-ok-bg text-ok-fg" : "bg-warn-bg text-warn-fg";
+    case "accepted":
+      return "bg-ok-bg text-ok-fg";
+  }
+}
+
+function decisionLabel(decision: AgentDecision): string {
+  switch (decision.kind) {
+    case "confirmed":
+      return "Confirmed";
+    case "rejected":
+      return "Not a real issue";
+    case "claimed":
+      return "Claimed";
+    case "verdict":
+      return decision.goodToMerge ? "Good to merge" : "Not ready to merge";
+    case "accepted":
+      return "Fix accepted";
+  }
+}
+
+function decisionIcon(decision: AgentDecision): string {
+  switch (decision.kind) {
+    case "confirmed":
+    case "accepted":
+      return "✓";
+    case "rejected":
+      return "✕";
+    case "claimed":
+      return "✋";
+    case "verdict":
+      return decision.goodToMerge ? "⇄" : "!";
+  }
+}
+
 function sentence(decision: AgentDecision) {
   switch (decision.kind) {
     case "confirmed":
       return (
         <>
-          <span className="font-medium text-slate-900">{decision.agentName}</span> confirmed this issue as real
+          <span className="font-bold text-ink">{decision.agentName}</span> confirmed this issue as real
           {decision.severity ? (
             <>
               {" "}
               and set the severity to{" "}
-              <span className="font-medium text-slate-900">{severityLabel[decision.severity]}</span>
+              <span className="font-bold text-ink">{severityLabel[decision.severity]}</span>
             </>
           ) : null}
           {decision.personName ? <> on behalf of {decision.personName}</> : null}.
@@ -66,14 +111,14 @@ function sentence(decision: AgentDecision) {
     case "rejected":
       return (
         <>
-          <span className="font-medium text-slate-900">{decision.agentName}</span> found this isn&apos;t a real
+          <span className="font-bold text-ink">{decision.agentName}</span> found this isn&apos;t a real
           issue{decision.personName ? <> on behalf of {decision.personName}</> : null}.
         </>
       );
     case "claimed":
       return (
         <>
-          <span className="font-medium text-slate-900">{decision.agentName}</span> claimed this issue for{" "}
+          <span className="font-bold text-ink">{decision.agentName}</span> claimed this issue for{" "}
           {decision.personName}.
           {decision.waitingOnName ? (
             <>
@@ -92,14 +137,14 @@ function sentence(decision: AgentDecision) {
     case "verdict":
       return (
         <>
-          <span className="font-medium text-slate-900">{decision.agentName}</span> said this fix is{" "}
+          <span className="font-bold text-ink">{decision.agentName}</span> said this fix is{" "}
           {decision.goodToMerge ? "good to merge" : "not ready to merge"}.
         </>
       );
     case "accepted":
       return (
         <>
-          <span className="font-medium text-slate-900">{decision.agentName}</span> accepted the fix and marked this
+          <span className="font-bold text-ink">{decision.agentName}</span> accepted the fix and marked this
           issue resolved.
         </>
       );
@@ -118,27 +163,41 @@ export function IssueAgentActivity({ decisions }: { decisions: ReadonlyArray<Age
   return (
     <section
       aria-label="Agent decisions"
-      className="rounded-xl border border-slate-200 bg-card p-4 sm:p-6"
+      className="rounded-[20px] border border-line bg-surface p-5 sm:p-6"
     >
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-        Agent decisions
-      </h2>
-      <ol className="relative mt-5 space-y-0 border-l border-slate-200 pl-4 sm:pl-5">
-        {ordered.map((decision) => (
-          <li key={decision.id} className="relative pb-5 last:pb-0">
-            <span
-              aria-hidden
-              className="absolute -left-[1.2rem] sm:-left-[1.45rem] top-1.5 h-2.5 w-2.5 rounded-full border-2 border-card bg-teal-600"
-            />
-            <LocalTime className="text-xs text-slate-500" date={decision.at} />
-            <p className="mt-1 text-sm text-slate-800">{sentence(decision)}</p>
-            {decision.kind === "rejected" && decision.notes ? (
-              <ExpandableText maxLines={3} expandText="View more" collapseText="View less">
-                <blockquote className="mt-1 whitespace-pre-wrap break-words border-l-2 border-slate-300 pl-3 text-sm text-slate-700">
-                  {decision.notes}
-                </blockquote>
-              </ExpandableText>
-            ) : null}
+      <h2 className="sr-only">Agent decisions</h2>
+      <ol className="space-y-0">
+        {ordered.map((decision, index) => (
+          <li key={decision.id} className="flex gap-3.5">
+            <div className="flex flex-col items-center">
+              <span
+                aria-hidden
+                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${decisionTone(decision)}`}
+              >
+                {decisionIcon(decision)}
+              </span>
+              {index < ordered.length - 1 ? (
+                <span aria-hidden className="mt-1 w-0.5 flex-1 bg-divider" />
+              ) : null}
+            </div>
+            <div className={`min-w-0 flex-1 ${index < ordered.length - 1 ? "pb-5" : ""}`}>
+              <div className="flex flex-wrap items-center gap-2">
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[11px] font-extrabold ${decisionTone(decision)}`}
+                >
+                  {decisionLabel(decision)}
+                </span>
+                <LocalTime className="text-xs text-muted" date={decision.at} />
+              </div>
+              <p className="mt-1.5 text-sm leading-relaxed text-ink-2">{sentence(decision)}</p>
+              {decision.kind === "rejected" && decision.notes ? (
+                <ExpandableText maxLines={3} expandText="View more" collapseText="View less">
+                  <blockquote className="mt-2 whitespace-pre-wrap break-words rounded-r-[10px] border-l-[3px] border-line bg-chip px-3.5 py-2.5 text-sm text-ink-2">
+                    {decision.notes}
+                  </blockquote>
+                </ExpandableText>
+              ) : null}
+            </div>
           </li>
         ))}
       </ol>

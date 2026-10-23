@@ -17,7 +17,7 @@ export function ForgotPasswordForm() {
   return (
     <form
       ref={formRef}
-      className="space-y-4"
+      className="flex flex-col gap-4"
       onSubmit={(event) => {
         event.preventDefault();
         setError(null);
@@ -38,8 +38,8 @@ export function ForgotPasswordForm() {
         });
       }}
     >
-      <div className="space-y-1.5">
-        <label htmlFor="email" className="text-sm font-medium text-slate-700">
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="email" className="text-[13px] font-bold text-ink">
           Email
         </label>
         <Input
@@ -51,21 +51,28 @@ export function ForgotPasswordForm() {
           placeholder="you@example.com"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
+          className="h-12 rounded-xl px-3.5"
           {...errs.attrs("email")}
         />
         <FieldError formId={errs.formId} field="email" errors={errs.fieldErrors} />
       </div>
       {error ? (
-        <p className="text-sm text-red-600" role="alert">
+        <p
+          className="rounded-xl border border-bad-bd bg-bad-soft p-3 text-sm text-bad-fg"
+          role="alert"
+        >
           {error}
         </p>
       ) : null}
       {success ? (
-        <p className="text-sm text-teal-800" role="status">
+        <p
+          className="rounded-xl border border-ok-fg/25 bg-ok-bg p-3 text-sm text-ok-fg"
+          role="status"
+        >
           {success}
         </p>
       ) : null}
-      <Button type="submit" className="w-full" disabled={pending}>
+      <Button type="submit" className="h-12 w-full rounded-full font-bold" disabled={pending}>
         {pending ? "Sending…" : "Send reset link"}
       </Button>
     </form>

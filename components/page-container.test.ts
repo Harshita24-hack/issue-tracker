@@ -12,14 +12,13 @@ describe("page container token (#415)", () => {
     expect(PAGE_CONTAINER_CLASS).toContain("px-4");
   });
 
-  it("is the width the header and the layout main both use", () => {
-    for (const source of [
-      read("app/(app)/layout.tsx"),
-      read("components/app-header.tsx"),
-    ]) {
-      expect(source).toContain("PAGE_CONTAINER_CLASS");
-      expect(source).not.toContain("max-w-7xl");
-    }
+  it("is the width the layout's main uses under the full-width top bar", () => {
+    const layout = read("app/(app)/layout.tsx");
+    expect(layout).toContain("PAGE_CONTAINER_CLASS");
+    expect(layout).not.toContain("max-w-7xl");
+    // The redesign's top bar spans the whole content column, so it no longer
+    // shares the page container's inset.
+    expect(read("components/app-header.tsx")).not.toContain("max-w-7xl");
   });
 
   it("leaves no ad-hoc page wrapper on the routes named in the ticket", () => {

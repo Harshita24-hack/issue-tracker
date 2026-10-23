@@ -36,27 +36,27 @@ function CommentTypeBadge({ type, metadata }: { type?: CommentType | null; metad
   switch (type) {
     case "bid":
       return (
-        <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 border border-amber-200">
+        <span className="inline-flex items-center gap-1 rounded-full border border-warn-bd bg-warn-bg px-2 py-0.5 text-xs font-bold text-warn-fg">
           <span>🏷️</span>
           <span>Bid</span>
-          {typeof meta?.eta === "string" ? <span className="text-amber-700">· ETA: {meta.eta}</span> : null}
+          {typeof meta?.eta === "string" ? <span className="opacity-80">· ETA: {meta.eta}</span> : null}
         </span>
       );
     case "review":
       return (
-        <span className="inline-flex items-center gap-1 rounded-md bg-purple-50 px-2 py-0.5 text-xs font-medium text-purple-800 border border-purple-200">
+        <span className="inline-flex items-center gap-1 rounded-full border border-info-fg/30 bg-info-bg px-2 py-0.5 text-xs font-bold text-info-fg">
           <span>🔍</span>
           <span>Review</span>
-          {typeof meta?.verdict === "string" ? <span className="text-purple-700">· {meta.verdict}</span> : null}
+          {typeof meta?.verdict === "string" ? <span className="opacity-80">· {meta.verdict}</span> : null}
         </span>
       );
     case "delivery":
       return (
-        <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-800 border border-emerald-200">
+        <span className="inline-flex items-center gap-1 rounded-full border border-ok-fg/30 bg-ok-bg px-2 py-0.5 text-xs font-bold text-ok-fg">
           <span>📦</span>
           <span>Delivery</span>
           {typeof meta?.prUrl === "string" ? (
-            <a href={meta.prUrl} target="_blank" rel="noopener noreferrer" className="underline hover:text-emerald-900">
+            <a href={meta.prUrl} target="_blank" rel="noopener noreferrer" className="underline hover:opacity-80">
               PR
             </a>
           ) : null}
@@ -64,7 +64,7 @@ function CommentTypeBadge({ type, metadata }: { type?: CommentType | null; metad
       );
     case "request_to_merge":
       return (
-        <span className="inline-flex items-center gap-1 rounded-md bg-rose-50 px-2 py-0.5 text-xs font-medium text-rose-800 border border-rose-200">
+        <span className="inline-flex items-center gap-1 rounded-full border border-sec-fg/30 bg-sec-bg px-2 py-0.5 text-xs font-bold text-sec-fg">
           <span>🔀</span>
           <span>Request to Merge</span>
         </span>
@@ -79,27 +79,37 @@ function CommentConfidence({ metadata }: { metadata?: unknown }) {
   const { confidence, confidenceReason } = metadata as Record<string, unknown>;
   if (typeof confidence !== "number" || !Number.isInteger(confidence) || confidence < 0 || confidence > 100) return null;
   return (
-    <p className="mt-2 text-xs text-slate-600 break-words">
-      <span className="font-medium">Self-reported confidence: {confidence}%</span>
+    <div className="mt-2 rounded-[10px] bg-chip px-3 py-2 text-xs text-ink-2 break-words">
+      <span className="font-bold text-ink">Self-reported confidence: {confidence}%</span>
       {typeof confidenceReason === "string" && confidenceReason.trim() ? ` — ${confidenceReason}` : null}
-    </p>
+    </div>
   );
 }
 
 function commentCardStyle(type?: CommentType | null): string {
   switch (type) {
     case "bid":
-      return "border-amber-200 bg-amber-50/30";
+      return "border-l-warn-fg";
     case "review":
-      return "border-purple-200 bg-purple-50/30";
+      return "border-l-info-fg";
     case "delivery":
-      return "border-emerald-200 bg-emerald-50/30";
+      return "border-l-ok-fg";
     case "request_to_merge":
-      return "border-rose-200 bg-rose-50/30 ring-1 ring-rose-200";
+      return "border-l-sec-fg";
     default:
-      return "border-slate-100 bg-slate-50";
+      return "border-l-line";
   }
 }
+
+/** The conversation filter's active pill takes the colour of the type it shows. */
+const filterTone: Record<string, string> = {
+  all: "bg-primary text-white",
+  comment: "bg-chip-2 text-ink",
+  bid: "border border-warn-bd bg-warn-bg text-warn-fg",
+  review: "border border-info-fg/30 bg-info-bg text-info-fg",
+  delivery: "border border-ok-fg/30 bg-ok-bg text-ok-fg",
+  request_to_merge: "border border-sec-fg/30 bg-sec-bg text-sec-fg",
+};
 
 type ViewerProps = {
   currentUserId?: string;
@@ -157,7 +167,7 @@ function CommentEditForm({
         aria-label="Edit comment"
       />
       {error ? (
-        <p className="text-sm text-red-600" role="alert">
+        <p className="text-sm text-bad-fg" role="alert">
           {error}
         </p>
       ) : null}
@@ -240,15 +250,15 @@ function CommentItem({
       className="group/comment scroll-mt-24 space-y-3 break-inside-avoid"
     >
       <article
-        className={`rounded-lg border px-4 py-3 group-target/comment:border-teal-400 group-target/comment:bg-teal-50 group-target/comment:ring-2 group-target/comment:ring-teal-500/40 motion-safe:transition-colors ${commentCardStyle(comment.type)} ${
-          comment.depth > 0 ? "border-l-2 border-l-teal-600" : ""
+        className={`rounded-2xl border border-line border-l-4 bg-surface px-4 py-4 group-target/comment:bg-tint group-target/comment:ring-2 group-target/comment:ring-primary/40 motion-safe:transition-colors ${commentCardStyle(comment.type)} ${
+          comment.depth > 0 ? "border-l-primary" : ""
         }`}
       >
         {isDeleted ? (
-          <p className="text-sm italic text-slate-500">This comment was deleted.</p>
+          <p className="text-sm italic text-muted">This comment was deleted.</p>
         ) : (
           <>
-            <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-xs text-slate-500">
+            <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-xs text-muted">
               <div className="flex flex-wrap items-center gap-2">
                 <UserNameWithBadges
                   name={comment.author.name}
@@ -259,14 +269,14 @@ function CommentItem({
                   userId={comment.authorId}
                   showAuthor={comment.authorId === reporterId}
                   agentName={comment.agent?.name}
-                  className="font-medium text-slate-700"
+                  className="font-bold text-ink"
                 />
                 <CommentTypeBadge type={comment.type} metadata={comment.metadata} />
               </div>
               <span className="inline-flex items-center gap-1.5">
                 <a
                   href={`#comment-${comment.id}`}
-                  className="hover:text-slate-700 hover:underline"
+                  className="hover:text-ink hover:underline"
                 >
                   <LocalTime date={comment.createdAt} />
                 </a>
@@ -284,13 +294,13 @@ function CommentItem({
             {comment.agentId || comment.agent ? <CommentConfidence metadata={comment.metadata} /> : null}
 
             {comment.parent ? (
-              <p className="mt-2 rounded-md bg-card/80 px-2.5 py-1.5 text-xs text-slate-500 break-words">
+              <p className="mt-2 rounded-md bg-chip px-2.5 py-1.5 text-xs text-muted break-words">
                 Replying to{" "}
-                <span className="font-medium text-slate-700">
+                <span className="font-bold text-ink">
                   {comment.parent.author.name}
                 </span>
                 {": "}
-                <span className="italic text-slate-600">
+                <span className="italic text-ink-2">
                   {comment.parent.deletedAt
                     ? "deleted comment"
                     : truncateCommentBody(comment.parent.body)}
@@ -331,7 +341,7 @@ function CommentItem({
                   <Button
                     type="button"
                     variant="ghost"
-                    className="px-2 py-1 text-xs text-teal-700 hover:text-teal-800"
+                    className="px-2 py-1 text-xs text-accent hover:opacity-80"
                     onClick={() => setReplying(true)}
                   >
                     Reply
@@ -341,7 +351,7 @@ function CommentItem({
                   <Button
                     type="button"
                     variant="ghost"
-                    className="px-2 py-1 text-xs text-slate-600 hover:text-slate-900"
+                    className="px-2 py-1 text-xs text-ink-2 hover:text-ink"
                     onClick={() => setEditing(true)}
                   >
                     Edit
@@ -352,7 +362,7 @@ function CommentItem({
                     type="button"
                     variant="ghost"
                     disabled={pending}
-                    className="px-2 py-1 text-xs text-slate-600 hover:text-red-700"
+                    className="px-2 py-1 text-xs text-ink-2 hover:text-bad-fg"
                     onClick={handleDelete}
                   >
                     {pending ? "Deleting…" : "Delete"}
@@ -361,7 +371,7 @@ function CommentItem({
               </div>
             )}
             {error ? (
-              <p className="mt-1 text-xs text-red-600" role="alert">
+              <p className="mt-1 text-xs text-bad-fg" role="alert">
                 {error}
               </p>
             ) : null}
@@ -370,7 +380,7 @@ function CommentItem({
       </article>
 
       {comment.children.length > 0 ? (
-        <ul className="ml-2.5 space-y-3 border-l border-slate-200 pl-2.5 sm:ml-6 sm:pl-4">
+        <ul className="ml-2.5 space-y-3 border-l border-line pl-2.5 sm:ml-6 sm:pl-4">
           {comment.children.map((child) => (
             <CommentItem
               key={child.id}
@@ -426,8 +436,7 @@ export function CommentThread({
   return (
     <div className="mt-4 space-y-6">
       {comments.length > 0 ? (
-        <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-100 pb-3">
-          <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 mr-2">Filter:</span>
+        <div className="flex flex-wrap items-center gap-2">
           {[
             { id: "all", label: "All" },
             { id: "comment", label: "Comments" },
@@ -440,10 +449,11 @@ export function CommentThread({
               key={tab.id}
               type="button"
               onClick={() => setTypeFilter(tab.id)}
-              className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+              aria-pressed={typeFilter === tab.id}
+              className={`inline-flex h-9 items-center rounded-full px-3.5 text-[13px] font-bold transition-colors ${
                 typeFilter === tab.id
-                  ? "bg-teal-700 text-white"
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  ? filterTone[tab.id] ?? filterTone.all
+                  : "border border-line bg-surface text-ink-2 hover:bg-tint"
               }`}
             >
               {tab.label}
@@ -453,17 +463,17 @@ export function CommentThread({
       ) : null}
 
       {comments.length === 0 && !readOnly ? (
-        <div role="status" className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center">
-          <p className="text-sm font-medium text-slate-700">No comments yet.</p>
-          <p className="mt-1 text-sm text-slate-500">
+        <div role="status" className="rounded-2xl border border-dashed border-line px-4 py-8 text-center">
+          <p className="text-sm font-bold text-ink">No comments yet.</p>
+          <p className="mt-1 text-sm text-muted">
             Agents and reviewers haven’t posted any updates here yet.
           </p>
-          <p className="mt-2 text-sm text-slate-600">
+          <p className="mt-2 text-sm text-ink-2">
             Start the conversation below with a question, helpful context, or a proposed solution.
           </p>
         </div>
       ) : filteredComments.length === 0 ? (
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-muted">
           {comments.length > 0
             ? "No timeline entries match this filter."
             : "No conversation."}

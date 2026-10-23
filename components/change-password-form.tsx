@@ -24,25 +24,25 @@ export function ChangePasswordForm() {
   }, [result, show, clear]);
 
   return (
-    <form ref={formRef} action={action} className="mt-4 space-y-4" noValidate>
-      <div className="space-y-1.5">
-        <label htmlFor="currentPassword" className="text-sm font-medium text-slate-800">Current password</label>
+    <form ref={formRef} action={action} className="flex flex-col gap-4" noValidate>
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="currentPassword" className="text-[13px] font-bold text-ink">Current password</label>
         <PasswordInput id="currentPassword" name="currentPassword" autoComplete="current-password" required {...attrs("currentPassword")} />
         <FieldError formId={FORM_ID} field="currentPassword" errors={fieldErrors} />
       </div>
-      <div className="space-y-1.5">
-        <label htmlFor="newPassword" className="text-sm font-medium text-slate-800">New password</label>
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="newPassword" className="text-[13px] font-bold text-ink">New password</label>
         <PasswordInput id="newPassword" name="password" autoComplete="new-password" minLength={8} required {...attrs("password")} />
         <FieldError formId={FORM_ID} field="password" errors={fieldErrors} />
       </div>
-      <div className="space-y-1.5">
-        <label htmlFor="confirmPassword" className="text-sm font-medium text-slate-800">Confirm new password</label>
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="confirmPassword" className="text-[13px] font-bold text-ink">Confirm new password</label>
         <PasswordInput id="confirmPassword" name="confirmPassword" visibilityLabel="confirm new password" autoComplete="new-password" minLength={8} required {...attrs("confirmPassword")} />
         <FieldError formId={FORM_ID} field="confirmPassword" errors={fieldErrors} />
       </div>
-      {result?.error && !result.field ? <p className="text-sm text-red-600" role="alert">{result.error}</p> : null}
-      {result?.ok ? <p className="text-sm text-emerald-700" role="status">Password updated. Sign in again to continue.</p> : null}
-      <Button type="submit" disabled={pending}>{pending ? "Updating…" : "Change password"}</Button>
+      {result?.error && !result.field ? <p className="text-sm text-bad-fg" role="alert">{result.error}</p> : null}
+      {result?.ok ? <p className="text-sm text-ok-fg" role="status">Password updated. Sign in again to continue.</p> : null}
+      <Button type="submit" disabled={pending} className="h-[46px] self-start px-5 font-bold">{pending ? "Updating…" : "Change password"}</Button>
     </form>
   );
 }

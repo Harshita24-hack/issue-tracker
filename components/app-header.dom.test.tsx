@@ -3,7 +3,6 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { switchActiveRoleAction } from "@/app/actions/auth";
-import { selectTenantAction } from "@/app/(app)/tenants/actions";
 import { labelInNameMismatches } from "@/lib/a11y/label-in-name";
 import { AppHeader } from "./app-header";
 
@@ -16,10 +15,6 @@ vi.mock("next/navigation", () => ({
   usePathname: () => navigation.pathname,
 }));
 
-vi.mock("@/app/(app)/tenants/actions", () => ({
-  selectTenantAction: vi.fn(),
-}));
-
 vi.mock("@/app/actions/auth", () => ({
   switchActiveRoleAction: vi.fn(),
   logoutAction: vi.fn(),
@@ -30,7 +25,6 @@ vi.mock("@/app/actions/settings", () => ({
 }));
 
 const switchRole = vi.mocked(switchActiveRoleAction);
-const selectTenant = vi.mocked(selectTenantAction);
 
 afterEach(() => cleanup());
 
@@ -57,15 +51,15 @@ function renderHeader(props?: Partial<Parameters<typeof AppHeader>[0]>) {
 }
 
 describe("account menu role switch", () => {
-  it("keeps the account menu outside the header's painted chrome layer", () => {
+  it("anchors the account menu beneath an unclipped surface bar", () => {
     renderHeader();
     const header = document.querySelector("header");
+    expect(header?.className).toContain("bg-surface");
     expect(header?.className).not.toContain("backdrop-blur");
-    const background = header?.querySelector(":scope > [aria-hidden='true']");
-    // Chrome is solid navy in both themes; the layer must not blur/clip the menu.
-    expect(background?.className).toContain("bg-deep-ocean");
     const account = screen.getByRole("button", { name: /account menu/i });
-    expect(account.parentElement?.parentElement?.className).toContain("shrink-0");
+    const anchor = account.parentElement;
+    expect(anchor?.className).toContain("relative");
+    expect(anchor?.className).toContain("shrink-0");
   });
 
   it("opens the account menu and asks to switch the active role", async () => {
@@ -78,12 +72,6 @@ describe("account menu role switch", () => {
     await user.click(screen.getByRole("radio", { name: /normal user/i }));
 
     expect(switchRole).toHaveBeenCalledWith("user", `${window.location.pathname}${window.location.search}`);
-  });
-
-  it("keeps Overview and Issues in the desktop bar", () => {
-    renderHeader();
-    expect(screen.getByRole("link", { name: "Overview" }).getAttribute("href")).toBe("/dashboard");
-    expect(screen.getByRole("link", { name: "Issues" }).getAttribute("href")).toBe("/issues");
   });
 
   it("closes the Agents menu when a destination is chosen", async () => {
@@ -124,49 +112,6 @@ describe("account menu role switch", () => {
       pendingEscalationsCount: 5,
     });
     expect(labelInNameMismatches(container)).toEqual([]);
-    const workspace = screen.getByRole("button", { name: /active workspace, ziki/i });
-    expect(workspace.getAttribute("aria-label")).toBeNull();
-    expect(workspace.textContent).toContain("Ziki");
-  });
-
-  it("switches the active workspace as soon as one is chosen", async () => {
-    const user = userEvent.setup();
-    renderHeader({
-      workspaces: [
-        { id: "t1", name: "Ziki", slug: "ziki" },
-        { id: "t2", name: "Acme", slug: "acme" },
-      ],
-      activeTenantId: "t1",
-    });
-
-    await user.click(screen.getByRole("button", { name: /active workspace, ziki/i }));
-    await user.click(screen.getByRole("option", { name: "Acme" }));
-
-    expect(selectTenant).toHaveBeenCalledTimes(1);
-    const data = selectTenant.mock.calls[0][0] as FormData;
-    expect(data.get("tenantId")).toBe("t2");
-  });
-
-  it("links to workspaces when the person has none", () => {
-    renderHeader({ workspaces: [], activeTenantId: null });
-    expect(screen.queryByRole("button", { name: /active workspace/i })).toBeNull();
-    expect(screen.getByRole("link", { name: "Workspaces" }).getAttribute("href")).toBe("/tenants");
-  });
-
-  it("shows the slug when two workspaces share a name", async () => {
-    const user = userEvent.setup();
-    renderHeader({
-      workspaces: [
-        { id: "t1", name: "Acme", slug: "acme" },
-        { id: "t2", name: "Acme", slug: "acme-eu" },
-      ],
-      activeTenantId: "t1",
-    });
-    const trigger = screen.getByRole("button", { name: /active workspace, acme \(acme\)/i });
-    expect(trigger.getAttribute("aria-label")).toBeNull();
-    await user.click(trigger);
-    expect(screen.getByRole("option", { name: "Acme (acme)" })).toBeTruthy();
-    expect(screen.getByRole("option", { name: "Acme (acme-eu)" })).toBeTruthy();
   });
 
   it("renders Docs & /llms.txt link in the account menu (#625)", async () => {
@@ -206,23 +151,18 @@ describe("Profile account navigation (#576)", () => {
     ["/settings/profile", "Profile"],
     ["/settings", "Settings"],
     ["/settings/security", "Settings"],
-  ])("marks only %s current in both account menus", async (pathname, currentLabel) => {
+  ])("marks only %s current in the account menu", async (pathname, currentLabel) => {
     navigation.pathname = pathname;
     const user = userEvent.setup();
     const { container } = renderHeader();
 
-    for (const [buttonName, panelId] of [
-      [/account menu/i, "account-menu"],
-      [/open menu/i, "mobile-menu"],
-    ] as const) {
-      await user.click(screen.getByRole("button", { name: buttonName }));
-      const panel = container.querySelector(`#${panelId}`)!;
-      const profile = panel.querySelector('a[href="/settings/profile"]')!;
-      const settings = panel.querySelector('a[href="/settings"]')!;
-      expect(profile.textContent).toBe("Profile");
-      expect(settings.textContent).toBe("Settings");
-      expect(profile.getAttribute("aria-current")).toBe(currentLabel === "Profile" ? "page" : null);
-      expect(settings.getAttribute("aria-current")).toBe(currentLabel === "Settings" ? "page" : null);
-    }
+    await user.click(screen.getByRole("button", { name: /account menu/i }));
+    const panel = container.querySelector("#account-menu")!;
+    const profile = panel.querySelector('a[href="/settings/profile"]')!;
+    const settings = panel.querySelector('a[href="/settings"]')!;
+    expect(profile.textContent).toBe("Profile");
+    expect(settings.textContent).toBe("Settings");
+    expect(profile.getAttribute("aria-current")).toBe(currentLabel === "Profile" ? "page" : null);
+    expect(settings.getAttribute("aria-current")).toBe(currentLabel === "Settings" ? "page" : null);
   });
 });

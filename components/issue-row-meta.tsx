@@ -43,14 +43,14 @@ export function IssueRowPills({ pills }: { pills: RowPill[] }) {
       {visible.map((pill) => (
         <span
           key={pill.name}
-          className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${pill.className}`}
+          className={`inline-flex items-center rounded-full border px-2.5 py-[3px] text-xs font-bold ${pill.className}`}
         >
           {pill.content ?? pill.name}
         </span>
       ))}
       {hidden.length > 0 ? (
         <span
-          className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-600"
+          className="inline-flex items-center rounded-full border border-line bg-chip px-2 py-[3px] text-xs font-bold text-ink-2"
           title={`Also: ${hidden.map((pill) => pill.name).join(", ")}`}
           aria-label={`${hidden.length} more: ${hidden.map((pill) => pill.name).join(", ")}`}
         >
@@ -70,7 +70,7 @@ export function IssueRowMeta({ pills, meta }: IssueRowMetaProps) {
   return (
     <div className="min-w-0 space-y-1">
       <IssueRowPills pills={pills} />
-      <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 truncate text-xs text-slate-500 pt-0.5">
+      <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 truncate pt-0.5 text-xs text-muted">
         {meta}
       </p>
     </div>

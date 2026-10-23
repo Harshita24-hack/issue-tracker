@@ -1,9 +1,9 @@
-import { headers } from "next/headers";
-import { ReportIssueFab } from "@/components/report-issue-fab";
+import { cookies, headers } from "next/headers";
 import { auth } from "@/auth";
 import { requireUser } from "@/lib/auth-helpers";
 import { isLinkPreviewBot } from "@/lib/link-preview";
-import { AppHeader } from "@/components/app-header";
+import { AppHeader, type HeaderAgent } from "@/components/app-header";
+import { AppSidebar } from "@/components/app-sidebar";
 import { getUnreadCount } from "@/lib/lookups";
 import { REPORT_FORM_URL } from "@/lib/report-form";
 import { MAIN_CONTENT_ID, SkipLink } from "@/components/skip-link";
@@ -16,7 +16,10 @@ import { prisma } from "@/lib/prisma";
 import { currentTenantIdFor } from "@/lib/tenant-context";
 import { tenantsForUser } from "@/lib/tenants";
 import { countPendingEscalations } from "@/lib/agent-questions";
-import { pointTotals } from "@/lib/points/leaderboard";
+import { pointTotals, tenantRankFor } from "@/lib/points/leaderboard";
+import { loadOwnAgents, loadSidebarCounts } from "@/lib/dashboard-overview";
+import { SIDEBAR_COOKIE, parseSidebarCollapsed } from "@/lib/sidebar";
+import { headerNavItems } from "@/lib/header-nav";
 
 export default async function AppLayout({
   children,
@@ -72,6 +75,9 @@ export default async function AppLayout({
   let pendingEscalationsCount = 0;
   let points = 0;
   let solvedTasks = 0;
+  let rank: number | null = null;
+  let sidebarUnresolved = 0;
+  let agents: HeaderAgent[] = [];
   if (tenantId) {
     try {
       pendingEscalationsCount = await countPendingEscalations(user.id, tenantId);
@@ -82,10 +88,35 @@ export default async function AppLayout({
       const totals = await pointTotals(prisma, tenantId, user.id);
       points = totals.points;
       solvedTasks = totals.solvedTasks;
+      const place = await tenantRankFor(prisma, tenantId, user.id);
+      rank = place?.rank ?? null;
     } catch (error) {
       console.error("[layout] points failed", error);
     }
+    try {
+      sidebarUnresolved = (await loadSidebarCounts({ userId: user.id, tenantId })).unresolved;
+    } catch (error) {
+      console.error("[layout] sidebar counts failed", error);
+    }
+    try {
+      agents = (await loadOwnAgents({ userId: user.id, tenantId })).map((agent) => ({
+        id: agent.id,
+        name: agent.name,
+        level: agent.level as HeaderAgent["level"],
+      }));
+    } catch (error) {
+      console.error("[layout] agents failed", error);
+    }
   }
+
+  const sidebarCollapsed = parseSidebarCollapsed(
+    (await cookies()).get(SIDEBAR_COOKIE)?.value,
+  );
+  // The design keeps the sidebar to the three core destinations. Anything
+  // role-specific that has no other home in the shell rides in "More".
+  const sidebarExtras = headerNavItems(user.role, { agentPlatform: true }).filter(
+    (item) => item.href === "/admin/users",
+  );
 
   // #287: one primary-key read; a failure leaves shortcuts on, the default.
   let shortcutsEnabled = true;
@@ -100,38 +131,43 @@ export default async function AppLayout({
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex min-h-screen flex-col bg-background lg:flex-row">
       <SkipLink />
-      <AppHeader
-        userName={user.name ?? user.email}
-        userImage={user.image}
-        role={user.role}
-        isRealSuperAdmin={user.isRealSuperAdmin}
-        isRealAdmin={user.isRealAdmin}
-        unreadCount={unreadCount}
-        pendingEscalationsCount={pendingEscalationsCount}
-        userId={user.id}
+      <AppSidebar
+        counts={{ unresolved: sidebarUnresolved }}
         workspaces={workspaces}
         activeTenantId={activeTenantId}
-        points={points}
-        solvedTasks={solvedTasks}
+        extraItems={sidebarExtras}
+        initialCollapsed={sidebarCollapsed}
       />
-      <main
-        id={MAIN_CONTENT_ID}
-        /* Focusable so the skip link and the route announcer can move focus
-           here; -1 keeps it out of the normal tab order. */
-        tabIndex={-1}
-        className={`outline-none ${PAGE_CONTAINER_CLASS} flex-1 pt-5 sm:pt-8 ${
-          // #221: the fixed FAB sits over the bottom-right of the viewport and
-          // was covering pagination "Next" and the Danger-zone Delete button.
-          // Reserve clearance only when the FAB actually renders, so we don't
-          // leave dead space in deployments without REPORT_FORM_URL.
-          REPORT_FORM_URL ? "pb-20 sm:pb-24" : "pb-5 sm:pb-8"
-        }`}
-      >
-        {children}
-      </main>
-      <ReportIssueFab href={REPORT_FORM_URL} />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <AppHeader
+          userName={user.name ?? user.email}
+          userImage={user.image}
+          role={user.role}
+          isRealSuperAdmin={user.isRealSuperAdmin}
+          isRealAdmin={user.isRealAdmin}
+          unreadCount={unreadCount}
+          pendingEscalationsCount={pendingEscalationsCount}
+          userId={user.id}
+          workspaces={workspaces}
+          activeTenantId={activeTenantId}
+          points={points}
+          solvedTasks={solvedTasks}
+          rank={rank}
+          agents={agents}
+          reportFormUrl={REPORT_FORM_URL}
+        />
+        <main
+          id={MAIN_CONTENT_ID}
+          /* Focusable so the skip link and the route announcer can move focus
+             here; -1 keeps it out of the normal tab order. */
+          tabIndex={-1}
+          className={`outline-none ${PAGE_CONTAINER_CLASS} flex-1 pb-10 pt-5 sm:px-6 sm:pb-12 sm:pt-8`}
+        >
+          {children}
+        </main>
+      </div>
       <FocusMainOnNavigate />
       <KeyboardShortcuts
         enabled={shortcutsEnabled}

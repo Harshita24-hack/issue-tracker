@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, useTransition } from "react";
+import { useEffect, useId, useRef, useState, useTransition, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { severities, statuses } from "@/lib/validations/issue";
 import { severityLabel, statusLabel } from "@/lib/labels";
@@ -37,6 +37,9 @@ import {
 } from "@/lib/issue-suggest";
 import { isTypingTarget } from "@/lib/keyboard-shortcuts";
 import { issuePath } from "@/lib/issue-ref";
+
+const focusRing =
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface";
 
 type TagType = { id: string; name: string; isActive?: boolean };
 
@@ -95,6 +98,7 @@ export function IssueFilters({
   areas = [],
   shortcutsEnabled = true,
   stageCounts,
+  leading,
 }: {
   tagTypes?: TagType[];
   platforms?: PlatformOption[];
@@ -104,6 +108,8 @@ export function IssueFilters({
   shortcutsEnabled?: boolean;
   /** Open issues in each intake stage, shown beside the Stage choices (#1054). */
   stageCounts?: { reported: number; confirmed: number; ready: number };
+  /** Toolbar content shown before the search box (the platform tabs). */
+  leading?: ReactNode;
 }) {
   const router = useRouter();
   const params = useSearchParams();
@@ -397,18 +403,45 @@ export function IssueFilters({
       ? (params.get(MILESTONE_PARAM) ?? "")
       : "";
 
+  const chipClass =
+    "inline-flex items-center gap-1 rounded-full border border-line bg-chip py-0.5 pl-2.5 pr-1.5 text-xs font-bold text-ink-2";
+  const chipRemoveClass =
+    "ml-0.5 rounded-full p-0.5 text-muted transition-colors hover:bg-chip-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary";
+  const selectClass =
+    "h-11 w-full rounded-xl border border-line bg-surface px-3 text-sm font-medium text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20";
+  const fieldLabelClass = "mb-1.5 block text-[13px] font-bold text-ink-2";
+
   return (
-    <div className="space-y-3 print:hidden">
-      <div className="flex items-end gap-2">
-        <div className="min-w-0 flex-1">
-          <label htmlFor="q" className="mb-1 block text-xs font-medium text-slate-600">
+    <div className="flex flex-col gap-3 print:hidden">
+      <div className="flex flex-wrap items-center gap-2.5">
+        {leading ? <div className="min-w-0 max-w-full">{leading}</div> : null}
+
+        <div
+          className="relative min-w-[220px] flex-1 basis-[240px] sm:max-w-[340px]"
+          aria-busy={isSearching}
+          data-testid="search-box"
+        >
+          <label htmlFor="q" className="sr-only">
             Search
           </label>
           <div
-            className="relative"
-            aria-busy={isSearching}
-            data-testid="search-box"
+            className={`flex h-[42px] items-center gap-2 rounded-full border bg-surface px-4 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 ${
+              text ? "border-primary/50" : "border-line"
+            }`}
           >
+            <svg
+              className="h-4 w-4 shrink-0 text-muted"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="11" cy="11" r="7" />
+              <path d="m21 21-4.3-4.3" />
+            </svg>
             <input
               ref={inputRef}
               id="q"
@@ -421,12 +454,8 @@ export function IssueFilters({
               aria-activedescendant={active >= 0 && suggestions[active] ? `${listId}-${active}` : undefined}
               autoComplete="off"
               value={text}
-              placeholder={
-                shortcutsEnabled
-                  ? "Search, or type a tag like Design (/)"
-                  : "Search, or type a tag like Design"
-              }
-              className="w-full rounded-lg border border-slate-300 pl-3 pr-8 py-2 text-sm text-slate-900 shadow-xs focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+              placeholder="Search, or type a tag like Design"
+              className="min-w-0 flex-1 border-0 bg-transparent p-0 text-sm text-ink outline-none placeholder:text-muted"
               onChange={(event) => {
                 setText(event.target.value);
                 setOpen(true);
@@ -464,52 +493,51 @@ export function IssueFilters({
               }}
             />
             {!text && shortcutsEnabled ? (
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2.5">
-                <kbd className="hidden sm:inline-flex items-center rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 select-none">
-                  /
-                </kbd>
-              </div>
-            ) : null}
-            {suggestions.length > 0 ? (
-              <ul
-                id={listId}
-                role="listbox"
-                aria-label="Search suggestions"
-                className="absolute left-0 right-0 z-20 mt-1 overflow-hidden rounded-lg border border-slate-200 bg-card py-1 text-sm shadow-lg"
-              >
-                {suggestions.map((suggestion, index) => (
-                  // eslint-disable-next-line jsx-a11y/click-events-have-key-events
-                  <li
-                    key={`${suggestion.kind}-${suggestion.id}`}
-                    id={`${listId}-${index}`}
-                    role="option"
-                    aria-selected={index === active}
-                    onMouseDown={(event) => event.preventDefault()}
-                    onMouseEnter={() => setActive(index)}
-                    onClick={() => pickSuggestion(suggestion)}
-                    className={`flex cursor-pointer items-center justify-between gap-3 px-3 py-2 ${
-                      index === active ? "bg-teal-50 text-teal-900" : "text-slate-800"
-                    }`}
-                  >
-                    {suggestion.kind === "tag" ? (
-                      <>
-                        <span className="font-medium">{suggestion.name}</span>
-                        <span className="shrink-0 text-xs text-slate-500">Filter by tag</span>
-                      </>
-                    ) : (
-                      <>
-                        <span className="min-w-0 truncate">
-                          <span className="tabular-nums text-slate-500">#{suggestion.number}</span>{" "}
-                          {suggestion.title}
-                        </span>
-                        <span className="shrink-0 text-xs text-slate-500">Open issue</span>
-                      </>
-                    )}
-                  </li>
-                ))}
-              </ul>
+              <kbd className="hidden h-6 min-w-6 select-none items-center justify-center rounded-md border border-line px-1.5 text-[11px] font-bold text-muted sm:inline-flex">
+                /
+              </kbd>
             ) : null}
           </div>
+
+          {suggestions.length > 0 ? (
+            <ul
+              id={listId}
+              role="listbox"
+              aria-label="Search suggestions"
+              className="absolute left-0 right-0 top-[46px] z-30 overflow-hidden rounded-2xl border border-line bg-surface py-1 text-sm shadow-pop"
+            >
+              {suggestions.map((suggestion, index) => (
+                // eslint-disable-next-line jsx-a11y/click-events-have-key-events
+                <li
+                  key={`${suggestion.kind}-${suggestion.id}`}
+                  id={`${listId}-${index}`}
+                  role="option"
+                  aria-selected={index === active}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onMouseEnter={() => setActive(index)}
+                  onClick={() => pickSuggestion(suggestion)}
+                  className={`flex cursor-pointer items-center justify-between gap-3 px-4 py-2.5 ${
+                    index === active ? "bg-tint text-accent" : "text-ink"
+                  }`}
+                >
+                  {suggestion.kind === "tag" ? (
+                    <>
+                      <span className="font-semibold">{suggestion.name}</span>
+                      <span className="shrink-0 text-xs text-muted">Filter by tag</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="min-w-0 truncate">
+                        <span className="tabular-nums text-muted">#{suggestion.number}</span>{" "}
+                        {suggestion.title}
+                      </span>
+                      <span className="shrink-0 text-xs text-muted">Open issue</span>
+                    </>
+                  )}
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </div>
 
         {/* Explicit Search submit (#690): Enter also works, but a visible
@@ -518,7 +546,7 @@ export function IssueFilters({
           type="button"
           onClick={applyQueryNow}
           disabled={isSearching}
-          className="inline-flex h-[38px] shrink-0 items-center gap-1.5 rounded-lg border border-teal-700 bg-teal-700 px-3 text-sm font-medium text-white shadow-xs transition-colors hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 disabled:cursor-default disabled:opacity-70"
+          className={`inline-flex h-[42px] shrink-0 items-center justify-center gap-1.5 rounded-full bg-primary px-4 text-sm font-bold text-white shadow-[0_8px_20px_rgba(46,111,239,0.30)] transition-colors hover:bg-electric-blue-strong disabled:cursor-default disabled:opacity-70 ${focusRing}`}
         >
           {isSearching ? (
             <svg
@@ -536,7 +564,7 @@ export function IssueFilters({
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
-              strokeWidth={1.8}
+              strokeWidth={2}
               aria-hidden="true"
             >
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" />
@@ -555,10 +583,10 @@ export function IssueFilters({
             aria-controls={filterPanelId}
             aria-label={activeFilterCount > 0 ? `Filter (${activeFilterCount} active)` : "Filter"}
             onClick={() => setFilterOpen((prev) => !prev)}
-            className={`inline-flex h-[38px] items-center gap-1.5 rounded-lg border px-3 text-sm font-medium shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 ${
+            className={`inline-flex h-[42px] items-center gap-2 rounded-full border px-4 text-sm font-bold transition-colors ${focusRing} ${
               activeFilterCount > 0 || filterOpen
-                ? "border-teal-600 bg-teal-50 text-teal-900 hover:bg-teal-100"
-                : "border-slate-300 bg-card text-slate-700 hover:bg-slate-50"
+                ? "border-primary bg-tint text-accent"
+                : "border-line bg-surface text-ink hover:bg-tint"
             }`}
           >
             <svg
@@ -566,35 +594,33 @@ export function IssueFilters({
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
-              strokeWidth={1.8}
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
               aria-hidden="true"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
-              />
+              <path d="M22 3H2l8 9.5V19l4 2v-8.5z" />
             </svg>
             <span>Filter</span>
             {activeFilterCount > 0 ? (
               <span
                 aria-hidden="true"
-                className="inline-flex items-center justify-center rounded-full bg-teal-700 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-white"
+                className="inline-flex min-w-5 items-center justify-center rounded-full bg-primary px-1.5 py-0.5 text-[11px] font-bold leading-none text-white"
               >
                 {activeFilterCount}
               </span>
             ) : null}
             <svg
-              className={`h-4 w-4 text-slate-500 transition-transform ${filterOpen ? "rotate-180" : ""}`}
-              viewBox="0 0 20 20"
-              fill="currentColor"
+              className={`h-3.5 w-3.5 transition-transform ${filterOpen ? "rotate-180" : ""}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
               aria-hidden="true"
             >
-              <path
-                fillRule="evenodd"
-                d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z"
-                clipRule="evenodd"
-              />
+              <path d="m6 9 6 6 6-6" />
             </svg>
           </button>
 
@@ -604,13 +630,13 @@ export function IssueFilters({
               id={filterPanelId}
               role="dialog"
               aria-label="Filter issues"
-              className="absolute right-0 z-30 mt-2 w-[calc(100vw-2rem)] max-w-sm rounded-xl border border-slate-200 bg-card p-4 shadow-xl ring-1 ring-black/5"
+              className="absolute right-0 z-40 mt-2 w-[340px] max-w-[calc(100vw-2rem)] rounded-[20px] border border-line bg-surface p-5 shadow-pop"
             >
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center justify-between gap-2 border-b border-divider pb-3">
                 <div className="flex items-center gap-2">
-                  <span className="font-semibold text-slate-900 text-sm">Filters</span>
+                  <span className="text-base font-extrabold text-ink">Filters</span>
                   {activeFilterCount > 0 ? (
-                    <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[11px] font-medium text-teal-800">
+                    <span className="rounded-full bg-tint px-2 py-0.5 text-[11px] font-bold text-accent">
                       {activeFilterCount} active
                     </span>
                   ) : null}
@@ -619,22 +645,22 @@ export function IssueFilters({
                   <button
                     type="button"
                     onClick={clearAllFilters}
-                    className="text-xs font-medium text-teal-700 hover:text-teal-800 hover:underline"
+                    className={`rounded-full px-2 py-1 text-[13px] font-bold text-accent transition-colors hover:bg-tint ${focusRing}`}
                   >
-                    Clear all
+                    Reset
                   </button>
                 ) : null}
               </div>
 
-              <div className="mt-3 space-y-3 max-h-[70vh] overflow-y-auto pr-1">
+              <div className="mt-3 flex max-h-[70vh] flex-col gap-3 overflow-y-auto pr-1">
                 {/* Show (Mine) */}
                 <div>
-                  <label htmlFor="mine" className="mb-1 block text-xs font-medium text-slate-600">
+                  <label htmlFor="mine" className={fieldLabelClass}>
                     Show
                   </label>
                   <select
                     id="mine"
-                    className="w-full rounded-lg border border-slate-300 bg-card px-3 py-2 text-sm text-slate-900 shadow-xs focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                    className={selectClass}
                     value={currentMine === "reported" ? "created" : currentMine}
                     onChange={(event) => update("mine", event.target.value)}
                   >
@@ -649,12 +675,12 @@ export function IssueFilters({
 
                 {/* Stage (#1054): was the sidebar beside the list. */}
                 <div>
-                  <label htmlFor="stage" className="mb-1 block text-xs font-medium text-slate-600">
+                  <label htmlFor="stage" className={fieldLabelClass}>
                     Kind
                   </label>
                   <select
                     id="stage"
-                    className="w-full rounded-lg border border-slate-300 bg-card px-3 py-2 text-sm text-slate-900 shadow-xs focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                    className={selectClass}
                     value={currentStage}
                     onChange={(event) => update(STAGE_PARAM, event.target.value)}
                   >
@@ -669,12 +695,12 @@ export function IssueFilters({
 
                 {/* Status */}
                 <div>
-                  <label htmlFor="status" className="mb-1 block text-xs font-medium text-slate-600">
+                  <label htmlFor="status" className={fieldLabelClass}>
                     Status
                   </label>
                   <select
                     id="status"
-                    className="w-full rounded-lg border border-slate-300 bg-card px-3 py-2 text-sm text-slate-900 shadow-xs focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                    className={selectClass}
                     value={params.get("status") ?? ""}
                     onChange={(event) => update("status", event.target.value)}
                   >
@@ -692,12 +718,12 @@ export function IssueFilters({
 
                 {/* Severity */}
                 <div>
-                  <label htmlFor="severity" className="mb-1 block text-xs font-medium text-slate-600">
+                  <label htmlFor="severity" className={fieldLabelClass}>
                     Severity
                   </label>
                   <select
                     id="severity"
-                    className="w-full rounded-lg border border-slate-300 bg-card px-3 py-2 text-sm text-slate-900 shadow-xs focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                    className={selectClass}
                     value={params.get("severity") ?? ""}
                     onChange={(event) => update("severity", event.target.value)}
                   >
@@ -712,12 +738,12 @@ export function IssueFilters({
 
                 {/* Category */}
                 <div>
-                  <label htmlFor="category" className="mb-1 block text-xs font-medium text-slate-600">
+                  <label htmlFor="category" className={fieldLabelClass}>
                     Category
                   </label>
                   <select
                     id="category"
-                    className="w-full rounded-lg border border-slate-300 bg-card px-3 py-2 text-sm text-slate-900 shadow-xs focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                    className={selectClass}
                     value={selectedNames[0] ?? ""}
                     onChange={(event) => update(TAGS_PARAM, serializeTags([event.target.value]))}
                   >
@@ -743,12 +769,12 @@ export function IssueFilters({
                 {/* Platform */}
                 {platformOptions.length > 0 ? (
                   <div>
-                    <label htmlFor="platform" className="mb-1 block text-xs font-medium text-slate-600">
+                    <label htmlFor="platform" className={fieldLabelClass}>
                       Platform
                     </label>
                     <select
                       id="platform"
-                      className="w-full rounded-lg border border-slate-300 bg-card px-3 py-2 text-sm text-slate-900 shadow-xs focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                      className={selectClass}
                       value={currentPlatform}
                       onChange={(event) => update(PLATFORM_PARAM, event.target.value)}
                     >
@@ -766,12 +792,12 @@ export function IssueFilters({
                 {/* Project area */}
                 {areas.length > 0 ? (
                   <div>
-                    <label htmlFor="area" className="mb-1 block text-xs font-medium text-slate-600">
+                    <label htmlFor="area" className={fieldLabelClass}>
                       Area
                     </label>
                     <select
                       id="area"
-                      className="w-full rounded-lg border border-slate-300 bg-card px-3 py-2 text-sm text-slate-900 shadow-xs focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                      className={selectClass}
                       value={currentArea}
                       onChange={(event) => update(AREA_PARAM, event.target.value)}
                     >
@@ -785,12 +811,12 @@ export function IssueFilters({
                 {/* Milestone */}
                 {milestones.length > 0 ? (
                   <div>
-                    <label htmlFor="milestone" className="mb-1 block text-xs font-medium text-slate-600">
+                    <label htmlFor="milestone" className={fieldLabelClass}>
                       Milestone
                     </label>
                     <select
                       id="milestone"
-                      className="w-full rounded-lg border border-slate-300 bg-card px-3 py-2 text-sm text-slate-900 shadow-xs focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                      className={selectClass}
                       value={milestoneValue}
                       onChange={(event) => update(MILESTONE_PARAM, event.target.value)}
                     >
@@ -808,12 +834,12 @@ export function IssueFilters({
 
                 {/* Sort */}
                 <div>
-                  <label htmlFor="sort" className="mb-1 block text-xs font-medium text-slate-600">
+                  <label htmlFor="sort" className={fieldLabelClass}>
                     Sort By
                   </label>
                   <select
                     id="sort"
-                    className="w-full rounded-lg border border-slate-300 bg-card px-3 py-2 text-sm text-slate-900 shadow-xs focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                    className={selectClass}
                     value={currentSort}
                     onChange={(event) => update("sort", event.target.value)}
                   >
@@ -824,6 +850,16 @@ export function IssueFilters({
                     ))}
                   </select>
                 </div>
+              </div>
+
+              <div className="mt-4 flex gap-2 border-t border-divider pt-4">
+                <button
+                  type="button"
+                  onClick={() => setFilterOpen(false)}
+                  className={`h-[42px] flex-1 rounded-full border border-line bg-surface text-sm font-bold text-ink transition-colors hover:bg-tint ${focusRing}`}
+                >
+                  Done
+                </button>
               </div>
             </div>
           ) : null}
@@ -842,10 +878,10 @@ export function IssueFilters({
                   removeTag(type.name);
                 }}
                 aria-label={`Remove tag ${type.name}`}
-                className="inline-flex items-center gap-1 rounded-full border border-teal-200 bg-teal-50 py-0.5 pl-2.5 pr-1.5 text-xs font-medium text-teal-900 hover:bg-teal-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
+                className={`${chipClass} transition-colors hover:bg-chip-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary`}
               >
                 {type.name}
-                <span aria-hidden="true" className="text-teal-700">×</span>
+                <span aria-hidden="true" className="text-muted">×</span>
               </a>
             </li>
           ))}
@@ -854,22 +890,21 @@ export function IssueFilters({
               <button
                 type="button"
                 onClick={() => update(TAGS_PARAM, "")}
-                className="px-1 text-xs text-slate-500 hover:text-slate-800 hover:underline"
+                className="px-1 text-xs font-semibold text-accent hover:underline"
               >
                 Clear tags
               </button>
             </li>
           ) : null}
         </ul>
-
       ) : null}
 
       {/* Active Filter Chips */}
       {hasActiveFilters ? (
-        <div className="flex w-full flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
-          <span className="text-xs font-medium text-slate-600">Active filters:</span>
+        <div className="flex w-full flex-wrap items-center gap-2 border-t border-divider pt-3">
+          <span className="text-xs font-bold text-muted">Active filters:</span>
           {currentQuery ? (
-            <span className="inline-flex items-center gap-1 rounded-full border border-teal-200 bg-teal-50 py-0.5 pl-2.5 pr-1.5 text-xs font-medium text-teal-900">
+            <span className={chipClass}>
               Search: &ldquo;{currentQuery}&rdquo;
               <button
                 type="button"
@@ -878,27 +913,27 @@ export function IssueFilters({
                   update("q", "");
                 }}
                 aria-label="Remove search filter"
-                className="ml-0.5 rounded-full p-0.5 text-teal-700 hover:bg-teal-200/60"
+                className={chipRemoveClass}
               >
                 ✕
               </button>
             </span>
           ) : null}
           {currentStage ? (
-            <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 py-0.5 pl-2.5 pr-1.5 text-xs font-medium text-slate-800">
+            <span className={chipClass}>
               Kind: {STAGE_OPTIONS.find((option) => option.value === currentStage)?.label}
               <button
                 type="button"
                 onClick={() => update(STAGE_PARAM, "")}
                 aria-label="Remove stage filter"
-                className="ml-0.5 rounded-full p-0.5 text-slate-600 hover:bg-slate-200/60"
+                className={chipRemoveClass}
               >
                 ✕
               </button>
             </span>
           ) : null}
           {params.get("status") ? (
-            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 py-0.5 pl-2.5 pr-1.5 text-xs font-medium text-emerald-900">
+            <span className={chipClass}>
               Status:{" "}
               {params.get("status") === FINISHED_STATUS_FILTER
                 ? "Closed (incl. resolved)"
@@ -907,69 +942,66 @@ export function IssueFilters({
                 type="button"
                 onClick={() => update("status", "")}
                 aria-label="Remove status filter"
-                className="ml-0.5 rounded-full p-0.5 text-emerald-700 hover:bg-emerald-200/60"
+                className={chipRemoveClass}
               >
                 ✕
               </button>
             </span>
           ) : null}
           {params.get("severity") ? (
-            <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 py-0.5 pl-2.5 pr-1.5 text-xs font-medium text-amber-900">
+            <span className={chipClass}>
               Severity: {severityLabel[params.get("severity") as keyof typeof severityLabel] ?? params.get("severity")}
               <button
                 type="button"
                 onClick={() => update("severity", "")}
                 aria-label="Remove severity filter"
-                className="ml-0.5 rounded-full p-0.5 text-amber-700 hover:bg-amber-200/60"
+                className={chipRemoveClass}
               >
                 ✕
               </button>
             </span>
           ) : null}
           {selectedTags.map((type) => (
-            <span
-              key={type.id}
-              className="inline-flex items-center gap-1 rounded-full border border-purple-200 bg-purple-50 py-0.5 pl-2.5 pr-1.5 text-xs font-medium text-purple-900"
-            >
+            <span key={type.id} className={chipClass}>
               Category: {type.name}
               <button
                 type="button"
                 onClick={() => removeTag(type.name)}
                 aria-label={`Remove tag ${type.name}`}
-                className="ml-0.5 rounded-full p-0.5 text-purple-700 hover:bg-purple-200/60"
+                className={chipRemoveClass}
               >
                 ✕
               </button>
             </span>
           ))}
           {currentPlatform === PLATFORM_NONE ? (
-            <span className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 py-0.5 pl-2.5 pr-1.5 text-xs font-medium text-sky-900">
+            <span className={chipClass}>
               Platform: No platform
               <button
                 type="button"
                 onClick={() => update(PLATFORM_PARAM, "")}
                 aria-label="Remove platform filter"
-                className="ml-0.5 rounded-full p-0.5 text-sky-700 hover:bg-sky-200/60"
+                className={chipRemoveClass}
               >
                 ✕
               </button>
             </span>
           ) : null}
           {currentArea ? (
-            <span className="inline-flex items-center gap-1 rounded-full border border-teal-200 bg-teal-50 py-0.5 pl-2.5 pr-1.5 text-xs font-medium text-teal-900">
+            <span className={chipClass}>
               Area: {currentArea === AREA_NONE ? "No area" : areas.find((area) => area.id === currentArea)?.name ?? currentArea}
               <button
                 type="button"
                 onClick={() => update(AREA_PARAM, "")}
                 aria-label="Remove area filter"
-                className="ml-0.5 rounded-full p-0.5 text-teal-700 hover:bg-teal-200/60"
+                className={chipRemoveClass}
               >
                 ✕
               </button>
             </span>
           ) : null}
           {currentMilestone ? (
-            <span className="inline-flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50 py-0.5 pl-2.5 pr-1.5 text-xs font-medium text-indigo-900">
+            <span className={chipClass}>
               Milestone: {currentMilestone === MILESTONE_NONE
                 ? "No milestone"
                 : milestones.find((milestone) => milestone.id === currentMilestone)?.title ?? currentMilestone}
@@ -977,33 +1009,33 @@ export function IssueFilters({
                 type="button"
                 onClick={() => update(MILESTONE_PARAM, "")}
                 aria-label="Remove milestone filter"
-                className="ml-0.5 rounded-full p-0.5 text-indigo-700 hover:bg-indigo-200/60"
+                className={chipRemoveClass}
               >
                 ✕
               </button>
             </span>
           ) : null}
           {currentMine ? (
-            <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-100 py-0.5 pl-2.5 pr-1.5 text-xs font-medium text-slate-800">
+            <span className={chipClass}>
               View: {mineFilterLabels[currentMine as keyof typeof mineFilterLabels] ?? currentMine}
               <button
                 type="button"
                 onClick={() => update("mine", "")}
                 aria-label="Remove view filter"
-                className="ml-0.5 rounded-full p-0.5 text-slate-600 hover:bg-slate-200"
+                className={chipRemoveClass}
               >
                 ✕
               </button>
             </span>
           ) : null}
           {params.get("sort") ? (
-            <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-100 py-0.5 pl-2.5 pr-1.5 text-xs font-medium text-slate-800">
+            <span className={chipClass}>
               Sort: {bugSortLabels[currentSort]}
               <button
                 type="button"
                 onClick={() => update("sort", "")}
                 aria-label="Remove sort filter"
-                className="ml-0.5 rounded-full p-0.5 text-slate-600 hover:bg-slate-200"
+                className={chipRemoveClass}
               >
                 ✕
               </button>
@@ -1012,7 +1044,7 @@ export function IssueFilters({
           <button
             type="button"
             onClick={clearAllFilters}
-            className="ml-auto rounded-lg border border-slate-300 bg-card px-3 py-1.5 text-xs font-medium text-slate-700 shadow-xs hover:bg-slate-50 hover:text-slate-900 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+            className={`ml-auto rounded-full border border-line bg-surface px-3.5 py-1.5 text-xs font-bold text-ink transition-colors hover:bg-tint ${focusRing}`}
           >
             Clear all filters
           </button>

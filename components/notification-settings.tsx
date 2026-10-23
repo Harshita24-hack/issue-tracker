@@ -5,6 +5,7 @@ import {
   setEmailNotificationsAction,
   setNotificationKindAction,
 } from "@/app/actions/settings";
+import { Switch } from "@/components/ui/switch";
 import {
   NOTIFICATION_KINDS,
   PREF_FIELD,
@@ -28,6 +29,20 @@ export function NotificationSettings({
   const [message, setMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
+  function toggleMaster(next: boolean) {
+    setEnabled(next);
+    setMessage(null);
+    startTransition(async () => {
+      const result = await setEmailNotificationsAction(next);
+      if (result.error) {
+        setEnabled(!next);
+        setMessage(result.error);
+      } else {
+        setMessage(next ? "Email notifications are on." : "Email notifications are off.");
+      }
+    });
+  }
+
   function toggleKind(kind: NotificationKind, next: boolean) {
     const field = PREF_FIELD[kind];
     setPrefs((current) => ({ ...current, [field]: next }));
@@ -38,46 +53,31 @@ export function NotificationSettings({
         setPrefs((current) => ({ ...current, [field]: !next }));
         setMessage(result.error);
       } else {
-        setMessage(
-          `${notificationLabels[kind]} ${next ? "turned on" : "turned off"}.`,
-        );
+        setMessage(`${notificationLabels[kind]} ${next ? "turned on" : "turned off"}.`);
       }
     });
   }
 
   return (
-    <div className="mt-4 space-y-4">
-      <label
-        htmlFor="email-notifications"
-        className="flex cursor-pointer items-center gap-3 text-sm font-medium text-slate-800"
-      >
-        <input
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center justify-between gap-4 rounded-[14px] bg-tint p-3.5 sm:px-4">
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <span id="email-notifications-label" className="text-sm font-bold text-ink">
+            Email me about activity on my issues
+          </span>
+          <span id="email-notifications-hint" className="text-[13px] text-muted">
+            Turn off to stop all issue emails.
+          </span>
+        </div>
+        <Switch
           id="email-notifications"
-          type="checkbox"
           checked={enabled}
           disabled={pending}
-          onChange={(event) => {
-            const next = event.target.checked;
-            setEnabled(next);
-            setMessage(null);
-            startTransition(async () => {
-              const result = await setEmailNotificationsAction(next);
-              if (result.error) {
-                setEnabled(!next);
-                setMessage(result.error);
-              } else {
-                setMessage(
-                  next
-                    ? "Email notifications are on."
-                    : "Email notifications are off.",
-                );
-              }
-            });
-          }}
-          className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+          label="Email me about activity on my issues"
+          describedBy="email-notifications-hint"
+          onChange={toggleMaster}
         />
-        Email me about activity on my issues
-      </label>
+      </div>
 
       {/*
         The per-kind choices stay in the DOM while the master switch is off,
@@ -86,34 +86,39 @@ export function NotificationSettings({
       */}
       <fieldset
         disabled={!enabled || pending}
-        className="space-y-3 border-l-2 border-slate-100 pl-4 disabled:opacity-50"
+        className="flex flex-col gap-2 disabled:opacity-55"
       >
         <legend className="sr-only">Which emails to send</legend>
         {NOTIFICATION_KINDS.map((kind) => {
           const id = `notify-${kind}`;
+          const hintId = `${id}-hint`;
           return (
-            <div key={kind} className="flex items-start gap-3">
-              <input
-                id={id}
-                type="checkbox"
-                checked={prefs[PREF_FIELD[kind]]}
-                onChange={(event) => toggleKind(kind, event.target.checked)}
-                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
-              />
-              <label htmlFor={id} className="cursor-pointer text-sm">
-                <span className="font-medium text-slate-800">
+            <div
+              key={kind}
+              className="ml-5 flex items-center justify-between gap-4 rounded-[14px] bg-chip p-3.5 sm:px-4"
+            >
+              <div className="flex min-w-0 flex-col gap-0.5">
+                <span id={`${id}-label`} className="text-sm font-bold text-ink">
                   {notificationLabels[kind]}
                 </span>
-                <span className="block text-slate-600">
+                <span id={hintId} className="text-[13px] text-muted">
                   {notificationDescriptions[kind]}
                 </span>
-              </label>
+              </div>
+              <Switch
+                id={id}
+                checked={prefs[PREF_FIELD[kind]]}
+                disabled={!enabled || pending}
+                label={notificationLabels[kind]}
+                describedBy={hintId}
+                onChange={(next) => toggleKind(kind, next)}
+              />
             </div>
           );
         })}
       </fieldset>
 
-      <p className="text-sm text-slate-600 empty:hidden" role="status" aria-live="polite">
+      <p role="status" aria-live="polite" className="text-sm font-semibold text-ok-fg empty:hidden">
         {message}
       </p>
     </div>
