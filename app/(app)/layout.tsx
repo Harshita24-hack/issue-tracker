@@ -18,6 +18,8 @@ import { tenantsForUser } from "@/lib/tenants";
 import { countPendingEscalations } from "@/lib/agent-questions";
 import { pointTotals, tenantRankFor } from "@/lib/points/leaderboard";
 import { loadOwnAgents, loadSidebarCounts } from "@/lib/dashboard-overview";
+import { getPlatformRewardConfig } from "@/lib/points/platform-rewards";
+import { TARGET_POINTS } from "@/lib/points/rules";
 import { SIDEBAR_COOKIE, parseSidebarCollapsed } from "@/lib/sidebar";
 import { headerNavItems } from "@/lib/header-nav";
 
@@ -78,6 +80,12 @@ export default async function AppLayout({
   let rank: number | null = null;
   let sidebarUnresolved = 0;
   let agents: HeaderAgent[] = [];
+  let targetPoints = TARGET_POINTS;
+  try {
+    targetPoints = (await getPlatformRewardConfig(prisma)).target;
+  } catch (error) {
+    console.error("[layout] platform rewards failed", error);
+  }
   if (tenantId) {
     try {
       pendingEscalationsCount = await countPendingEscalations(user.id, tenantId);
@@ -154,6 +162,7 @@ export default async function AppLayout({
           activeTenantId={activeTenantId}
           points={points}
           solvedTasks={solvedTasks}
+          targetPoints={targetPoints}
           rank={rank}
           agents={agents}
           reportFormUrl={REPORT_FORM_URL}

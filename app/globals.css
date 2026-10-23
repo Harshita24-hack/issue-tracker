@@ -12,6 +12,31 @@
   --foreground: var(--text);
   --card: var(--surface);
   color-scheme: light;
+
+  /* `zk-*` aliases used by the shared redesign components. They resolve
+     through the same light/dark handoff tokens as the rest of the app. */
+  --zk-bg: var(--bg);
+  --zk-surface: var(--surface);
+  --zk-text: var(--text);
+  --zk-text2: var(--text2);
+  --zk-muted: var(--muted);
+  --zk-border: var(--border);
+  --zk-divider: var(--divider);
+  --zk-tint: var(--tint);
+  --zk-chip: var(--chip);
+  --zk-seg: var(--seg);
+  --zk-accent: var(--accentText);
+  --zk-ok-bg: var(--okBg);
+  --zk-ok-fg: var(--okFg);
+  --zk-bad-bg: var(--badBg);
+  --zk-bad-fg: var(--badFg);
+  --zk-bad-bd: var(--badBd);
+  --zk-bad-soft: var(--badSoft);
+  --zk-warn-bg: var(--warnBg);
+  --zk-warn-fg: var(--warnFg);
+  --zk-warn-bd: var(--warnBd);
+  --zk-info-bg: var(--infoBg);
+  --zk-info-fg: var(--infoFg);
 }
 
 @theme inline {
@@ -19,7 +44,7 @@
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --font-sans: var(--font-manrope);
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-mono: var(--font-geist-mono);
 
   /* Redesign tokens as utilities: bg-surface, text-ink, border-line, ... */
   --color-surface: var(--surface);
@@ -47,6 +72,28 @@
   --color-info-fg: var(--infoFg);
   --color-sec-bg: var(--secBg);
   --color-sec-fg: var(--secFg);
+  --color-zk-bg: var(--zk-bg);
+  --color-zk-surface: var(--zk-surface);
+  --color-zk-text: var(--zk-text);
+  --color-zk-text2: var(--zk-text2);
+  --color-zk-muted: var(--zk-muted);
+  --color-zk-border: var(--zk-border);
+  --color-zk-divider: var(--zk-divider);
+  --color-zk-tint: var(--zk-tint);
+  --color-zk-chip: var(--zk-chip);
+  --color-zk-seg: var(--zk-seg);
+  --color-zk-accent: var(--zk-accent);
+  --color-zk-ok-bg: var(--zk-ok-bg);
+  --color-zk-ok-fg: var(--zk-ok-fg);
+  --color-zk-bad-bg: var(--zk-bad-bg);
+  --color-zk-bad-fg: var(--zk-bad-fg);
+  --color-zk-bad-bd: var(--zk-bad-bd);
+  --color-zk-bad-soft: var(--zk-bad-soft);
+  --color-zk-warn-bg: var(--zk-warn-bg);
+  --color-zk-warn-fg: var(--zk-warn-fg);
+  --color-zk-warn-bd: var(--zk-warn-bd);
+  --color-zk-info-bg: var(--zk-info-bg);
+  --color-zk-info-fg: var(--zk-info-fg);
   --shadow-pop: var(--popShadow);
 }
 
@@ -78,6 +125,14 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .zk-motion,
+  .zk-motion * {
+    animation: none !important;
+    transition: none !important;
+  }
 }
 
 /* Header account menu opening (respects reduced motion via motion-safe:). */

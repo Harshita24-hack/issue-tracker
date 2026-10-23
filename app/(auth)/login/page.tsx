@@ -88,15 +88,8 @@ export default async function LoginPage({
     : googleConfigured
       ? "Use your Google account to report, vote on and track issues."
       : "Sign in to report issues, vote on what matters and track every fix.";
-  // The auth layout reserves 5rem/6rem below the page for the fixed report
-  // button. Subtract it here so the panel still fills exactly one screen
-  // instead of making the page taller than the viewport.
-  const viewportClass = REPORT_FORM_URL
-    ? "min-h-[calc(100svh-5rem)] sm:min-h-[calc(100svh-6rem)]"
-    : "min-h-svh";
-
   return (
-    <main className={`flex ${viewportClass} flex-wrap bg-background text-ink`}>
+    <main className="flex min-h-svh flex-wrap bg-background text-ink">
       <section
         aria-label="About Ziki"
         className="relative hidden min-h-[inherit] min-w-0 flex-[1_1_560px] flex-col gap-6 overflow-hidden bg-[#0B1733] px-12 py-8 text-white lg:flex [@media(min-height:850px)]:gap-10 [@media(min-height:850px)]:px-14 [@media(min-height:850px)]:py-12"
@@ -232,7 +225,7 @@ export default async function LoginPage({
 
       <section
         aria-label="Sign in"
-        className="relative flex min-h-[inherit] min-w-0 flex-[1_1_480px] flex-col items-center justify-center gap-4 px-6 py-6 sm:px-8 sm:py-8"
+        className="relative flex min-h-[inherit] min-w-0 flex-[1_1_480px] flex-col items-center justify-center gap-4 px-6 py-6 sm:px-8 [@media(min-height:850px)]:py-8"
       >
         <div className="absolute right-4 top-4 sm:right-6 sm:top-6">
           <ThemeToggle persist="device" />

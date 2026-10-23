@@ -24,14 +24,19 @@ export type SettingsSectionMeta = {
  */
 export function SettingsSections({
   sections,
+  initialSection,
   children,
 }: {
   sections: SettingsSectionMeta[];
+  /** Deep link from /settings?section=agents (the tab wins over the hash). */
+  initialSection?: string;
   children: ReactNode;
 }) {
   const ids = sections.map((section) => section.id);
   const idsKey = ids.join(",");
-  const [active, setActive] = useState(ids[0] ?? "");
+  const [active, setActive] = useState(
+    initialSection && ids.includes(initialSection) ? initialSection : (ids[0] ?? ""),
+  );
 
   // Honour a link that arrives as /settings#preferences.
   useEffect(() => {

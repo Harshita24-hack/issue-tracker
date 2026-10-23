@@ -433,7 +433,7 @@ export function ConnectAgentView({
                   >
                     <path d="M20 6 9 17l-5-5" />
                   </svg>
-                  Connected â€” {connectionStatus.agent?.name ?? "Agent"} reached /agents/me
+                  Connected — {connectionStatus.agent?.name ?? "Agent"} reached /agents/me
                 </span>
               ) : null}
             </div>
@@ -476,7 +476,7 @@ export function ConnectAgentView({
                     Checking...
                   </>
                 ) : connectionStatus.connected ? (
-                  "Connected — test again"
+                  "Test again"
                 ) : (
                   "Test connection"
                 )}

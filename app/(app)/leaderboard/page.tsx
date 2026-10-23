@@ -17,7 +17,7 @@ import {
   leaderboardPercent,
   solvedLabel,
 } from "@/lib/points/leaderboard-view";
-import { TARGET_POINTS } from "@/lib/points/rules";
+import { getPlatformRewardConfig } from "@/lib/points/platform-rewards";
 
 export const metadata = { title: "Leaderboard" };
 
@@ -63,10 +63,18 @@ function TrophyIcon() {
 }
 
 /** A top-three card: medal, avatar with a rank-coloured ring, points and progress. */
-function PodiumCard({ entry, place }: { entry: LeaderboardEntry; place: number }) {
+function PodiumCard({
+  entry,
+  place,
+  targetPoints,
+}: {
+  entry: LeaderboardEntry;
+  place: number;
+  targetPoints: number;
+}) {
   const tone = podiumTone[place] ?? podiumTone[2];
-  const percent = leaderboardPercent(entry.points, TARGET_POINTS);
-  const met = entry.points >= TARGET_POINTS;
+  const percent = leaderboardPercent(entry.points, targetPoints);
+  const met = entry.points >= targetPoints;
 
   return (
     <div className="flex flex-col gap-4 rounded-[20px] border border-line bg-surface p-5">
@@ -109,7 +117,7 @@ function PodiumCard({ entry, place }: { entry: LeaderboardEntry; place: number }
         <span
           className={`text-xs font-bold ${met ? "text-ok-fg" : "text-muted"}`}
         >
-          {goalLabel(entry.points, TARGET_POINTS)}
+          {goalLabel(entry.points, targetPoints)}
         </span>
       </div>
     </div>
@@ -122,16 +130,18 @@ function YourStanding({
   total,
   points,
   solvedTasks,
+  targetPoints,
   next,
 }: {
   rank: number | null;
   total: number;
   points: number;
   solvedTasks: number;
+  targetPoints: number;
   next: LeaderboardEntry | null;
 }) {
-  const percent = leaderboardPercent(points, TARGET_POINTS);
-  const met = points >= TARGET_POINTS;
+  const percent = leaderboardPercent(points, targetPoints);
+  const met = points >= targetPoints;
   const ahead =
     rank === 1 && next ? `${Math.max(0, points - next.points)} pts ahead of #2` : null;
 
@@ -158,15 +168,15 @@ function YourStanding({
       <div className="relative flex flex-col gap-2">
         <div className="flex flex-wrap items-center justify-between gap-2 text-[13px]">
           <span className="text-sidebar-ink">
-            {points} / {TARGET_POINTS} pts
+            {points} / {targetPoints} pts
           </span>
           {met ? (
             <span className="rounded-full bg-ok-bg px-2 py-0.5 font-bold text-ok-fg">
-              {goalLabel(points, TARGET_POINTS)}
+              {goalLabel(points, targetPoints)}
             </span>
           ) : (
             <span className="text-sidebar-muted">
-              {goalLabel(points, TARGET_POINTS)}
+              {goalLabel(points, targetPoints)}
             </span>
           )}
         </div>
@@ -204,6 +214,7 @@ export default async function LeaderboardPage({
 
   const user = await requireUser();
   const tenantId = await currentTenantIdFor(user.id);
+  const targetPoints = (await getPlatformRewardConfig(prisma)).target;
   const { entries: rows, total, totalPages } = tenantId
     ? await paginatedTenantLeaderboard(prisma, tenantId, { page, limit })
     : { entries: [], total: 0, totalPages: 0 };
@@ -260,7 +271,7 @@ export default async function LeaderboardPage({
           </h1>
           <p className="text-sm leading-relaxed text-muted">
             Points for solving, reporting and reviewing issues. The goal is{" "}
-            {TARGET_POINTS} points.
+            {targetPoints} points.
           </p>
         </div>
         <Link
@@ -295,7 +306,12 @@ export default async function LeaderboardPage({
           <div className="flex flex-wrap items-stretch gap-4">
             <div className="grid min-w-0 flex-[999_1_640px] grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4">
               {podium.map((entry, index) => (
-                <PodiumCard key={entry.userId} entry={entry} place={index} />
+                <PodiumCard
+                  key={entry.userId}
+                  entry={entry}
+                  place={index}
+                  targetPoints={targetPoints}
+                />
               ))}
             </div>
             <YourStanding
@@ -303,6 +319,7 @@ export default async function LeaderboardPage({
               total={peopleTotal}
               points={viewerPoints}
               solvedTasks={viewerSolved}
+              targetPoints={targetPoints}
               next={podium[1] ?? null}
             />
           </div>
@@ -311,7 +328,7 @@ export default async function LeaderboardPage({
             rows={rows}
             viewerId={user.id}
             total={total}
-            targetPoints={TARGET_POINTS}
+            targetPoints={targetPoints}
             footer={
               totalPages > 1 ? (
                 <nav

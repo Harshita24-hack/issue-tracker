@@ -232,7 +232,7 @@ export function PairForm({
             disabled={pendingAction || projects.length === 0}
             className="h-12 flex-[2_1_200px] text-[15px] font-bold shadow-[0_8px_20px_rgba(46,111,239,0.30)]"
           >
-            {pendingAction ? "Approving…" : "Approve"}
+            {pendingAction ? "Approving…" : "Approve agent"}
           </Button>
           <Link
             href="/settings/agents"

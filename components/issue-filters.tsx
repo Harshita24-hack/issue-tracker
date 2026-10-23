@@ -629,7 +629,7 @@ export function IssueFilters({
               ref={filterPanelRef}
               id={filterPanelId}
               role="dialog"
-              aria-label="Filter issues"
+              aria-label="Filters"
               className="absolute right-0 z-40 mt-2 w-[340px] max-w-[calc(100vw-2rem)] rounded-[20px] border border-line bg-surface p-5 shadow-pop"
             >
               <div className="flex items-center justify-between gap-2 border-b border-divider pb-3">

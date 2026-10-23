@@ -130,13 +130,15 @@ function PointsPill({
   points,
   solvedTasks,
   userId,
+  targetPoints = TARGET_POINTS,
 }: {
   points: number;
   solvedTasks: number;
   userId?: string | null;
+  targetPoints?: number;
 }) {
   if (!userId) return null;
-  const label = `${points} pts of ${TARGET_POINTS}, ${solvedTasks} solved`;
+  const label = `${points} pts of ${targetPoints}, ${solvedTasks} solved`;
   return (
     <Link
       href={`/users/${userId}`}
@@ -148,7 +150,7 @@ function PointsPill({
       </span>
       <span className="font-extrabold tabular-nums">{points}</span>
       <span className="text-muted">pts</span>
-      <span className="sr-only"> of {TARGET_POINTS}, {solvedTasks} solved</span>
+      <span className="sr-only"> of {targetPoints}, {solvedTasks} solved</span>
     </Link>
   );
 }
@@ -343,6 +345,7 @@ export function AppHeader({
   activeTenantId = null,
   points = 0,
   solvedTasks = 0,
+  targetPoints = TARGET_POINTS,
   rank = null,
   agents = [],
   reportFormUrl,
@@ -364,6 +367,8 @@ export function AppHeader({
   /** This person's points in the open workspace. */
   points?: number;
   solvedTasks?: number;
+  /** Platform points goal (hard-coded fallback when unset). */
+  targetPoints?: number;
   /** Their place on the workspace leaderboard; null when they have no points yet. */
   rank?: number | null;
   /** Their own agents in the open workspace, for the Agents dropdown. */
@@ -400,7 +405,12 @@ export function AppHeader({
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-surface">
       <div className="flex flex-wrap items-center justify-end gap-2 px-4 py-3 sm:gap-3 sm:px-6">
-        <PointsPill points={points} solvedTasks={solvedTasks} userId={userId} />
+        <PointsPill
+          points={points}
+          solvedTasks={solvedTasks}
+          userId={userId}
+          targetPoints={targetPoints}
+        />
 
         {escalations ? (
           <EscalationsButton

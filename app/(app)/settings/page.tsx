@@ -135,7 +135,12 @@ function LinkCard({
 }
 
 /** The settings index: account, preferences, agents and data. */
-export default async function SettingsPage() {
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ section?: string }>;
+}) {
+  const params = searchParams ? await searchParams : {};
   const user = await requireUser();
   let settings: {
     name?: string | null;
@@ -271,7 +276,7 @@ export default async function SettingsPage() {
         <p className="text-sm text-muted">Manage your profile, preferences, agents and data.</p>
       </div>
 
-      <SettingsSections sections={sections}>
+      <SettingsSections sections={sections} initialSection={params.section}>
         <div data-settings-section="account" className="flex flex-col gap-4">
           <section className={CARD}>
             <div className="flex flex-wrap items-center justify-between gap-3">

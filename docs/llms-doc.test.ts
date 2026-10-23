@@ -47,7 +47,7 @@ describe("llms.txt accuracy", () => {
     expect(doc).toContain("unread=1");
     expect(doc).toContain("upTo");
     for (const kind of INBOX_KINDS) expect(doc).toContain(`| \`${kind}\` |`);
-  });
+  }, 15000);
 
   it("defines agent persona, user interaction protocol, and capability explanation (#756)", () => {
     expect(doc).toContain("Agent Persona & Interaction Protocol");

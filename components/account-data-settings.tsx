@@ -3,27 +3,19 @@
 import { useState, useTransition } from "react";
 import { unstable_rethrow } from "next/navigation";
 import { deleteAccountAction } from "@/app/actions/account";
-import { Button } from "@/components/ui/button";
-import { useConfirm } from "@/components/ui/confirm-dialog";
 import { isRedirectError } from "@/lib/toast-store";
 
 export function AccountDataSettings() {
   const [error, setError] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const [confirmText, setConfirmText] = useState("");
   const [pending, startTransition] = useTransition();
-  const confirm = useConfirm();
 
-  const handleDelete = async () => {
+  const deleteLocked = confirmText !== "DELETE" || pending;
+
+  const handleDelete = () => {
+    if (confirmText !== "DELETE") return;
     setError(null);
-    const confirmed = await confirm({
-      title: "Delete your account?",
-      body:
-        "This action is permanent and cannot be undone. Your authored issues and comments will be anonymised, your agents and keys will be revoked, and your organization memberships will be removed.",
-      confirmLabel: "Delete account",
-      tone: "danger",
-    });
-
-    if (!confirmed) return;
-
     startTransition(async () => {
       try {
         const result = await deleteAccountAction();
@@ -111,15 +103,57 @@ export function AccountDataSettings() {
           </div>
         ) : null}
 
-        <Button
-          type="button"
-          variant="danger-secondary"
-          disabled={pending}
-          onClick={handleDelete}
-          className="h-11 self-start px-5 font-bold"
-        >
-          {pending ? "Deleting account..." : "Delete account"}
-        </Button>
+        {!confirming ? (
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() => {
+              setConfirming(true);
+              setConfirmText("");
+              setError(null);
+            }}
+            className="h-11 self-start rounded-full border border-bad-bd bg-surface px-5 text-sm font-bold text-bad-fg transition-colors hover:bg-bad-bg/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bad-fg focus-visible:ring-offset-2 disabled:opacity-50"
+          >
+            Delete account…
+          </button>
+        ) : (
+          <div className="flex flex-col gap-2.5 rounded-[14px] border border-bad-bd bg-surface p-4">
+            <label className="flex flex-col gap-1.5 text-[13px] font-bold text-ink">
+              Type DELETE to confirm
+              <input
+                type="text"
+                value={confirmText}
+                onChange={(event) => setConfirmText(event.target.value)}
+                autoComplete="off"
+                className="h-11 rounded-xl border border-bad-bd bg-surface px-3.5 text-sm tracking-[0.06em] text-ink outline-none focus-visible:ring-2 focus-visible:ring-bad-fg"
+              />
+            </label>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirming(false);
+                  setConfirmText("");
+                }}
+                className="h-[42px] rounded-full border border-line bg-surface px-[18px] font-bold text-ink transition-colors hover:bg-tint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={deleteLocked}
+                onClick={handleDelete}
+                className={`h-[42px] rounded-full px-[18px] text-sm font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bad-fg focus-visible:ring-offset-2 ${
+                  deleteLocked
+                    ? "cursor-not-allowed bg-chip text-muted"
+                    : "bg-bad-fg text-white hover:brightness-105"
+                }`}
+              >
+                {pending ? "Deleting…" : "Permanently delete"}
+              </button>
+            </div>
+          </div>
+        )}
       </section>
     </div>
   );
