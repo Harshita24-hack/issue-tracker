@@ -6,6 +6,12 @@ import { afterEach, describe, expect, it } from "vitest";
 import { ActivityTimeline, filterRedundantActivities, type ActivityEntry } from "./activity-timeline";
 
 let seq = 0;
+/**
+ * Factory helper for creating test activity entries with unique IDs.
+ *
+ * @param overrides - Partial overrides for activity entry properties.
+ * @returns A complete ActivityEntry test object.
+ */
 function entry(overrides: Partial<ActivityEntry> = {}): ActivityEntry {
   seq += 1;
   return {

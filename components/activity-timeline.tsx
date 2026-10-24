@@ -57,6 +57,16 @@ export function filterRedundantActivities(entries: ActivityEntry[]): ActivityEnt
   return result;
 }
 
+/**
+ * Renders the collapsible read-only activity timeline for an issue (#418, #448).
+ * Redundant consecutive touchpoints are filtered to streamline presentation
+ * while preserving full audit history upon expansion.
+ *
+ * @param props - Properties containing activity entries and total count.
+ * @param props.activities - The newest activity entries, oldest first.
+ * @param props.totalCount - Optional total entry count on the issue.
+ * @returns The rendered activity timeline section element.
+ */
 export function ActivityTimeline({
   activities,
   totalCount,
